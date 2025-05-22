@@ -8,39 +8,112 @@ import zipfile
 import shutil
 from pathlib import Path
 
+# dataset_utils.py dosyasındaki download_dataset fonksiyonunu bu şekilde değiştirin:
+
 def download_dataset(url, dataset_dir='datasets/roboflow_dataset'):
-    """Download YOLO formatted dataset from Roboflow"""
+    """Download YOLO formatted dataset from Roboflow with improved error handling"""
     print(f'Downloading dataset: {url}')
 
     # Create target directory
     os.makedirs(dataset_dir, exist_ok=True)
 
-    # Download dataset
-    download_url = f"{url}&format=yolov5"  # Use YOLOv5 format - more compatible directory structure
+    # Prepare download URL with better format handling
+    if "universe.roboflow.com" in url:
+        # Universe format
+        if "?" in url:
+            if "format=" not in url:
+                download_url = f"{url}&format=yolov5"
+            else:
+                download_url = url
+        else:
+            download_url = f"{url}?format=yolov5"
+    else:
+        download_url = f"{url}&format=yolov5" if "?" in url else f"{url}?format=yolov5"
+    
     zip_path = os.path.join(dataset_dir, 'dataset.zip')
 
-    try:
-        urllib.request.urlretrieve(download_url, zip_path)
-        print(f'Download completed: {zip_path}')
+    # Try multiple download methods
+    for attempt in range(3):
+        try:
+            print(f"Download attempt {attempt + 1}/3")
+            
+            # Method 1: requests library (more reliable)
+            import requests
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            response = requests.get(download_url, headers=headers, timeout=300, stream=True)
+            response.raise_for_status()
+            
+            # Check if response is actually a ZIP file
+            content_type = response.headers.get('content-type', '')
+            if 'zip' not in content_type and 'octet-stream' not in content_type:
+                print(f"Warning: Unexpected content type: {content_type}")
+            
+            # Download with progress
+            total_size = int(response.headers.get('content-length', 0))
+            downloaded = 0
+            
+            with open(zip_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        if total_size > 0:
+                            progress = (downloaded / total_size) * 100
+                            print(f"\rProgress: {progress:.1f}%", end="")
+            
+            print(f'\nDownload completed: {zip_path}')
+            
+            # Validate ZIP file
+            if not os.path.exists(zip_path) or os.path.getsize(zip_path) < 1000:
+                print("Downloaded file is too small or missing")
+                continue
+            
+            # Test ZIP file integrity
+            try:
+                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                    file_list = zip_ref.namelist()
+                    if len(file_list) == 0:
+                        print("ZIP file is empty")
+                        continue
+                    print(f"ZIP contains {len(file_list)} files")
+            except zipfile.BadZipFile:
+                print("Invalid ZIP file, retrying...")
+                continue
 
-        # Extract ZIP file
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(dataset_dir)
-        print(f'Archive extracted: {dataset_dir}')
+            # Extract ZIP file
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(dataset_dir)
+            print(f'Archive extracted: {dataset_dir}')
 
-        # Remove ZIP file
-        os.remove(zip_path)
+            # Remove ZIP file
+            os.remove(zip_path)
 
-        # Fix directory structure
-        fix_directory_structure(dataset_dir)
+            # Fix directory structure
+            fix_directory_structure(dataset_dir)
 
-        # Update and save dataset YAML
-        update_dataset_yaml(dataset_dir)
+            # Update and save dataset YAML
+            update_dataset_yaml(dataset_dir)
 
-        return True
-    except Exception as e:
-        print(f'Dataset download error: {e}')
-        return False
+            return True
+            
+        except requests.exceptions.RequestException as e:
+            print(f'Requests error on attempt {attempt + 1}: {e}')
+        except zipfile.BadZipFile:
+            print(f'Bad ZIP file on attempt {attempt + 1}')
+        except Exception as e:
+            print(f'Error on attempt {attempt + 1}: {e}')
+        
+        # Wait before retry
+        if attempt < 2:
+            print("Waiting 5 seconds before retry...")
+            import time
+            time.sleep(5)
+
+    print(f'❌ All download attempts failed for {url}')
+    return False
 
 def fix_directory_structure(dataset_dir):
     """Fix directory structure to match YOLO11 expectations"""
