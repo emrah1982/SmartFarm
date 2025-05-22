@@ -21,7 +21,7 @@ datasets:
   # ============================================================================
   base_datasets:
     plant_village:
-      url: "https://universe.roboflow.com/new-workspace-mk0mj/plant-village-yh90l/dataset/1"
+      url: "https://universe.roboflow.com/ds/RxUSqZ4p8K?key=mZz5zk0FvR"
       description: "Plant Village Dataset - Comprehensive plant disease collection"
       resize_info: "Stretch to 640x640"
       expected_classes: ["damaged", "healthy", "ripe", "unripe"]
