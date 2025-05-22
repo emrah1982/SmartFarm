@@ -109,6 +109,7 @@ datasets = [
 🟫 Kahverengi bounding box + "MANTAR HASTALIĞI: Elma Karaleke (0.92)"  
 🟢 Yeşil bounding box + "SAĞLIKLI: Domates Yaprağı (0.78)"
 🟡 Sarı bounding box + "BESİN EKSİKLİĞİ: Azot Eksikliği (0.67)"
+🟩 Açık yeşil-gri bounding box + "Yabanci Ot(0.77)"
 ```
 
 ### Hibrit Sınıf Sistemi
