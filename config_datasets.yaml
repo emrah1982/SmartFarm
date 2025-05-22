@@ -21,17 +21,17 @@ datasets:
   # ============================================================================
   base_datasets:
     # TEMPORARILY DISABLED - Download issues
-    # plant_village:
-    #   url: "https://universe.roboflow.com/new-workspace-mk0mj/plant-village-yh90l/dataset/1"
-    #   description: "Plant Village Dataset - Comprehensive plant disease collection"
-    #   resize_info: "Stretch to 640x640"
-    #   expected_classes: ["damaged", "healthy", "ripe", "unripe"]
-    #   class_count: 4
-    #   priority: 1
-    #   category: "diseases"
-    #   dataset_type: "mixed"
-    #   added_date: "2024-01-01"
-    #   notes: "DISABLED - Download problems"
+    plant_village:
+       url: "https://universe.roboflow.com/ds/RxUSqZ4p8K?key=mZz5zk0FvR"
+       description: "Plant Village Dataset - Comprehensive plant disease collection"
+       resize_info: "Stretch to 640x640"
+       expected_classes: ["damaged", "healthy", "ripe", "unripe"]
+       class_count: 4
+       priority: 1
+       category: "diseases"
+       dataset_type: "mixed"
+       added_date: "2024-01-01"
+       notes: "DISABLED - Download problems"
       
     plant_diseases_comprehensive:
       url: "https://universe.roboflow.com/ds/0UULi7Pnno?key=PU2zi8AslM"
