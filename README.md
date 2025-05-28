@@ -61,7 +61,7 @@ Bu proje, birden fazla Roboflow veri setini birleştirerek YOLO11 object detecti
 
 ```bash
 # Google Colab'da çalıştırın
-!git clone https://github.com/your-repo/yolo11-multi-dataset.git
+!git clone https://github.com/emrah1982/SmartFarm.git
 %cd yolo11-multi-dataset
 
 # Gerekli paketleri yükle
