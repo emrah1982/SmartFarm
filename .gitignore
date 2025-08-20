@@ -1,0 +1,101 @@
+# Google Drive Credentials - GÜVENLİK İÇİN ASLA COMMIT ETMEYİN!
+credentials.json
+token.pickle
+drive_config.json
+drive_uploads.json
+
+# Temporary checkpoint files
+temp_checkpoint_*.pt
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyTorch model files (büyük dosyalar)
+*.pt
+*.pth
+*.onnx
+*.engine
+*.tflite
+
+# Training outputs
+runs/
+datasets/
+yolo11_models/
+weights/
+results/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment variables
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Cache
+.cache/
+*.cache
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Dataset downloads
+*.zip
+*.tar.gz
+*.tar
+*.rar
+
+# Google Colab specific
+.config/
+
+# Large data files
+data/
+images/
+videos/
