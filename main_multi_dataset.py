@@ -31,6 +31,15 @@ except ImportError:
     print("⚠️  HierarchicalDetectionVisualizer not available")
     HIERARCHICAL_DETECTION_AVAILABLE = False
 
+# Import augmentation systems
+try:
+    from tomato_disease_augmentation import TomatoDiseaseAugmentation
+    from tomato_pest_augmentation import TomatoPestAugmentation
+    AUGMENTATION_SYSTEMS_AVAILABLE = True
+except ImportError:
+    print("⚠️  Augmentation systems not available")
+    AUGMENTATION_SYSTEMS_AVAILABLE = False
+
 # Check if running in Colab
 def is_colab():
     """Check if running in Google Colab"""
@@ -94,6 +103,8 @@ def save_models_to_drive(drive_folder_path, best_file=True, last_file=True):
     if copied_files:
         print(f"✅ Files saved to Google Drive: {', '.join(copied_files)}")
         print(f"📁 Save location: {drive_folder_path}")
+        print(f"📂 Dosyalar şu klasörde: {drive_folder_path}")
+        print(f"🗂️  Kaydedilen dosya sayısı: {len(copied_files)}")
         return True
     else:
         print("❌ No files found to copy.")
@@ -650,9 +661,12 @@ def main():
             
             # Save to Google Drive
             if in_colab and options.get('drive_save_path'):
-                print("\n💾 Modeller Google Drive'a kaydediliyor...")
-                if save_models_to_drive(options['drive_save_path']):
-                    print("✅ Modeller Google Drive'a başarıyla kaydedildi.")
+                drive_path = options['drive_save_path']
+                print(f"\n💾 Modeller Google Drive'a kaydediliyor...")
+                print(f"📁 Hedef klasör: {drive_path}")
+                if save_models_to_drive(drive_path):
+                    print(f"✅ Modeller başarıyla kaydedildi: {drive_path}")
+                    print(f"📂 Kaydedilen dosyalar şu konumda: {drive_path}")
                 else:
                     print("❌ Modeller Google Drive'a kaydedilemedi.")
         else:
@@ -662,9 +676,12 @@ def main():
             if in_colab and options.get('drive_save_path'):
                 save_anyway = input("\nKısmi eğitim sonuçlarını Google Drive'a kaydet? (e/h, varsayılan: e): ").lower() or "e"
                 if save_anyway.startswith("e"):
-                    print("\n💾 Kısmi sonuçlar Google Drive'a kaydediliyor...")
-                    if save_models_to_drive(options['drive_save_path']):
-                        print("✅ Kısmi sonuçlar Google Drive'a kaydedildi.")
+                    drive_path = options['drive_save_path']
+                    print(f"\n💾 Kısmi sonuçlar Google Drive'a kaydediliyor...")
+                    print(f"📁 Hedef klasör: {drive_path}")
+                    if save_models_to_drive(drive_path):
+                        print(f"✅ Kısmi sonuçlar kaydedildi: {drive_path}")
+                        print(f"📂 Kaydedilen dosyalar şu konumda: {drive_path}")
                     else:
                         print("❌ Kısmi sonuçlar kaydedilemedi.")
         
