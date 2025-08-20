@@ -14,6 +14,7 @@ from hyperparameters import create_hyperparameters_file, load_hyperparameters
 from memory_utils import show_memory_usage, clean_memory
 from training import train_model, save_to_drive
 from model_downloader import download_yolo11_models, download_specific_model_type
+from language_manager import get_text, select_language
 
 # Import updated multi-dataset manager
 try:
@@ -100,25 +101,25 @@ def save_models_to_drive(drive_folder_path, best_file=True, last_file=True):
 
 def download_models_menu():
     """Interactive menu for downloading YOLO11 models"""
-    print("\n===== YOLO11 Model Download =====")
+    print(f"\n{get_text('model_download_title')}")
     
     default_dir = os.path.join("/content/colab_learn", "yolo11_models") if is_colab() else "yolo11_models"
-    save_dir = input(f"\nSave directory (default: {default_dir}): ") or default_dir
+    save_dir = input(get_text('save_directory', default=default_dir)) or default_dir
     
-    print("\nDownload options:")
-    print("1. Download single model")
-    print("2. Download all detection models")
-    print("3. Download all models (all types)")
+    print(f"\n{get_text('download_options')}")
+    print(get_text('single_model'))
+    print(get_text('all_detection'))
+    print(get_text('all_models'))
     
-    choice = input("\nYour choice (1-3): ")
+    choice = input(f"\n{get_text('your_choice')}")
     
     if choice == "1":
-        print("\nSelect model type:")
-        print("1. Detection (default)")
-        print("2. Segmentation")
-        print("3. Classification")
-        print("4. Pose")
-        print("5. OBB (Oriented Bounding Box)")
+        print(f"\n{get_text('select_model_type')}")
+        print(get_text('detection_default'))
+        print(get_text('segmentation'))
+        print(get_text('classification'))
+        print(get_text('pose'))
+        print(get_text('obb'))
         
         model_type_map = {
             "1": "detection",
@@ -128,14 +129,14 @@ def download_models_menu():
             "5": "obb"
         }
         
-        model_type_choice = input("Enter choice (1-5, default: 1): ") or "1"
+        model_type_choice = input(get_text('enter_choice_1_5')) or "1"
         model_type = model_type_map.get(model_type_choice, "detection")
         
-        print("\nSelect model size:")
-        print("1. Small (s)")
-        print("2. Medium (m) (default)")
-        print("3. Large (l)")
-        print("4. Extra Large (x)")
+        print(f"\n{get_text('select_model_size')}")
+        print(get_text('small'))
+        print(get_text('medium_default'))
+        print(get_text('large'))
+        print(get_text('extra_large'))
         
         size_map = {
             "1": "s",
@@ -144,58 +145,58 @@ def download_models_menu():
             "4": "x"
         }
         
-        size_choice = input("Enter choice (1-4, default: 2): ") or "2"
+        size_choice = input(get_text('enter_choice_1_4')) or "2"
         size = size_map.get(size_choice, "m")
         
         model_path = download_specific_model_type(model_type, size, save_dir)
         if model_path:
-            print(f"\n✅ Model downloaded successfully to: {model_path}")
+            print(f"\n✅ Model başarıyla indirildi: {model_path}")
     
     elif choice == "2":
         detection_models = ["yolo11s.pt", "yolo11m.pt", "yolo11l.pt", "yolo11x.pt"]
         downloaded = download_yolo11_models(save_dir, detection_models)
-        print(f"\n✅ Downloaded {len(downloaded)} detection models to {save_dir}")
+        print(f"\n✅ {len(downloaded)} tespit modeli indirildi: {save_dir}")
     
     elif choice == "3":
         downloaded = download_yolo11_models(save_dir)
-        print(f"\n✅ Downloaded {len(downloaded)} models to {save_dir}")
+        print(f"\n✅ {len(downloaded)} model indirildi: {save_dir}")
     
     else:
-        print("\n❌ Invalid choice. No models downloaded.")
+        print("\n❌ Geçersiz seçim. Hiçbir model indirilmedi.")
         return None
     
     return save_dir
 
 def hierarchical_dataset_setup():
     """Setup for hierarchical multi-dataset training"""
-    print("\n===== Hierarchical Multi-Dataset Setup =====")
+    print("\n===== Hiyerarşik Çoklu Veri Seti Kurulumu =====")
     
     # Initialize the YAML-based dataset manager
-    config_file = input("Config file path (default: config_datasets.yaml): ") or "config_datasets.yaml"
+    config_file = input("Konfigürasyon dosyası yolu (varsayılan: config_datasets.yaml): ") or "config_datasets.yaml"
     
     if not os.path.exists(config_file):
-        print(f"❌ Config file not found: {config_file}")
-        print("Please ensure config_datasets.yaml exists in the current directory")
+        print(f"❌ Konfigürasyon dosyası bulunamadı: {config_file}")
+        print("Lütfen config_datasets.yaml dosyasının mevcut dizinde olduğundan emin olun")
         return None
     
     manager = YAMLBasedMultiDatasetManager(config_file=config_file)
     
     # Show system information
-    print(f"\n📊 System Information:")
-    print(f"✅ Config loaded: {config_file}")
-    print(f"📁 Available groups: {len(manager.get_available_dataset_groups())}")
+    print(f"\n📊 Sistem Bilgileri:")
+    print(f"✅ Konfigürasyon yüklendi: {config_file}")
+    print(f"📁 Mevcut gruplar: {len(manager.get_available_dataset_groups())}")
     
     # Interactive dataset selection
     selected_group = manager.interactive_dataset_selection()
     
     if not selected_group:
-        print("❌ No dataset group selected")
+        print("❌ Hiçbir veri seti grubu seçilmedi")
         return None
     
     # Get recommendations
     recommendations = manager.get_training_recommendations(selected_group)
     
-    print(f"\n🎯 Training Recommendations for '{selected_group}':")
+    print(f"\n🎯 '{selected_group}' için Eğitim Önerileri:")
     for key, value in recommendations.items():
         if isinstance(value, list):
             print(f"  {key}:")
@@ -211,16 +212,16 @@ def hierarchical_dataset_setup():
     default_target = settings.get('default_target_count_per_class', 2000)
     while True:
         try:
-            target_count = int(input(f"\nTarget samples per class (default: {default_target}): ") or str(default_target))
+            target_count = int(input(f"\nSınıf başına hedef örnek sayısı (varsayılan: {default_target}): ") or str(default_target))
             if target_count > 0:
                 break
-            print("❌ Please enter a positive number.")
+            print("❌ Lütfen pozitif bir sayı girin.")
         except ValueError:
-            print("❌ Please enter a valid number.")
+            print("❌ Lütfen geçerli bir sayı girin.")
     
     # Output directory
     default_output = "datasets/hierarchical_merged"
-    output_dir = input(f"\nMerged dataset directory (default: {default_output}): ") or default_output
+    output_dir = input(f"\nBirleştirilmiş veri seti dizini (varsayılan: {default_output}): ") or default_output
     
     return {
         'manager': manager,
@@ -233,49 +234,49 @@ def hierarchical_dataset_setup():
 
 def process_hierarchical_datasets(dataset_config):
     """Process hierarchical multi-datasets"""
-    print("\n===== Processing Hierarchical Multi-Datasets =====")
+    print("\n===== Hiyerarşik Çoklu Veri Setleri İşleniyor =====")
     
     manager = dataset_config['manager']
     target_count = dataset_config['target_count']
     
     try:
         # 1. Download datasets
-        print("\n1️⃣ Downloading datasets...")
+        print("\n1️⃣ Veri setleri indiriliyor...")
         download_success = manager.download_all_datasets()
         
         if not download_success:
-            print("❌ Dataset download failed!")
+            print("❌ Veri seti indirme başarısız!")
             return False
         
         # 2. Create unified class mapping
-        print("\n2️⃣ Creating hierarchical class mapping...")
+        print("\n2️⃣ Hiyerarşik sınıf haritalaması oluşturuluyor...")
         classes_created = manager.create_unified_class_mapping()
         
         if classes_created == 0:
-            print("❌ No classes could be mapped!")
+            print("❌ Hiçbir sınıf haritalandırılamadı!")
             return False
         
-        print(f"✅ Created {classes_created} main classes")
+        print(f"✅ {classes_created} ana sınıf oluşturuldu")
         
         # 3. Merge datasets with hierarchical structure
-        print("\n3️⃣ Merging datasets with hierarchical structure...")
+        print("\n3️⃣ Veri setleri hiyerarşik yapıyla birleştiriliyor...")
         merged_counts = manager.merge_datasets(target_count_per_class=target_count)
         
         if not merged_counts:
-            print("❌ Dataset merging failed!")
+            print("❌ Veri seti birleştirme başarısız!")
             return False
         
-        print(f"\n✅ Hierarchical multi-dataset processing completed!")
-        print(f"📁 Merged dataset: {manager.output_dir}")
-        print(f"📄 YAML file: merged_dataset.yaml")
-        print(f"🏷️  Class mapping: unified_class_mapping.json")
+        print(f"\n✅ Hiyerarşik çoklu veri seti işleme tamamlandı!")
+        print(f"📁 Birleştirilmiş veri seti: {manager.output_dir}")
+        print(f"📄 YAML dosyası: merged_dataset.yaml")
+        print(f"🏷️  Sınıf haritası: unified_class_mapping.json")
         
         # Display final statistics
         total_samples = sum(merged_counts.values())
-        print(f"\n📊 Final Dataset Statistics:")
-        print(f"   Total samples: {total_samples:,}")
-        print(f"   Main classes: {len(merged_counts)}")
-        print(f"   Samples per class: {total_samples // len(merged_counts):,} (average)")
+        print(f"\n📊 Son Veri Seti İstatistikleri:")
+        print(f"   Toplam örnek: {total_samples:,}")
+        print(f"   Ana sınıflar: {len(merged_counts)}")
+        print(f"   Sınıf başına örnek: {total_samples // len(merged_counts):,} (ortalama)")
         
         for class_name, count in merged_counts.items():
             print(f"   {class_name}: {count:,}")
@@ -283,25 +284,25 @@ def process_hierarchical_datasets(dataset_config):
         return True
         
     except Exception as e:
-        print(f"\n❌ Error during hierarchical dataset processing: {e}")
+        print(f"\n❌ Hiyerarşik veri seti işleme sırasında hata: {e}")
         import traceback
         traceback.print_exc()
         return False
 
 def interactive_training_setup():
     """Interactive training parameter setup for hierarchical model"""
-    print("\n===== Hierarchical Model Training Setup =====")
+    print("\n===== Hiyerarşik Model Eğitim Kurulumu =====")
     
     # Dataset type selection
-    print("\nDataset configuration:")
-    print("1) Hierarchical multi-dataset (Recommended)")
-    print("2) Single Roboflow dataset (Legacy)")
+    print("\nVeri seti konfigürasyonu:")
+    print("1) Hiyerarşik çoklu veri seti (Önerilen)")
+    print("2) Tek Roboflow veri seti (Eski)")
     
     while True:
-        dataset_choice = input("\nSelect option [1-2] (default: 1): ") or "1"
+        dataset_choice = input("\nSeçenek [1-2] (varsayılan: 1): ") or "1"
         if dataset_choice in ["1", "2"]:
             break
-        print("❌ Please select 1 or 2.")
+        print("❌ Lütfen 1 veya 2 seçin.")
     
     dataset_config = {}
     
@@ -320,7 +321,7 @@ def interactive_training_setup():
         # Single dataset (legacy)
         roboflow_url = input("\nRoboflow URL: ").strip()
         if not roboflow_url:
-            print("❌ No URL provided")
+            print("❌ URL sağlanmadı")
             return None
         
         dataset_config = {
@@ -330,15 +331,15 @@ def interactive_training_setup():
         }
     
     # Project category
-    print("\nProject category:")
-    print("1) Hierarchical Agricultural AI (Recommended)")
-    print("2) Disease Detection")
-    print("3) Pest Detection")
-    print("4) Mixed Agricultural")
-    print("5) Custom")
+    print("\nProje kategorisi:")
+    print("1) Hiyerarşik Tarımsal AI (Önerilen)")
+    print("2) Hastalık Tespiti")
+    print("3) Zararlı Tespiti")
+    print("4) Karma Tarımsal")
+    print("5) Özel")
     
     while True:
-        category_choice = input("\nSelect category [1-5] (default: 1): ") or "1"
+        category_choice = input("\nKategori seçin [1-5] (varsayılan: 1): ") or "1"
         category_options = {
             "1": "hierarchical_agricultural",
             "2": "diseases",
@@ -350,9 +351,9 @@ def interactive_training_setup():
         if category_choice in category_options:
             category = category_options[category_choice]
             if category == "custom":
-                category = input("Enter custom category name: ").strip() or "custom"
+                category = input("Özel kategori adı girin: ").strip() or "custom"
             break
-        print("❌ Please select 1-5.")
+        print("❌ Lütfen 1-5 arası seçin.")
     
     # Get training recommendations
     if dataset_config['type'] == 'hierarchical_multi':
@@ -362,16 +363,16 @@ def interactive_training_setup():
         recommended_size = recommendations.get('image_size', 640)
         estimated_time = recommendations.get('estimated_time', 'Unknown')
         
-        print(f"\n🎯 Recommendations for hierarchical model:")
+        print(f"\n🎯 Hiyerarşik model için öneriler:")
         print(f"   Model: {recommended_model}")
-        print(f"   Batch size: {recommended_batch}")
-        print(f"   Image size: {recommended_size}")
-        print(f"   Estimated time: {estimated_time}")
+        print(f"   Batch boyutu: {recommended_batch}")
+        print(f"   Görüntü boyutu: {recommended_size}")
+        print(f"   Tahmini süre: {estimated_time}")
         
         # Show special notes if available
         special_notes = recommendations.get('special_notes', [])
         if special_notes:
-            print(f"   Special considerations:")
+            print(f"   Özel hususlar:")
             for note in special_notes:
                 print(f"     • {note}")
     
@@ -380,11 +381,11 @@ def interactive_training_setup():
     checkpoint_path = None
     
     if is_colab():
-        has_previous = input("\nResume training from checkpoint? (y/n, default: n): ").lower() or "n"
+        has_previous = input("\nCheckpoint'ten eğitimi devam ettir? (e/h, varsayılan: h): ").lower() or "h"
         
-        if has_previous.startswith("y"):
+        if has_previous.startswith("e"):
             resume_training = True
-            resume_from_drive = input("Load checkpoint from Google Drive? (y/n, default: y): ").lower() or "y"
+            resume_from_drive = input("Checkpoint'i Google Drive'dan yükle? (e/h, varsayılan: e): ").lower() or "e"
             
             if resume_from_drive.startswith("y"):
                 if not os.path.exists('/content/drive'):
@@ -416,28 +417,28 @@ def interactive_training_setup():
         try:
             if dataset_config['type'] == 'hierarchical_multi':
                 default_epochs = 300  # More epochs for hierarchical model
-                epochs = int(input(f"\nEpochs [100-2000 recommended] (default: {default_epochs}): ") or str(default_epochs))
+                epochs = int(input(f"\nEpoch sayısı [100-2000 önerilen] (varsayılan: {default_epochs}): ") or str(default_epochs))
             else:
-                epochs = int(input(f"\nEpochs [100-1000 recommended] (default: 300): ") or "300")
+                epochs = int(input(f"\nEpoch sayısı [100-1000 önerilen] (varsayılan: 300): ") or "300")
             
             if epochs > 0:
                 break
-            print("❌ Please enter a positive number.")
+            print("❌ Lütfen pozitif bir sayı girin.")
         except ValueError:
-            print("❌ Please enter a valid number.")
+            print("❌ Lütfen geçerli bir sayı girin.")
     
     # Model size selection
-    print("\nSelect model size:")
-    print("1) yolo11s.pt - Small (fastest, lower accuracy)")
-    print("2) yolo11m.pt - Medium (balanced)")
-    print("3) yolo11l.pt - Large (high accuracy, slower) [Recommended for hierarchical]")
-    print("4) yolo11x.pt - Extra Large (highest accuracy, slowest)")
+    print("\nModel boyutunu seçin:")
+    print("1) yolo11s.pt - Küçük (en hızlı, düşük doğruluk)")
+    print("2) yolo11m.pt - Orta (dengeli)")
+    print("3) yolo11l.pt - Büyük (yüksek doğruluk, yavaş) [Hiyerarşik için önerilen]")
+    print("4) yolo11x.pt - Çok Büyük (en yüksek doğruluk, en yavaş)")
 
     while True:
         if dataset_config['type'] == 'hierarchical_multi':
-            model_choice = input("\nSelect model [1-4] (default: 3): ") or "3"
+            model_choice = input("\nModel seçin [1-4] (varsayılan: 3): ") or "3"
         else:
-            model_choice = input("\nSelect model [1-4] (default: 2): ") or "2"
+            model_choice = input("\nModel seçin [1-4] (varsayılan: 2): ") or "2"
         
         model_options = {
             "1": "yolo11s.pt",
@@ -454,16 +455,16 @@ def interactive_training_setup():
             model_path = os.path.join(model_dir, model)
             
             if not os.path.exists(model_path):
-                print(f"\n⚠️  Model {model} not found locally.")
-                download_now = input("Download now? (y/n, default: y): ").lower() or "y"
+                print(f"\n⚠️  Model {model} yerel olarak bulunamadı.")
+                download_now = input("Şimdi indir? (e/h, varsayılan: e): ").lower() or "e"
                 
-                if download_now.startswith("y"):
+                if download_now.startswith("e"):
                     os.makedirs(model_dir, exist_ok=True)
                     download_specific_model_type("detection", model[6], model_dir)
                 else:
-                    print(f"ℹ️  Model will be downloaded automatically during training.")
+                    print(f"ℹ️  Model eğitim sırasında otomatik olarak indirilecek.")
             break
-        print("❌ Please select 1-4.")
+        print("❌ Lütfen 1-4 arası seçin.")
     
     # Batch size and image size
     if dataset_config['type'] == 'hierarchical_multi':
@@ -475,42 +476,42 @@ def interactive_training_setup():
     
     while True:
         try:
-            batch_size = int(input(f"\nBatch size (default: {default_batch}, smaller for low RAM): ") or str(default_batch))
+            batch_size = int(input(f"\nBatch boyutu (varsayılan: {default_batch}, düşük RAM için küçük): ") or str(default_batch))
             if batch_size > 0:
                 break
-            print("❌ Please enter a positive number.")
+            print("❌ Lütfen pozitif bir sayı girin.")
         except ValueError:
-            print("❌ Please enter a valid number.")
+            print("❌ Lütfen geçerli bir sayı girin.")
     
     while True:
         try:
-            img_size = int(input(f"\nImage size (default: {default_img_size}, must be multiple of 32): ") or str(default_img_size))
+            img_size = int(input(f"\nGörüntü boyutu (varsayılan: {default_img_size}, 32'nin katı olmalı): ") or str(default_img_size))
             if img_size > 0 and img_size % 32 == 0:
                 break
-            print("❌ Please enter a positive number that's a multiple of 32.")
+            print("❌ Lütfen 32'nin katı olan pozitif bir sayı girin.")
         except ValueError:
-            print("❌ Please enter a valid number.")
+            print("❌ Lütfen geçerli bir sayı girin.")
     
     # Google Drive save settings
     drive_save_path = None
     if is_colab():
-        print("\nGoogle Drive save settings:")
-        save_to_drive_opt = input("Save training results to Google Drive? (y/n, default: y): ").lower() or "y"
+        print("\nGoogle Drive kaydetme ayarları:")
+        save_to_drive_opt = input("Eğitim sonuçlarını Google Drive'a kaydet? (e/h, varsayılan: e): ").lower() or "e"
         
-        if save_to_drive_opt.startswith("y"):
+        if save_to_drive_opt.startswith("e"):
             if not os.path.exists('/content/drive'):
                 mount_google_drive()
             
             default_drive_path = f"/content/drive/MyDrive/Tarim/Kodlar/colab_egitim/{category}"
-            drive_save_path = input(f"Save directory (default: {default_drive_path}): ") or default_drive_path
+            drive_save_path = input(f"Kaydetme dizini (varsayılan: {default_drive_path}): ") or default_drive_path
             
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             drive_save_path = os.path.join(drive_save_path, timestamp)
-            print(f"📁 Models will be saved to: {drive_save_path}")
+            print(f"📁 Modeller şuraya kaydedilecek: {drive_save_path}")
     
     # Hyperparameter file
-    use_hyp = input("\nUse hyperparameter file (hyp.yaml)? (y/n, default: y): ").lower() or "y"
-    use_hyp = use_hyp.startswith("y")
+    use_hyp = input("\nHiperparametre dosyası kullan (hyp.yaml)? (e/h, varsayılan: e): ").lower() or "e"
+    use_hyp = use_hyp.startswith("e")
     
     # Device detection
     device = check_gpu()
@@ -538,58 +539,66 @@ def interactive_training_setup():
     }
     
     # Display selected parameters
-    print("\n===== Selected Training Parameters =====")
-    print(f"Dataset type: {dataset_config['type']}")
+    print("\n===== Seçilen Eğitim Parametreleri =====")
+    print(f"Veri seti tipi: {dataset_config['type']}")
     if dataset_config['type'] == 'hierarchical_multi':
         setup = dataset_config['setup']
-        print(f"Dataset group: {setup['selected_group']}")
-        print(f"Target samples per class: {setup['target_count']:,}")
-        print(f"Output directory: {setup['output_dir']}")
+        print(f"Veri seti grubu: {setup['selected_group']}")
+        print(f"Sınıf başına hedef örnek: {setup['target_count']:,}")
+        print(f"Çıktı dizini: {setup['output_dir']}")
     
     print(f"Model: {model}")
-    print(f"Epochs: {epochs}")
-    print(f"Batch size: {batch_size}")
-    print(f"Image size: {img_size}")
-    print(f"Device: {device}")
-    print(f"Category: {category}")
+    print(f"Epoch: {epochs}")
+    print(f"Batch boyutu: {batch_size}")
+    print(f"Görüntü boyutu: {img_size}")
+    print(f"Cihaz: {device}")
+    print(f"Kategori: {category}")
     
     if drive_save_path:
-        print(f"Drive save path: {drive_save_path}")
+        print(f"Drive kaydetme yolu: {drive_save_path}")
     
-    confirm = input("\nProceed with these parameters? (y/n): ").lower()
-    if confirm != 'y' and confirm != 'yes' and confirm != 'evet':
-        print("❌ Setup cancelled.")
+    confirm = input("\nBu parametrelerle devam et? (e/h): ").lower()
+    if confirm != 'e' and confirm != 'evet' and confirm != 'yes':
+        print("❌ Kurulum iptal edildi.")
         return None
     
     return options
 
 def main():
     """Main function - Hierarchical Multi-Dataset Training Framework"""
+    # Language selection at startup
+    select_language()
+    
     print("\n" + "="*70)
-    print("🌱 YOLO11 Hierarchical Multi-Dataset Training Framework")
-    print("🎯 Advanced Agricultural AI with Hierarchical Detection")
+    print(get_text('main_title'))
+    print(get_text('main_subtitle'))
     print("="*70)
     
-    print("\n🚀 Main Menu:")
-    print("1. 📥 Download YOLO11 models")
-    print("2. 🎛️  Training setup and execution")
-    print("3. 🔍 Test hierarchical detection (requires trained model)")
-    print("4. ❌ Exit")
+    print(f"\n{get_text('main_menu')}")
+    print(get_text('option_download'))
+    print(get_text('option_training'))
+    print(get_text('option_test'))
+    print(get_text('option_exit'))
     
-    choice = input("\nSelect option (1-4): ")
+    choice = input(f"\n{get_text('select_option')}")
     
     if choice == "1":
         download_models_menu()
-        train_now = input("\nProceed to training setup? (y/n, default: y): ").lower() or "y"
-        if not train_now.startswith("y"):
-            return
+        if get_text('language_choice').startswith('e'):
+            train_now = input("\nEğitim kurulumuna geç? (e/h, varsayılan: e): ").lower() or "e"
+            if not train_now.startswith("e"):
+                return
+        else:
+            train_now = input("\nProceed to training setup? (y/n, default: y): ").lower() or "y"
+            if not train_now.startswith("y"):
+                return
         choice = "2"  # Continue to training
         
     if choice == "2":
         in_colab = is_colab()
         
         # Install required packages
-        print("\n📦 Installing required packages...")
+        print("\n📦 Gerekli paketler yüklüyor...")
         install_required_packages()
         
         # Create hyperparameter file
@@ -609,74 +618,74 @@ def main():
             from dataset_utils import download_dataset
             
             if not download_dataset(dataset_config['url']):
-                print('❌ Dataset download failed. Exiting...')
+                print('❌ Veri seti indirme başarısız. Çıkılıyor...')
                 return
                 
         elif dataset_config['type'] == 'hierarchical_multi':
             # Hierarchical multi-dataset processing
             if not process_hierarchical_datasets(dataset_config['setup']):
-                print('❌ Hierarchical dataset processing failed. Exiting...')
+                print('❌ Hiyerarşik veri seti işleme başarısız. Çıkılıyor...')
                 return
         
         # Show memory status before training
-        show_memory_usage("Before Training")
+        show_memory_usage("Eğitim Öncesi")
         
         # Train the model
-        print(f"\n🚀 Starting hierarchical model training...")
+        print(f"\n🚀 Hiyerarşik model eğitimi başlatılıyor...")
         results = train_model(options, hyp=hyperparameters, resume=options.get('resume', False), epochs=options['epochs'])
         
         if results:
-            print('✅ Training completed successfully!')
-            print(f'📊 Results: {results}')
+            print('✅ Eğitim başarıyla tamamlandı!')
+            print(f'📊 Sonuçlar: {results}')
             
             # Initialize hierarchical detection if available
             if HIERARCHICAL_DETECTION_AVAILABLE:
-                print(f"\n🎯 Initializing hierarchical detection system...")
+                print(f"\n🎯 Hiyerarşik tespit sistemi başlatılıyor...")
                 try:
                     visualizer = HierarchicalDetectionVisualizer()
-                    print(f"✅ Hierarchical detection system ready!")
-                    print(f"🏷️  Detection format: 'ZARLI: Kırmızı Örümcek (0.85)'")
+                    print(f"✅ Hiyerarşik tespit sistemi hazır!")
+                    print(f"🏷️  Tespit formatı: 'ZARLI: Kırmızı Örümcek (0.85)'")
                 except Exception as e:
-                    print(f"⚠️  Could not initialize hierarchical detection: {e}")
+                    print(f"⚠️  Hiyerarşik tespit başlatılamadı: {e}")
             
             # Save to Google Drive
             if in_colab and options.get('drive_save_path'):
-                print("\n💾 Saving models to Google Drive...")
+                print("\n💾 Modeller Google Drive'a kaydediliyor...")
                 if save_models_to_drive(options['drive_save_path']):
-                    print("✅ Models saved to Google Drive successfully.")
+                    print("✅ Modeller Google Drive'a başarıyla kaydedildi.")
                 else:
-                    print("❌ Failed to save models to Google Drive.")
+                    print("❌ Modeller Google Drive'a kaydedilemedi.")
         else:
-            print('❌ Training failed or was interrupted.')
+            print('❌ Eğitim başarısız veya kesildi.')
             
             # Save partial results if available
             if in_colab and options.get('drive_save_path'):
-                save_anyway = input("\nSave partial training results to Google Drive? (y/n, default: y): ").lower() or "y"
-                if save_anyway.startswith("y"):
-                    print("\n💾 Saving partial results to Google Drive...")
+                save_anyway = input("\nKısmi eğitim sonuçlarını Google Drive'a kaydet? (e/h, varsayılan: e): ").lower() or "e"
+                if save_anyway.startswith("e"):
+                    print("\n💾 Kısmi sonuçlar Google Drive'a kaydediliyor...")
                     if save_models_to_drive(options['drive_save_path']):
-                        print("✅ Partial results saved to Google Drive.")
+                        print("✅ Kısmi sonuçlar Google Drive'a kaydedildi.")
                     else:
-                        print("❌ Failed to save partial results.")
+                        print("❌ Kısmi sonuçlar kaydedilemedi.")
         
         # Clean memory
-        show_memory_usage("After Training")
+        show_memory_usage("Eğitim Sonrası")
         clean_memory()
     
     elif choice == "3":
         # Test hierarchical detection
         if not HIERARCHICAL_DETECTION_AVAILABLE:
-            print("❌ Hierarchical detection utils not available.")
+            print("❌ Hiyerarşik tespit araçları mevcut değil.")
             return
         
-        model_path = input("Enter trained model path (e.g., runs/train/exp/weights/best.pt): ").strip()
+        model_path = input("Eğitilmiş model yolunu girin (örn: runs/train/exp/weights/best.pt): ").strip()
         if not model_path or not os.path.exists(model_path):
-            print("❌ Model file not found.")
+            print("❌ Model dosyası bulunamadı.")
             return
         
-        test_image = input("Enter test image path: ").strip()
+        test_image = input("Test görüntüsü yolunu girin: ").strip()
         if not test_image or not os.path.exists(test_image):
-            print("❌ Test image not found.")
+            print("❌ Test görüntüsü bulunamadı.")
             return
         
         try:
@@ -688,7 +697,7 @@ def main():
             visualizer = HierarchicalDetectionVisualizer()
             
             # Run detection
-            print(f"🔍 Running hierarchical detection...")
+            print(f"🔍 Hiyerarşik tespit çalıştırılıyor...")
             image = cv2.imread(test_image)
             results = model(image)
             
@@ -704,25 +713,25 @@ def main():
             report = visualizer.create_detection_report(detections)
             
             print(f"\n{report}")
-            print(f"✅ Annotated image saved to: {output_path}")
+            print(f"✅ Açıklamalı görüntü kaydedildi: {output_path}")
             
         except Exception as e:
-            print(f"❌ Error during hierarchical detection test: {e}")
+            print(f"❌ Hiyerarşik tespit testi sırasında hata: {e}")
     
     elif choice == "4":
-        print("👋 Exiting...")
+        print("👋 Çıkılıyor...")
     
     else:
-        print("❌ Invalid option. Exiting...")
+        print("❌ Geçersiz seçenek. Çıkılıyor...")
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n⚠️  Interrupted by user. Exiting...")
+        print("\n⚠️  Kullanıcı tarafından kesildi. Çıkılıyor...")
     except Exception as e:
-        print(f"\n❌ An error occurred: {e}")
+        print(f"\n❌ Bir hata oluştu: {e}")
         import traceback
         traceback.print_exc()
     finally:
-        print("\n✅ Process completed.")
+        print("\n✅ İşlem tamamlandı.")

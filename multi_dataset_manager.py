@@ -231,7 +231,7 @@ class YAMLBasedMultiDatasetManager:
     
     def interactive_dataset_selection(self):
         """Interactive dataset selection with config-based options"""
-        print("\n🎯 Dataset Selection")
+        print("\n🎯 Veri Seti Seçimi")
         print("=" * 50)
         
         self.show_available_groups()
@@ -239,13 +239,13 @@ class YAMLBasedMultiDatasetManager:
         groups = self.config.get('dataset_groups', {})
         group_list = list(groups.keys())
         
-        print(f"\n{len(group_list) + 1}. Custom selection")
-        print(f"{len(group_list) + 2}. Add custom URL")
+        print(f"\n{len(group_list) + 1}. Özel seçim")
+        print(f"{len(group_list) + 2}. Özel URL ekle")
         
         # Get user choice
         while True:
             try:
-                choice = input(f"\nSelect option (1-{len(group_list) + 2}): ").strip()
+                choice = input(f"\nSeçenek (1-{len(group_list) + 2}): ").strip()
                 choice_num = int(choice)
                 
                 if 1 <= choice_num <= len(group_list):
@@ -256,20 +256,20 @@ class YAMLBasedMultiDatasetManager:
                         return None
                         
                 elif choice_num == len(group_list) + 1:
-                    print("Custom selection not implemented yet")
+                    print("Özel seçim henüz uygulanmadı")
                     return None
                     
                 elif choice_num == len(group_list) + 2:
-                    print("Custom URL not implemented yet")
+                    print("Özel URL henüz uygulanmadı")
                     return None
                     
                 else:
-                    print(f"❌ Invalid choice. Enter 1-{len(group_list) + 2}")
+                    print(f"❌ Geçersiz seçim. 1-{len(group_list) + 2} arası girin")
                     
             except ValueError:
-                print("❌ Please enter a valid number")
+                print("❌ Lütfen geçerli bir sayı girin")
             except KeyboardInterrupt:
-                print("\n❌ Selection cancelled")
+                print("\n❌ Seçim iptal edildi")
                 return None
     
     # Delegate main functions to helper classes
