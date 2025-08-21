@@ -51,6 +51,53 @@ def is_colab():
         print("💻 Running in local environment.")
         return False
 
+def get_tarim_drive_paths():
+    """Google Drive'da 'Tarım' taban klasörünü ve alt klasörlerini bul/oluştur.
+    Dönüş: {
+      'base': '/content/drive/MyDrive/Tarım',
+      'colab_egitim': '/content/drive/MyDrive/Tarim/colab_egitim',
+      'yolo11_models': '/content/drive/MyDrive/Tarim/colab_egitim/yolo11_models'
+    }
+    """
+    if not is_colab():
+        return None
+    # Drive mount kontrolü
+    if not os.path.exists('/content/drive'):
+        if not mount_google_drive():
+            return None
+    mydrive = "/content/drive/MyDrive"
+    # Türkçe 'Tarım' varsa onu kullan, yoksa 'Tarim' ya da oluştur
+    tarim_candidates = [os.path.join(mydrive, 'Tarım'), os.path.join(mydrive, 'Tarim')]
+    base = None
+    for c in tarim_candidates:
+        if os.path.exists(c):
+            base = c
+            break
+    if base is None:
+        # Önce Türkçe karakterli klasörü oluşturmayı dene
+        base = tarim_candidates[0]
+        try:
+            os.makedirs(base, exist_ok=True)
+        except Exception:
+            base = tarim_candidates[1]
+            os.makedirs(base, exist_ok=True)
+    colab_egitim = os.path.join(base, 'colab_egitim')
+    yolo11_models = os.path.join(base, 'yolo11_models')
+    os.makedirs(colab_egitim, exist_ok=True)
+    os.makedirs(yolo11_models, exist_ok=True)
+    return {'base': base, 'colab_egitim': colab_egitim, 'yolo11_models': yolo11_models}
+
+def get_smartfarm_models_dir():
+    """Colab için model klasörünü '/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models' olarak döndürür ve yoksa oluşturur."""
+    if not is_colab():
+        return None
+    if not os.path.exists('/content/drive'):
+        if not mount_google_drive():
+            return None
+    path = "/content/drive/MyDrive/SmartFarm/colap_learn/yolo11_models"
+    os.makedirs(path, exist_ok=True)
+    return path
+
 def mount_google_drive():
     """Mount Google Drive"""
     try:
@@ -114,7 +161,10 @@ def download_models_menu():
     """Interactive menu for downloading YOLO11 models"""
     print(f"\n{get_text('model_download_title')}")
     
-    default_dir = os.path.join("/content/colab_learn", "yolo11_models") if is_colab() else "yolo11_models"
+    if is_colab():
+        default_dir = get_smartfarm_models_dir() or "/content/colab_learn/yolo11_models"
+    else:
+        default_dir = "yolo11_models"
     save_dir = input(get_text('save_directory', default=default_dir)) or default_dir
     
     print(f"\n{get_text('download_options')}")
@@ -397,40 +447,44 @@ def interactive_training_setup():
         if has_previous.startswith("e"):
             resume_training = True
             resume_from_drive = input("Checkpoint'i Google Drive'dan yükle? (e/h, varsayılan: e): ").lower() or "e"
-            
-            if resume_from_drive.startswith("y"):
-                if not os.path.exists('/content/drive'):
-                    mount_google_drive()
-                
-                base_folder = f"/content/drive/MyDrive/Tarim/Kodlar/colab_egitim/{category}"
-                print(f"\nExpected model directory: {base_folder}")
-                
-                custom_path = input(f"Confirm or enter new path (default: {base_folder}): ") or base_folder
-                
-                model_type = input("\nWhich model file to use? (best/last, default: best): ").lower() or "best"
-                if model_type not in ["best", "last"]:
-                    model_type = "best"
-                
-                checkpoint_path = os.path.join(custom_path, f"{model_type}.pt")
-                
-                if os.path.exists(checkpoint_path):
-                    print(f"✅ Model file found: {checkpoint_path}")
+            if resume_from_drive.startswith("e"):
+                base_folder = get_smartfarm_models_dir() or "/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models"
+                print(f"\nBeklenen model dizini: {base_folder}")
+                os.makedirs(base_folder, exist_ok=True)
+                # En güncel checkpoint'i tara: timestamp alt klasörleri içinde best/last
+                latest_file = None
+                latest_mtime = -1
+                for root, dirs, files in os.walk(base_folder):
+                    for name in files:
+                        if name in ("best.pt", "last.pt"):
+                            fpath = os.path.join(root, name)
+                            try:
+                                m = os.path.getmtime(fpath)
+                                if m > latest_mtime:
+                                    latest_mtime = m
+                                    latest_file = fpath
+                            except Exception:
+                                pass
+                if latest_file and os.path.exists(latest_file):
+                    print(f"✅ En güncel checkpoint bulundu: {latest_file}")
                     os.makedirs("runs/train/exp/weights", exist_ok=True)
-                    shutil.copy2(checkpoint_path, f"runs/train/exp/weights/{model_type}.pt")
-                    print(f"✅ Model file copied to training directory.")
+                    target_name = os.path.basename(latest_file)
+                    shutil.copy2(latest_file, f"runs/train/exp/weights/{target_name}")
+                    checkpoint_path = f"runs/train/exp/weights/{target_name}"
+                    print(f"✅ Checkpoint eğitim dizinine kopyalandı.")
                 else:
-                    print(f"⚠️  WARNING: Model file not found: {checkpoint_path}")
-                    print("Training will start from scratch.")
+                    print("⚠️  Uygun checkpoint bulunamadı, eğitim sıfırdan başlayacak.")
                     resume_training = False
     
     # Training parameters
     while True:
         try:
             if dataset_config['type'] == 'hierarchical_multi':
-                default_epochs = 300  # More epochs for hierarchical model
+                default_epochs = 2000  # Updated default for hierarchical model
                 epochs = int(input(f"\nEpoch sayısı [100-2000 önerilen] (varsayılan: {default_epochs}): ") or str(default_epochs))
             else:
-                epochs = int(input(f"\nEpoch sayısı [100-1000 önerilen] (varsayılan: 300): ") or "300")
+                default_epochs = 2000  # Updated default for single dataset model
+                epochs = int(input(f"\nEpoch sayısı [100-2000 önerilen] (varsayılan: {default_epochs}): ") or str(default_epochs))
             
             if epochs > 0:
                 break
@@ -461,8 +515,11 @@ def interactive_training_setup():
         if model_choice in model_options:
             model = model_options[model_choice]
             
-            # Check if model exists locally
-            model_dir = os.path.join("/content/colab_learn", "yolo11_models") if is_colab() else "yolo11_models"
+            # Check if model exists locally/Drive
+            if is_colab():
+                model_dir = get_smartfarm_models_dir() or os.path.join("/content/colab_learn", "yolo11_models")
+            else:
+                model_dir = "yolo11_models"
             model_path = os.path.join(model_dir, model)
             
             if not os.path.exists(model_path):
@@ -510,15 +567,14 @@ def interactive_training_setup():
         save_to_drive_opt = input("Eğitim sonuçlarını Google Drive'a kaydet? (e/h, varsayılan: e): ").lower() or "e"
         
         if save_to_drive_opt.startswith("e"):
-            if not os.path.exists('/content/drive'):
-                mount_google_drive()
-            
-            default_drive_path = f"/content/drive/MyDrive/Tarim/Kodlar/colab_egitim/{category}"
+            default_drive_path = get_smartfarm_models_dir() or "/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models"
             drive_save_path = input(f"Kaydetme dizini (varsayılan: {default_drive_path}): ") or default_drive_path
             
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             drive_save_path = os.path.join(drive_save_path, timestamp)
             print(f"📁 Modeller şuraya kaydedilecek: {drive_save_path}")
+            # Klasörleri oluştur
+            os.makedirs(drive_save_path, exist_ok=True)
     
     # Hyperparameter file
     use_hyp = input("\nHiperparametre dosyası kullan (hyp.yaml)? (e/h, varsayılan: e): ").lower() or "e"
@@ -567,8 +623,12 @@ def interactive_training_setup():
     
     if drive_save_path:
         print(f"Drive kaydetme yolu: {drive_save_path}")
+        # Kaydedilecek dosyaları net belirt
+        print(f"Kaydedilecek dosyalar:")
+        print(f"  • best.pt  → {os.path.join(drive_save_path, 'best.pt')}")
+        print(f"  • last.pt  → {os.path.join(drive_save_path, 'last.pt')}")
     
-    confirm = input("\nBu parametrelerle devam et? (e/h): ").lower()
+    confirm = (input("\nBu parametrelerle devam et? (e/h, varsayılan: e): ") or "e").lower()
     if confirm != 'e' and confirm != 'evet' and confirm != 'yes':
         print("❌ Kurulum iptal edildi.")
         return None
@@ -655,7 +715,7 @@ def main():
                 try:
                     visualizer = HierarchicalDetectionVisualizer()
                     print(f"✅ Hiyerarşik tespit sistemi hazır!")
-                    print(f"🏷️  Tespit formatı: 'ZARLI: Kırmızı Örümcek (0.85)'")
+                    print(f"🏷️  Tespit formatı: 'ZARARLI: Kırmızı Örümcek (0.85)'")
                 except Exception as e:
                     print(f"⚠️  Hiyerarşik tespit başlatılamadı: {e}")
             
