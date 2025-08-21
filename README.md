@@ -7,7 +7,7 @@ Bu proje, dronelardan alınan görüntüler üzerinde YOLOv8/YOLO11 tabanlı bir
 ### ✨ YOLOv8/YOLO11 Tabanlı Tespit
 - **Multi-Dataset Birleştirme**: 7+ farklı Roboflow veri setini otomatik birleştirme
 - **Hierarchical Sınıf Sistemi**: Ana kategoriler + alt kategoriler yapısı
-- **Türkçe Etiketleme**: ZARLI, MANTAR HASTALIĞI, BESİN EKSİKLİĞİ gibi Türkçe çıktılar
+- **Türkçe Etiketleme**: ZARARLI, MANTAR HASTALIĞI, BESİN EKSİKLİĞİ gibi Türkçe çıktılar
 - **Renkli Bounding Box**: Her kategori için özel renk kodlaması
 - **Akıllı Sınıf Haritalama**: Otomatik ve manuel sınıf birleştirme
 
@@ -160,7 +160,7 @@ datasets = [
 ```
 ### Görsel Çıktı
 ```
-🔴 Kırmızı bounding box + "ZARLI: Kırmızı Örümcek (0.85)"
+🔴 Kırmızı bounding box + "ZARARLI: Kırmızı Örümcek (0.85)"
 🟫 Kahverengi bounding box + "MANTAR HASTALIĞI: Elma Karaleke (0.92)"  
 🟢 Yeşil bounding box + "SAĞLIKLI: Domates Yaprağı (0.78)"
 🟡 Sarı bounding box + "BESİN EKSİKLİĞİ: Azot Eksikliği (0.67)"

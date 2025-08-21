@@ -94,7 +94,7 @@ def get_smartfarm_models_dir():
     if not os.path.exists('/content/drive'):
         if not mount_google_drive():
             return None
-    path = "/content/drive/MyDrive/SmartFarm/colap_learn/yolo11_models"
+    path = "/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models"
     os.makedirs(path, exist_ok=True)
     return path
 
@@ -270,7 +270,7 @@ def hierarchical_dataset_setup():
     settings = manager.get_global_settings()
     
     # Ask for target count per class
-    default_target = settings.get('default_target_count_per_class', 2000)
+    default_target = settings.get('default_target_count_per_class', 5000)
     while True:
         try:
             target_count = int(input(f"\nSınıf başına hedef örnek sayısı (varsayılan: {default_target}): ") or str(default_target))
@@ -480,10 +480,10 @@ def interactive_training_setup():
     while True:
         try:
             if dataset_config['type'] == 'hierarchical_multi':
-                default_epochs = 2000  # Updated default for hierarchical model
+                default_epochs = 1000  # Updated default for hierarchical model
                 epochs = int(input(f"\nEpoch sayısı [100-2000 önerilen] (varsayılan: {default_epochs}): ") or str(default_epochs))
             else:
-                default_epochs = 2000  # Updated default for single dataset model
+                default_epochs = 1000  # Updated default for single dataset model
                 epochs = int(input(f"\nEpoch sayısı [100-2000 önerilen] (varsayılan: {default_epochs}): ") or str(default_epochs))
             
             if epochs > 0:
@@ -503,7 +503,7 @@ def interactive_training_setup():
         if dataset_config['type'] == 'hierarchical_multi':
             model_choice = input("\nModel seçin [1-4] (varsayılan: 3): ") or "3"
         else:
-            model_choice = input("\nModel seçin [1-4] (varsayılan: 2): ") or "2"
+            model_choice = input("\nModel seçin [1-4] (varsayılan: 3): ") or "3"
         
         model_options = {
             "1": "yolo11s.pt",
@@ -534,13 +534,10 @@ def interactive_training_setup():
             break
         print("❌ Lütfen 1-4 arası seçin.")
     
-    # Batch size and image size
-    if dataset_config['type'] == 'hierarchical_multi':
-        default_batch = recommended_batch
-        default_img_size = recommended_size
-    else:
-        default_batch = 16
-        default_img_size = 640
+    # Batch size and image size (varsayılanlar)
+    # İstenilen varsayılanlar: batch_size=16, img_size=640
+    default_batch = 16
+    default_img_size = 640
     
     while True:
         try:
@@ -591,6 +588,7 @@ def interactive_training_setup():
         'batch': batch_size,
         'imgsz': img_size,
         'device': device,
+        'workers': 8,
         'data': dataset_config['data_yaml'],
         'project': 'runs/train',
         'name': 'exp',
