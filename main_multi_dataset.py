@@ -534,10 +534,10 @@ def interactive_training_setup():
             break
         print("❌ Lütfen 1-4 arası seçin.")
     
-    # Batch size and image size (varsayılanlar)
-    # İstenilen varsayılanlar: batch_size=16, img_size=640
+    # Batch size ve image size varsayılanları (Colab için optimize)
+    # Öneri: batch_size=16, img_size=512 (RAM ve hız dengesi)
     default_batch = 16
-    default_img_size = 640
+    default_img_size = 512
     
     while True:
         try:
@@ -550,7 +550,7 @@ def interactive_training_setup():
     
     while True:
         try:
-            img_size = int(input(f"\nGörüntü boyutu (varsayılan: {default_img_size}, 32'nin katı olmalı): ") or str(default_img_size))
+            img_size = int(input(f"\nGörüntü boyutu (varsayılan: {default_img_size}, 32'nin katı olmalı • Colab için 512 önerilir): ") or str(default_img_size))
             if img_size > 0 and img_size % 32 == 0:
                 break
             print("❌ Lütfen 32'nin katı olan pozitif bir sayı girin.")
@@ -588,7 +588,7 @@ def interactive_training_setup():
         'batch': batch_size,
         'imgsz': img_size,
         'device': device,
-        'workers': 8,
+        'workers': 2,
         'data': dataset_config['data_yaml'],
         'project': 'runs/train',
         'name': 'exp',
@@ -602,6 +602,17 @@ def interactive_training_setup():
         'drive_save_path': drive_save_path,
         'checkpoint_path': checkpoint_path
     }
+    
+    # Save interval prompt (Drive kullanılıyorsa 10, değilse 50 varsayılan)
+    save_interval_default = 10 if drive_save_path else 50
+    try:
+        if drive_save_path:
+            save_interval = int(input(f"Drive'a kaç epoch'ta bir kaydedilsin? (varsayılan: {save_interval_default}): ") or str(save_interval_default))
+        else:
+            save_interval = int(input(f"Modele kaç epoch'ta bir yerel kaydetme yapılsın? (varsayılan: {save_interval_default}): ") or str(save_interval_default))
+    except ValueError:
+        save_interval = save_interval_default
+    options['save_interval'] = save_interval
     
     # Display selected parameters
     print("\n===== Seçilen Eğitim Parametreleri =====")
@@ -617,7 +628,14 @@ def interactive_training_setup():
     print(f"Batch boyutu: {batch_size}")
     print(f"Görüntü boyutu: {img_size}")
     print(f"Cihaz: {device}")
+    print(f"DataLoader workers: {options['workers']} (hafıza için düşük)")
+    print(f"Dataset cache varsayılanı: disk (host RAM kullanımını azaltır)")
+    print(f"cuDNN benchmark: Enabled (training.py içinde)")
     print(f"Kategori: {category}")
+    if drive_save_path:
+        print(f"Drive'a kaydetme aralığı: {options['save_interval']} epoch")
+    else:
+        print(f"Yerel kaydetme aralığı: {options['save_interval']} epoch")
     
     if drive_save_path:
         print(f"Drive kaydetme yolu: {drive_save_path}")
@@ -701,7 +719,7 @@ def main():
         
         # Train the model
         print(f"\n🚀 Hiyerarşik model eğitimi başlatılıyor...")
-        results = train_model(options, hyp=hyperparameters, resume=options.get('resume', False), epochs=options['epochs'])
+        results = train_model(options, hyp=hyperparameters, resume=options.get('resume', False), epochs=options['epochs'], drive_save_interval=options.get('save_interval', 10))
         
         if results:
             print('✅ Eğitim başarıyla tamamlandı!')

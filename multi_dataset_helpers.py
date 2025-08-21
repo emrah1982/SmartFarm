@@ -10,6 +10,7 @@ from collections import defaultdict, Counter
 import json
 import random
 from datetime import datetime
+from augmentation_utils import YOLOAugmentationPipeline
 
 class DatasetAnalyzer:
     """Dataset analysis and download operations"""
@@ -209,6 +210,11 @@ class DatasetMerger:
     
     def __init__(self, manager):
         self.manager = manager
+        # Initialize a reusable augmentation pipeline
+        try:
+            self.augmentation_pipeline = YOLOAugmentationPipeline(image_size=640, severity_level='medium')
+        except Exception:
+            self.augmentation_pipeline = None
     
     def merge_datasets(self, target_count_per_class=None):
         """Merge datasets with balancing"""
@@ -248,11 +254,21 @@ class DatasetMerger:
                 print(f"⚠️  No samples found for {main_class}")
                 continue
             
-            # Balance samples (simple version without heavy augmentation)
-            final_samples = self._balance_class_samples_simple(class_samples, target_count_per_class)
+            original_count = len(class_samples)
+            copied_count = 0
             
-            # Copy samples to merged dataset
-            copied_count = self._copy_samples_to_merged(final_samples, main_class, file_counter)
+            if original_count >= target_count_per_class:
+                # If we have enough samples, randomly select target_count_per_class originals
+                selected = random.sample(class_samples, target_count_per_class)
+                copied_count = self._copy_samples_to_merged(selected, main_class, file_counter)
+            else:
+                # Copy all originals first
+                copied_count = self._copy_samples_to_merged(class_samples, main_class, file_counter)
+                needed = max(0, target_count_per_class - original_count)
+                if needed > 0:
+                    print(f"✨ Augmenting {needed} additional samples for {main_class} to reach target {target_count_per_class}...")
+                    aug_generated = self._augment_and_save(class_samples, needed, main_class, file_counter + copied_count)
+                    copied_count += aug_generated
             
             merged_class_counts[main_class] = copied_count
             file_counter += copied_count
@@ -377,6 +393,92 @@ class DatasetMerger:
                 continue
         
         return copied_count
+
+    def _augment_and_save(self, class_samples, needed_count, main_class, start_counter):
+        """Generate augmented samples for a main class and save directly into merged dataset.
+        Augmented labels are remapped to the main class index.
+        """
+        if self.augmentation_pipeline is None:
+            print("⚠️  Augmentation pipeline could not be initialized. Falling back to duplication.")
+            # Fallback: duplicate random samples
+            duplicated = 0
+            for i in range(needed_count):
+                sample = random.choice(class_samples)
+                # Create filenames
+                file_id = start_counter + duplicated
+                img_filename = f"{main_class}_{file_id:06d}.jpg"
+                lbl_filename = f"{main_class}_{file_id:06d}.txt"
+                # Copy image
+                dst_img_path = os.path.join(self.manager.output_dir, 'images', 'train', img_filename)
+                shutil.copy2(sample['image_path'], dst_img_path)
+                # Remap and copy label
+                dst_lbl_path = os.path.join(self.manager.output_dir, 'labels', 'train', lbl_filename)
+                self._process_and_copy_labels(sample, dst_lbl_path, main_class)
+                duplicated += 1
+            return duplicated
+        
+        saved = 0
+        main_class_idx = list(self.manager.hierarchical_classes.keys()).index(main_class)
+        images_train_dir = os.path.join(self.manager.output_dir, 'images', 'train')
+        labels_train_dir = os.path.join(self.manager.output_dir, 'labels', 'train')
+        
+        for i in range(needed_count):
+            sample = random.choice(class_samples)
+            try:
+                # Load source image
+                image_bgr = cv2.imread(sample['image_path'])
+                if image_bgr is None:
+                    continue
+                image = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+                
+                # Read YOLO labels
+                bboxes = []
+                class_labels = []
+                with open(sample['label_path'], 'r') as f:
+                    for line in f:
+                        parts = line.strip().split()
+                        if parts and len(parts) >= 5:
+                            try:
+                                x_center = float(parts[1])
+                                y_center = float(parts[2])
+                                width = float(parts[3])
+                                height = float(parts[4])
+                                bboxes.append([x_center, y_center, width, height])
+                                # Keep original label list length in sync; values will be overridden to main class on save
+                                class_labels.append(main_class_idx)
+                            except (ValueError, IndexError):
+                                pass
+                if not bboxes:
+                    continue
+                
+                # Apply augmentation
+                aug_image, aug_bboxes, aug_labels = self.augmentation_pipeline.apply_augmentation(
+                    image, bboxes, class_labels
+                )
+                
+                # Save augmented image
+                aug_bgr = cv2.cvtColor(aug_image, cv2.COLOR_RGB2BGR)
+                file_id = start_counter + saved
+                img_filename = f"{main_class}_{file_id:06d}.jpg"
+                lbl_filename = f"{main_class}_{file_id:06d}.txt"
+                img_path = os.path.join(images_train_dir, img_filename)
+                lbl_path = os.path.join(labels_train_dir, lbl_filename)
+                cv2.imwrite(img_path, aug_bgr)
+                
+                # Save remapped labels (all boxes mapped to main class index)
+                with open(lbl_path, 'w') as out_f:
+                    for bbox in aug_bboxes:
+                        if len(bbox) >= 4:
+                            out_f.write(f"{main_class_idx} {bbox[0]:.6f} {bbox[1]:.6f} {bbox[2]:.6f} {bbox[3]:.6f}\n")
+                
+                saved += 1
+                if saved % 50 == 0:
+                    print(f"  Augmented {saved}/{needed_count} for {main_class}")
+            except Exception as e:
+                print(f"    ⚠️  Augmentation error for {main_class}: {e}")
+                continue
+        
+        return saved
     
     def _process_and_copy_labels(self, sample, dst_label_path, main_class):
         """Process and copy label file with class remapping"""

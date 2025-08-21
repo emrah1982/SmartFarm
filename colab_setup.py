@@ -78,6 +78,9 @@ def setup_colab_environment():
         # Görüntü işleme (opencv-python yerine headless versiyon)
         "opencv-python-headless>=4.7.0",
         
+        # Sayısal bilimler - Albumentations için SciPy gerekli (NumPy 1.26 ile uyumlu sürüm)
+        "scipy==1.11.4",
+        
         # Augmentation
         "albumentations>=1.3.0",
         
@@ -98,17 +101,23 @@ def setup_colab_environment():
         if not install_package(package):
             failed_packages.append(package)
     
-    # Numpy özel kontrolü (Colab'da sorun çıkarabilir)
-    print("\n🔍 NumPy versiyonu kontrol ediliyor...")
+    # NumPy/SciPy uyumluluk kontrolü
+    print("\n🔍 NumPy/SciPy uyumluluk kontrolü yapılıyor...")
     numpy_ver = get_installed_version('numpy')
+    scipy_ver = get_installed_version('scipy')
     if numpy_ver:
-        if version.parse(numpy_ver) >= version.parse('2.0.0'):
-            print("⚠️ NumPy 2.0+ tespit edildi, 1.x'e downgrade yapılıyor...")
-            if install_package("numpy>=1.21.0,<2.0.0", force_reinstall=True):
-                print("✅ NumPy başarıyla downgrade edildi")
-            else:
-                print("❌ NumPy downgrade başarısız")
-                failed_packages.append("numpy<2.0.0")
+        print(f"  • numpy: {numpy_ver}")
+    else:
+        print("  • numpy: Yüklü değil")
+    if scipy_ver:
+        print(f"  • scipy: {scipy_ver}")
+    else:
+        print("  • scipy: Yüklü değil")
+
+    # Colab'da ABI uyumsuzluğu yaşamamak için SciPy'ı NumPy ile uyumlu sabit sürüme getir
+    # NumPy 1.26.x ile öneri: SciPy 1.11.4
+    if not install_package("scipy==1.11.4"):
+        failed_packages.append("scipy==1.11.4")
     
     # Sonuçları raporla
     print("\n" + "=" * 50)
