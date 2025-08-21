@@ -339,8 +339,8 @@ def process_hierarchical_datasets(dataset_config):
         
         # 3. Merge datasets with hierarchical structure
         print("\n3️⃣ Veri setleri hiyerarşik yapıyla birleştiriliyor...")
-        # Eğer sınıf bazlı hedefler girildiyse onları kullan
-        pct = dataset_config['setup'].get('per_class_targets')
+        # Fonksiyona 'setup' dict'i geçirildiği için doğrudan buradan oku
+        pct = dataset_config.get('per_class_targets')
         target_arg = pct if pct else target_count
         merged_counts = manager.merge_datasets(target_count_per_class=target_arg)
         
