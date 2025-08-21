@@ -218,12 +218,13 @@ class DatasetMerger:
     
     def merge_datasets(self, target_count_per_class=None):
         """Merge datasets with balancing"""
-        if target_count_per_class is None:
-            settings = self.manager.get_global_settings()
-            target_count_per_class = settings.get('default_target_count_per_class', 2000)
+        settings = self.manager.get_global_settings()
+        global_default_target = settings.get('default_target_count_per_class', 2000)
+        # target_count_per_class can be int or dict per main class
+        target_spec = target_count_per_class if target_count_per_class is not None else global_default_target
         
         print(f"\n===== Merging Datasets =====")
-        print(f"🎯 Target count per class: {target_count_per_class}")
+        print(f"🎯 Target count per class: {target_spec}")
         
         # Create output directories
         os.makedirs(self.manager.output_dir, exist_ok=True)
@@ -255,18 +256,23 @@ class DatasetMerger:
                 continue
             
             original_count = len(class_samples)
+            # Determine target for this main class
+            if isinstance(target_spec, dict):
+                class_target = target_spec.get(main_class, global_default_target)
+            else:
+                class_target = int(target_spec)
             copied_count = 0
             
-            if original_count >= target_count_per_class:
+            if original_count >= class_target:
                 # If we have enough samples, randomly select target_count_per_class originals
-                selected = random.sample(class_samples, target_count_per_class)
+                selected = random.sample(class_samples, class_target)
                 copied_count = self._copy_samples_to_merged(selected, main_class, file_counter)
             else:
                 # Copy all originals first
                 copied_count = self._copy_samples_to_merged(class_samples, main_class, file_counter)
-                needed = max(0, target_count_per_class - original_count)
+                needed = max(0, class_target - original_count)
                 if needed > 0:
-                    print(f"✨ Augmenting {needed} additional samples for {main_class} to reach target {target_count_per_class}...")
+                    print(f"✨ Augmenting {needed} additional samples for {main_class} to reach target {class_target}...")
                     aug_generated = self._augment_and_save(class_samples, needed, main_class, file_counter + copied_count)
                     copied_count += aug_generated
             

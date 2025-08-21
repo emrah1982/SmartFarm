@@ -269,7 +269,7 @@ def hierarchical_dataset_setup():
     # Get global settings
     settings = manager.get_global_settings()
     
-    # Ask for target count per class
+    # Ask for target count per class (global default + opsiyonel sınıf bazlı hedefler)
     default_target = settings.get('default_target_count_per_class', 5000)
     while True:
         try:
@@ -279,6 +279,23 @@ def hierarchical_dataset_setup():
             print("❌ Lütfen pozitif bir sayı girin.")
         except ValueError:
             print("❌ Lütfen geçerli bir sayı girin.")
+
+    # Opsiyonel: Kullanıcı sınıf bazında özel hedef sayıları girmek isterse
+    per_class_targets = None
+    customize = (input("\nSınıf bazında hedef sayıları özelleştirmek ister misiniz? (e/h, varsayılan: h): ") or "h").lower()
+    if customize.startswith('e'):
+        per_class_targets = {}
+        print("\nSınıf bazlı hedefler (boş bırakılırsa genel varsayılan kullanılacak):")
+        for cls in manager.hierarchical_classes.keys():
+            try:
+                val = input(f"  • {cls} için hedef (varsayılan {target_count}): ")
+                if val.strip() == "":
+                    continue
+                n = int(val)
+                if n > 0:
+                    per_class_targets[cls] = n
+            except Exception:
+                pass
     
     # Output directory
     default_output = "datasets/hierarchical_merged"
@@ -288,6 +305,7 @@ def hierarchical_dataset_setup():
         'manager': manager,
         'selected_group': selected_group,
         'target_count': target_count,
+        'per_class_targets': per_class_targets,
         'output_dir': output_dir,
         'recommendations': recommendations,
         'settings': settings
@@ -321,7 +339,10 @@ def process_hierarchical_datasets(dataset_config):
         
         # 3. Merge datasets with hierarchical structure
         print("\n3️⃣ Veri setleri hiyerarşik yapıyla birleştiriliyor...")
-        merged_counts = manager.merge_datasets(target_count_per_class=target_count)
+        # Eğer sınıf bazlı hedefler girildiyse onları kullan
+        pct = dataset_config['setup'].get('per_class_targets')
+        target_arg = pct if pct else target_count
+        merged_counts = manager.merge_datasets(target_count_per_class=target_arg)
         
         if not merged_counts:
             print("❌ Veri seti birleştirme başarısız!")
@@ -632,6 +653,17 @@ def interactive_training_setup():
     print(f"Dataset cache varsayılanı: disk (host RAM kullanımını azaltır)")
     print(f"cuDNN benchmark: Enabled (training.py içinde)")
     print(f"Kategori: {category}")
+    if dataset_config['type'] == 'hierarchical_multi':
+        pct = dataset_config['setup'].get('per_class_targets')
+        if pct:
+            print("Sınıf bazlı hedefler: (özet)")
+            shown = 0
+            for k, v in pct.items():
+                print(f"  • {k}: {v}")
+                shown += 1
+                if shown >= 10:
+                    print("  • ... (daha fazla sınıf var)")
+                    break
     if drive_save_path:
         print(f"Drive'a kaydetme aralığı: {options['save_interval']} epoch")
     else:
@@ -684,9 +716,14 @@ def main():
     if choice == "2":
         in_colab = is_colab()
         
-        # Install required packages
-        print("\n📦 Gerekli paketler yüklüyor...")
-        install_required_packages()
+        # (Opsiyonel) Gerekli paketleri yükleme
+        # Not: Paket kurulumlarını genellikle colab_setup.py üzerinden yönetmeniz önerilir.
+        do_install = (input("\nGerekli paketleri şimdi yüklemek ister misiniz? (e/h, varsayılan: h): ") or "h").lower()
+        if do_install.startswith("e"):
+            print("\n📦 Gerekli paketler yükleniyor...")
+            install_required_packages()
+        else:
+            print("\n⏭️ Paket yükleme atlandı. (colab_setup.py ile kurulumu yapabilirsiniz)")
         
         # Create hyperparameter file
         hyp_path = create_hyperparameters_file()

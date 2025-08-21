@@ -160,6 +160,7 @@ def train_model(options, hyp=None, resume=False, epochs=None, drive_save_interva
 
     # Set training parameters - nolog parametresini kaldırdık
     train_args = {
+        'model': model_path,
         'data': options['data'],
         'epochs': epochs if epochs is not None else options['epochs'],
         'imgsz': options['imgsz'],
@@ -175,9 +176,6 @@ def train_model(options, hyp=None, resume=False, epochs=None, drive_save_interva
         'seed': options.get('seed', 0),
         'cache': cache_mode,  # Use 'disk' by default to limit RAM usage
         'resume': resume,  # Resume from checkpoint
-        # DataLoader memory-lean settings
-        'pin_memory': False,
-        'persistent_workers': False,
         # 'nolog' parametresini kaldırdık - bu parametre desteklenmiyor
     }
 
