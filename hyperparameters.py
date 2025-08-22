@@ -52,7 +52,27 @@ def create_hyperparameters_file():
 
         # Other settings
         "label_smoothing": 0.0,
-        "nbs": 64
+        "nbs": 64,
+
+        # Training control (SmartFarm extensions)
+        # These can override interactive prompts in training.py
+        # Examples:
+        #   speed_mode: true  -> cache=ram, workers>=8, plots=False
+        #   cache: ram|disk|false
+        #   workers: 8
+        #   plots: false
+        "speed_mode": False,
+        "cache": "disk",
+        "workers": 2,
+        "plots": True,
+
+        # Optional overrides for training setup
+        # If set in hyp.yaml, these will override values entered in interactive setup
+        # Example:
+        #   batch: 48
+        #   imgsz: 512
+        "batch": None,
+        "imgsz": None
     }
 
     # Create YAML file
@@ -71,7 +91,10 @@ def load_hyperparameters(hyp_path):
 
         # Show summary
         print("Important hyperparameters:")
-        important_params = ["lr0", "mosaic", "fliplr", "patience", "box", "cls"]
+        important_params = [
+            "lr0", "mosaic", "fliplr", "patience", "box", "cls",
+            "speed_mode", "cache", "workers", "plots", "batch", "imgsz"
+        ]
         for key in important_params:
             if key in hyperparameters:
                 print(f"  {key}: {hyperparameters[key]}")

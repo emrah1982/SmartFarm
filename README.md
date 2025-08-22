@@ -167,6 +167,33 @@ datasets = [
 🟩 Açık yeşil-gri bounding box + "Yabanci Ot(0.77)"
 ```
 
+### Parametre Önceliği (main_multi_dataset.py ↔ hyp.yaml)
+
+- __Öncelik kuralı__: `hyp.yaml` sadece ilgili anahtar tanımlıysa `main_multi_dataset.py` içinde girilen `options` değerlerinin ÜZERİNE yazar. Hyp’te anahtar yoksa veya `null` ise main’deki değerler kullanılır.
+- __Desteklenen anahtarlar__: `speed_mode`, `cache`, `workers`, `plots`, `batch`, `imgsz` (+ klasik h’lar: `lr0`, `patience`, `mosaic`, ...)
+- __speed_mode: true__ olduğunda otomatik olarak: `cache='ram'`, `workers>=8`, `plots=False` uygulanır.
+
+Örnek 1 – Main değerlerini kullan (hyp override etmesin):
+```yaml
+# hyp.yaml
+speed_mode: true      # hız modunu aç
+workers: 12           # worker’ı yükselt
+# batch ve imgsz yazılmadığı için main’de seçtikleriniz geçerli kalır
+```
+
+Örnek 2 – hyp ile batch/imgsz override et:
+```yaml
+# hyp.yaml
+speed_mode: true
+workers: 12
+batch: 48
+imgsz: 512
+```
+
+Notlar:
+- `cache`: "ram" | "disk" | false desteklenir.
+- `plots`: true/false; hız modunda zorla `False` yapılır.
+
 ### Hibrit Sınıf Sistemi
 
 ```python

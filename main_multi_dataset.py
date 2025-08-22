@@ -577,6 +577,10 @@ def interactive_training_setup():
             print("❌ Lütfen 32'nin katı olan pozitif bir sayı girin.")
         except ValueError:
             print("❌ Lütfen geçerli bir sayı girin.")
+
+    # Speed mode (optimize epoch time)
+    speed_mode_input = (input("\nHız modu (cache=ram, workers=8, plots=False) açılsın mı? (e/h, varsayılan: e): ") or "e").lower()
+    speed_mode = speed_mode_input.startswith('e')
     
     # Google Drive save settings
     drive_save_path = None
@@ -621,7 +625,8 @@ def interactive_training_setup():
         'use_hyp': use_hyp,
         'category': category,
         'drive_save_path': drive_save_path,
-        'checkpoint_path': checkpoint_path
+        'checkpoint_path': checkpoint_path,
+        'speed_mode': speed_mode
     }
     
     # Save interval prompt (Drive kullanılıyorsa 10, değilse 50 varsayılan)
@@ -650,8 +655,9 @@ def interactive_training_setup():
     print(f"Görüntü boyutu: {img_size}")
     print(f"Cihaz: {device}")
     print(f"DataLoader workers: {options['workers']} (hafıza için düşük)")
-    print(f"Dataset cache varsayılanı: disk (host RAM kullanımını azaltır)")
+    print(f"Dataset cache varsayılanı: {'ram' if speed_mode else 'disk'}")
     print(f"cuDNN benchmark: Enabled (training.py içinde)")
+    print(f"Hız modu: {'Açık' if speed_mode else 'Kapalı'}")
     print(f"Kategori: {category}")
     if dataset_config['type'] == 'hierarchical_multi':
         pct = dataset_config['setup'].get('per_class_targets')

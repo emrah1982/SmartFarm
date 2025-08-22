@@ -147,28 +147,69 @@ def train_model(options, hyp=None, resume=False, epochs=None, drive_save_interva
         print(f"Model loading error: {e}")
         return None
 
+    # Determine control flags from options/hyp
+    speed_mode_flag = bool(options.get('speed_mode'))
+    if hyp is not None and isinstance(hyp, dict):
+        if 'speed_mode' in hyp:
+            speed_mode_flag = bool(hyp.get('speed_mode'))
+
     # Settings for periodic memory cleanup
     cleanup_frequency = int(input("\nRAM cleanup frequency (clean every N epochs? e.g., 10): ") or "10")
-    # Dataset caching mode: default to 'disk' to reduce host RAM usage in Colab
-    cache_choice = (input("\nDataset cache mode [ram/disk/none] (default: disk): ") or "disk").strip().lower()
-    if cache_choice in ("disk", "ram"):
-        cache_mode = cache_choice
-    elif cache_choice in ("n", "no", "none", "false", "0"):
-        cache_mode = False
+    
+    # Dataset caching mode
+    if speed_mode_flag:
+        cache_mode = 'ram'
+        print("⚡ Hız modu aktif: Dataset cache 'ram' olarak ayarlandı.")
     else:
-        cache_mode = "disk"
+        # default to 'disk' to reduce host RAM usage in Colab
+        cache_from_hyp = None
+        if hyp is not None and isinstance(hyp, dict):
+            cache_from_hyp = hyp.get('cache')
+        if isinstance(cache_from_hyp, str):
+            cache_choice = cache_from_hyp.strip().lower()
+        else:
+            cache_choice = (input("\nDataset cache mode [ram/disk/none] (default: disk): ") or "disk").strip().lower()
+        if cache_choice in ("disk", "ram"):
+            cache_mode = cache_choice
+        elif cache_choice in ("n", "no", "none", "false", "0"):
+            cache_mode = False
+        else:
+            cache_mode = "disk"
 
     # Set training parameters - nolog parametresini kaldırdık
+    # Determine workers (increase in speed mode)
+    workers_val = options.get('workers', 2)
+    # hyp override for workers
+    if hyp is not None and isinstance(hyp, dict) and isinstance(hyp.get('workers', None), int):
+        workers_val = hyp['workers']
+    if speed_mode_flag and isinstance(workers_val, int) and workers_val < 8:
+        workers_val = 8
+
+    # Determine batch and imgsz (hyp overrides if provided)
+    batch_val = options.get('batch')
+    imgsz_val = options.get('imgsz')
+    if hyp is not None and isinstance(hyp, dict):
+        if hyp.get('batch') is not None:
+            try:
+                batch_val = int(hyp.get('batch'))
+            except Exception:
+                pass
+        if hyp.get('imgsz') is not None:
+            try:
+                imgsz_val = int(hyp.get('imgsz'))
+            except Exception:
+                pass
+
     train_args = {
         'model': model_path,
         'data': options['data'],
         'epochs': epochs if epochs is not None else options['epochs'],
-        'imgsz': options['imgsz'],
-        'batch': options['batch'],
+        'imgsz': imgsz_val,
+        'batch': batch_val,
         'project': options.get('project', 'runs/train'),
         'name': options.get('name', 'exp'),
         'device': '0' if torch.cuda.is_available() else 'cpu',  # Use GPU 0 if available or CPU
-        'workers': options.get('workers', 2),
+        'workers': workers_val,
         'exist_ok': options.get('exist_ok', False),
         'pretrained': options.get('pretrained', True),
         'optimizer': options.get('optimizer', 'auto'),
@@ -178,6 +219,15 @@ def train_model(options, hyp=None, resume=False, epochs=None, drive_save_interva
         'resume': resume,  # Resume from checkpoint
         # 'nolog' parametresini kaldırdık - bu parametre desteklenmiyor
     }
+
+    # In speed mode, reduce overhead of plotting during training
+    # Set plots flag
+    plots_flag = options.get('plots', True)
+    if hyp is not None and isinstance(hyp, dict) and 'plots' in hyp:
+        plots_flag = bool(hyp['plots'])
+    if speed_mode_flag:
+        plots_flag = False
+    train_args['plots'] = plots_flag
 
     # Add hyperparameters if available (as fixed constants, not as hyp.yaml file!)
     if hyp is not None and options.get('use_hyp', True):
@@ -203,6 +253,8 @@ def train_model(options, hyp=None, resume=False, epochs=None, drive_save_interva
     print('Training parameters:')
     for k, v in train_args.items():
         print(f'  {k}: {v}')
+    if speed_mode_flag:
+        print("  ⚡ speed_mode: True (cache=ram, workers>=8, plots=False)")
 
     # Show memory status before training
     show_memory_usage("Training Start Memory Status")
