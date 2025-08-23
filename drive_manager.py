@@ -188,52 +188,37 @@ class DriveManager:
             print(f"❌ Drive konfigürasyonu yükleme hatası: {e}")
             return False
     
-    def upload_model(self, model_path: str, epoch: int, is_best: bool = False) -> bool:
-        """Modeli Drive'a yükle"""
+    def upload_model(self, local_path: str, drive_filename: str) -> bool:
+        """Uploads a model file to Google Drive, updating it if it already exists."""
         if not self.service or not self.drive_folder_id:
-            print("❌ Drive servisi veya klasör ID'si bulunamadı!")
+            print("❌ Drive service or folder ID not found!")
             return False
-        
-        if not os.path.exists(model_path):
-            print(f"❌ Model dosyası bulunamadı: {model_path}")
+
+        if not os.path.exists(local_path):
+            print(f"❌ Model file not found: {local_path}")
             return False
-        
+
         try:
-            # Dosya adını oluştur
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            if is_best:
-                filename = f"best_model_epoch_{epoch}_{timestamp}.pt"
+            # Check if the file already exists in Drive
+            query = f"name='{drive_filename}' and parents in '{self.drive_folder_id}' and trashed=false"
+            response = self.service.files().list(q=query, fields='files(id)').execute()
+            existing_files = response.get('files', [])
+
+            media = MediaFileUpload(local_path, resumable=True)
+
+            if existing_files:
+                # Update existing file
+                file_id = existing_files[0]['id']
+                self.service.files().update(fileId=file_id, media_body=media).execute()
+                print(f"✅ Model güncellendi: {drive_filename}")
             else:
-                filename = f"checkpoint_epoch_{epoch}_{timestamp}.pt"
-            
-            # Dosya metadata'sı
-            file_metadata = {
-                'name': filename,
-                'parents': [self.drive_folder_id]
-            }
-            
-            # Dosyayı yükle
-            media = MediaFileUpload(model_path, resumable=True)
-            file = self.service.files().create(
-                body=file_metadata,
-                media_body=media,
-                fields='id,name,size'
-            ).execute()
-            
-            # Dosya boyutunu hesapla
-            file_size = os.path.getsize(model_path)
-            size_mb = file_size / (1024 * 1024)
-            
-            print(f"✅ Model Drive'a yüklendi:")
-            print(f"   📄 Dosya: {filename}")
-            print(f"   📊 Boyut: {size_mb:.2f} MB")
-            print(f"   🆔 Drive ID: {file.get('id')}")
-            
-            # Yükleme kaydını tut
-            self._log_upload(filename, epoch, file.get('id'), is_best)
+                # Create new file
+                file_metadata = {'name': drive_filename, 'parents': [self.drive_folder_id]}
+                self.service.files().create(body=file_metadata, media_body=media).execute()
+                print(f"✅ Model Drive'a yüklendi: {drive_filename}")
             
             return True
-            
+
         except Exception as e:
             print(f"❌ Model yükleme hatası: {e}")
             return False
@@ -261,29 +246,33 @@ class DriveManager:
         with open(log_file, 'w', encoding='utf-8') as f:
             json.dump(uploads, f, indent=2, ensure_ascii=False)
     
-    def find_latest_checkpoint(self) -> Tuple[Optional[str], int]:
-        """En son checkpoint'i bul"""
-        if not os.path.exists('drive_uploads.json'):
-            return None, 0
-        
+    def find_latest_checkpoint(self) -> Tuple[Optional[str], Optional[str]]:
+        """Find the latest checkpoint ('last.pt' or 'best.pt') directly from Google Drive."""
+        if not self.service or not self.drive_folder_id:
+            return None, None
+
         try:
-            with open('drive_uploads.json', 'r', encoding='utf-8') as f:
-                uploads = json.load(f)
-            
-            # En son epoch'u bul
-            latest_epoch = 0
-            latest_file_id = None
-            
-            for upload in uploads:
-                if upload['epoch'] > latest_epoch:
-                    latest_epoch = upload['epoch']
-                    latest_file_id = upload['file_id']
-            
-            return latest_file_id, latest_epoch
-            
+            # Search for 'last.pt' first
+            query_last = f"name='last.pt' and parents in '{self.drive_folder_id}' and trashed=false"
+            response_last = self.service.files().list(q=query_last, fields='files(id, name)').execute()
+            if response_last.get('files'):
+                file = response_last['files'][0]
+                print(f"🔍 Drive'da bulundu: {file['name']}")
+                return file['id'], file['name']
+
+            # If not found, search for 'best.pt'
+            query_best = f"name='best.pt' and parents in '{self.drive_folder_id}' and trashed=false"
+            response_best = self.service.files().list(q=query_best, fields='files(id, name)').execute()
+            if response_best.get('files'):
+                file = response_best['files'][0]
+                print(f"🔍 Drive'da bulundu: {file['name']} ('last.pt' bulunamadı)")
+                return file['id'], file['name']
+
+            return None, None
+
         except Exception as e:
-            print(f"❌ Checkpoint arama hatası: {e}")
-            return None, 0
+            print(f"❌ Drive'da checkpoint arama hatası: {e}")
+            return None, None
     
     def download_checkpoint(self, file_id: str, local_path: str) -> bool:
         """Checkpoint'i Drive'dan indir"""

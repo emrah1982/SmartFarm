@@ -79,10 +79,10 @@ def find_latest_checkpoint(options: dict, drive_manager: Optional[DriveManager])
         choice = input("\nEğitimi nereden devam ettirmek istiyorsunuz?\n1. Yerel dosyalardan\n2. Google Drive'dan\nSeçim (1/2): ").strip()
         if choice == '2':
             print("\n🔍 Drive'da en son checkpoint aranıyor...")
-            file_id, latest_epoch = drive_manager.find_latest_checkpoint()
-            if file_id and latest_epoch > 0:
-                print(f"📥 En son checkpoint bulundu: Epoch {latest_epoch}")
-                temp_checkpoint_path = f"temp_drive_checkpoint_epoch_{latest_epoch}.pt"
+            file_id, filename = drive_manager.find_latest_checkpoint()
+            if file_id and filename:
+                print(f"📥 Drive'da checkpoint bulundu: {filename}")
+                temp_checkpoint_path = f"temp_drive_{filename}"
                 if drive_manager.download_checkpoint(file_id, temp_checkpoint_path):
                     print(f'✅ Drive\'dan devam etmek için checkpoint indirildi: {temp_checkpoint_path}')
                     return temp_checkpoint_path
@@ -406,72 +406,44 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
             except Exception as cb_err:
                 print(f"Callback devre dışı bırakma hatası: {cb_err}")
         
-        # Periyodik temizleme ve Drive kaydetme için manuel callback sınıfı
-        class MemoryCleanupAndDriveCallback:
-            def __init__(self, cleanup_frequency, save_interval, drive_manager, use_drive, project_dir, experiment_name, drive_save_dir=None):
-                self.cleanup_frequency = cleanup_frequency
-                self.save_interval = save_interval
+        class SaveToDriveCallback:
+            """Callback to save model checkpoints ('last.pt', 'best.pt') to Google Drive."""
+            def __init__(self, drive_manager, project_dir, experiment_name):
                 self.drive_manager = drive_manager
-                self.use_drive = use_drive
-                self.project_dir = project_dir
-                self.experiment_name = experiment_name
-                self.last_saved_epoch = 0
-                self.drive_save_dir = drive_save_dir
-            
-            def __call__(self, trainer):
-                if hasattr(trainer, 'epoch'):
-                    current_epoch = trainer.epoch + 1
-                    
-                    # Memory cleanup
-                    if current_epoch % self.cleanup_frequency == 0:
-                        print(f"\n--- Memory cleanup at epoch {current_epoch} ---")
-                        import gc
-                        gc.collect()
-                        if torch.cuda.is_available():
-                            torch.cuda.empty_cache()
-                    
-                    # Kaydetme işlemleri (Drive API ve/veya dosya sistemi)
-                    if current_epoch % self.save_interval == 0 and current_epoch > self.last_saved_epoch:
-                        print(f"\n--- Kaydetme: Epoch {current_epoch} ---")
+                self.weights_dir = Path(project_dir) / experiment_name / 'weights'
+                self.best_fitness = -1
 
-                        # Yollar
-                        best_path = os.path.join(self.project_dir, self.experiment_name, "weights", "best.pt")
-                        last_path = os.path.join(self.project_dir, self.experiment_name, "weights", "last.pt")
+            def on_train_epoch_end(self, trainer):
+                """Called at the end of each training epoch to upload last.pt."""
+                last_pt_path = self.weights_dir / 'last.pt'
+                if last_pt_path.exists():
+                    print(f"\n💾 Syncing last.pt to Drive for epoch {trainer.epoch}...")
+                    self.drive_manager.upload_model(str(last_pt_path), 'last.pt')
 
-                        # 1) Drive API ile yükleme (opsiyonel)
-                        if self.use_drive and self.drive_manager:
-                            if os.path.exists(last_path):
-                                success = self.drive_manager.upload_model(last_path, current_epoch, is_best=False)
-                                if success:
-                                    print(f"✅ Checkpoint epoch {current_epoch} Drive API ile yüklendi")
-                            if os.path.exists(best_path) and (os.path.getmtime(best_path) > os.path.getmtime(last_path) if os.path.exists(last_path) else True):
-                                success = self.drive_manager.upload_model(best_path, current_epoch, is_best=True)
-                                if success:
-                                    print(f"✅ Best model epoch {current_epoch} Drive API ile yüklendi")
+            def on_fit_epoch_end(self, trainer):
+                """Called at the end of fit epoch to check for and upload best.pt."""
+                # First, call the epoch end for last.pt sync
+                self.on_train_epoch_end(trainer)
 
-                        # 2) Dosya sistemine kopyalama (Drive mount edilen dizine)
-                        if self.drive_save_dir:
-                            try:
-                                os.makedirs(self.drive_save_dir, exist_ok=True)
-                                if os.path.exists(last_path):
-                                    shutil.copy(last_path, os.path.join(self.drive_save_dir, "last.pt"))
-                                    print(f"💾 last.pt kopyalandı → {os.path.join(self.drive_save_dir, 'last.pt')}")
-                                if os.path.exists(best_path):
-                                    shutil.copy(best_path, os.path.join(self.drive_save_dir, "best.pt"))
-                                    print(f"💾 best.pt kopyalandı → {os.path.join(self.drive_save_dir, 'best.pt')}")
-                            except Exception as copy_e:
-                                print(f"Dosya sistemi kopyalama hatası: {copy_e}")
+                # Check for best model
+                current_fitness = trainer.fitness
+                if current_fitness is not None and current_fitness > self.best_fitness:
+                    self.best_fitness = current_fitness
+                    best_pt_path = self.weights_dir / 'best.pt'
+                    if best_pt_path.exists():
+                        print(f"\n🏆 New best model found! Syncing best.pt to Drive...")
+                        self.drive_manager.upload_model(str(best_pt_path), 'best.pt')
 
-                        self.last_saved_epoch = current_epoch
-        
+        drive_save_callback = SaveToDriveCallback(
+            drive_manager,
+            project_dir,
+            experiment_name
+        )
+
         # Callback'i model nesnesine ekle (eğer destekleniyorsa)
         try:
             if hasattr(model, 'add_callback'):
-                callback = MemoryCleanupAndDriveCallback(
-                    cleanup_frequency, save_interval, drive_manager, use_drive, 
-                    project_dir, experiment_name, drive_save_dir
-                )
-                model.add_callback("on_train_epoch_end", callback)
+                model.add_callback("on_train_epoch_end", drive_save_callback)
                 print(f"✅ Drive kaydetme callback'i eklendi (her {save_interval} epoch'ta bir)")
         except Exception as add_cb_err:
             print(f"Callback ekleme hatası: {add_cb_err}")
