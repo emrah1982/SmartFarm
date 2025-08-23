@@ -78,7 +78,8 @@ def setup_colab_environment():
         # Görüntü işleme (opencv-python yerine headless versiyon)
         "opencv-python-headless>=4.7.0",
         
-        # Sayısal bilimler - Albumentations için SciPy gerekli (NumPy 1.26 ile uyumlu sürüm)
+        # Sayısal bilimler - Albumentations için uyumlu versiyonlar
+        "numpy==1.26.4",
         "scipy==1.11.4",
         
         # Augmentation
