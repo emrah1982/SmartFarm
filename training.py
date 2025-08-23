@@ -13,6 +13,7 @@ from typing import List, Tuple, Optional
 import torchvision
 
 from ultralytics import YOLO
+from PIL import Image
 
 def validate_bbox(bbox: List[float], image_size: Tuple[int, int]) -> bool:
     """
@@ -227,7 +228,6 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
             print(f"Model loaded successfully: {model_path}")
         except Exception as e1:
             print(f"Standard loading attempt failed: {e1}")
-            
             # Try with alternative PyTorch loading options
             try:
                 # For PyTorch 2.6+ with weights_only=False
@@ -244,9 +244,7 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
                     raise Exception("Could not set weights_only parameter")
             except Exception as e2:
                 print(f"Alternative loading attempt failed: {e2}")
-                
                 # Try using standard YOLOv8 model as a fallback
-                print("Attempting to use standard YOLOv8 model instead...")
                 try:
                     model = YOLO('yolov8l.pt')  # Use standard YOLOv8 model as fallback
                     print("Using standard YOLOv8l model as fallback")
@@ -708,6 +706,43 @@ def export_model(model_path, format='onnx', img_size=640, simplify=True):
         import traceback
         traceback.print_exc()
         return None
+
+def setup_augmentation(hyp: dict) -> dict:
+    """
+    Augmentation parametrelerini hyp içinden alır, yoksa güvenli varsayılanlar kullanır
+    ve değerleri mantıklı aralıklara sıkıştırır.
+    """
+    def clamp(val, lo, hi):
+        try:
+            v = float(val)
+        except Exception:
+            v = lo
+        return max(lo, min(hi, v))
+
+    cfg = {
+        'hsv_h': clamp(hyp.get('hsv_h', 0.015), 0.0, 0.1),
+        'hsv_s': clamp(hyp.get('hsv_s', 0.7),   0.0, 0.99),
+        'hsv_v': clamp(hyp.get('hsv_v', 0.4),   0.0, 0.99),
+        'degrees': clamp(hyp.get('degrees', 0.0), -45.0, 45.0),
+        'translate': clamp(hyp.get('translate', 0.1), 0.0, 0.5),
+        'scale': clamp(hyp.get('scale', 0.5), 0.0, 1.0),
+        'shear': clamp(hyp.get('shear', 0.0), -10.0, 10.0),
+        'perspective': clamp(hyp.get('perspective', 0.0), 0.0, 0.001),
+        'flipud': clamp(hyp.get('flipud', 0.0), 0.0, 1.0),
+        'fliplr': clamp(hyp.get('fliplr', 0.5), 0.0, 1.0),
+        'mosaic': clamp(hyp.get('mosaic', 1.0), 0.0, 1.0),
+        'mixup': clamp(hyp.get('mixup', 0.0), 0.0, 1.0),
+    }
+
+    # Güvenlik için ek sınırlamalar
+    if cfg['mosaic'] > 0:
+        cfg['mixup'] = clamp(cfg['mixup'], 0.0, 0.2)
+    if cfg['translate'] > 0.4:
+        cfg['translate'] = 0.4
+    if cfg['scale'] > 0.9:
+        cfg['scale'] = 0.9
+
+    return cfg
 
 if __name__ == "__main__":
     print("This module provides model training functions.")
