@@ -458,45 +458,6 @@ def interactive_training_setup():
             for note in special_notes:
                 print(f"     • {note}")
     
-    # Resume training options
-    resume_training = False
-    checkpoint_path = None
-    
-    if is_colab():
-        has_previous = input("\nCheckpoint'ten eğitimi devam ettir? (e/h, varsayılan: h): ").lower() or "h"
-        
-        if has_previous.startswith("e"):
-            resume_training = True
-            resume_from_drive = input("Checkpoint'i Google Drive'dan yükle? (e/h, varsayılan: e): ").lower() or "e"
-            if resume_from_drive.startswith("e"):
-                base_folder = get_smartfarm_models_dir() or "/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models"
-                print(f"\nBeklenen model dizini: {base_folder}")
-                os.makedirs(base_folder, exist_ok=True)
-                # En güncel checkpoint'i tara: timestamp alt klasörleri içinde best/last
-                latest_file = None
-                latest_mtime = -1
-                for root, dirs, files in os.walk(base_folder):
-                    for name in files:
-                        if name in ("best.pt", "last.pt"):
-                            fpath = os.path.join(root, name)
-                            try:
-                                m = os.path.getmtime(fpath)
-                                if m > latest_mtime:
-                                    latest_mtime = m
-                                    latest_file = fpath
-                            except Exception:
-                                pass
-                if latest_file and os.path.exists(latest_file):
-                    print(f"✅ En güncel checkpoint bulundu: {latest_file}")
-                    os.makedirs("runs/train/exp/weights", exist_ok=True)
-                    target_name = os.path.basename(latest_file)
-                    shutil.copy2(latest_file, f"runs/train/exp/weights/{target_name}")
-                    checkpoint_path = f"runs/train/exp/weights/{target_name}"
-                    print(f"✅ Checkpoint eğitim dizinine kopyalandı.")
-                else:
-                    print("⚠️  Uygun checkpoint bulunamadı, eğitim sıfırdan başlayacak.")
-                    resume_training = False
-    
     # Training parameters
     while True:
         try:
@@ -621,11 +582,9 @@ def interactive_training_setup():
         'optimizer': 'auto',
         'verbose': True,
         'exist_ok': True,
-        'resume': resume_training,
         'use_hyp': use_hyp,
         'category': category,
         'drive_save_path': drive_save_path,
-        'checkpoint_path': checkpoint_path,
         'speed_mode': speed_mode
     }
     
@@ -762,7 +721,7 @@ def main():
         
         # Train the model
         print(f"\n🚀 Hiyerarşik model eğitimi başlatılıyor...")
-        results = train_model(options, hyp=hyperparameters, resume=options.get('resume', False), epochs=options['epochs'], drive_save_interval=options.get('save_interval', 10))
+        results = train_model(options, hyp=hyperparameters, epochs=options['epochs'], drive_save_interval=options.get('save_interval', 10))
         
         if results:
             print('✅ Eğitim başarıyla tamamlandı!')
