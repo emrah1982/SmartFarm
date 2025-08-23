@@ -381,10 +381,24 @@ class LanguageManager:
         print("\n" + "="*70)
         print("🌍 Dil Seçimi / Language Selection")
         print("="*70)
+        print("\nLütfen dilinizi seçin / Please select your language:")
+        print("1) Türkçe / Turkish")
+        print("2) English / İngilizce")
         
-        # Auto-select Turkish (1) as default
-        self.set_language('tr')
-        print("✅ Varsayılan olarak Türkçe seçildi.")
+        while True:
+            choice = input("\nSeçenek [1-2] (varsayılan: 1): ").strip()
+            
+            if choice == "" or choice == "1":
+                self.set_language('tr')
+                print("✅ Türkçe seçildi.")
+                break
+            elif choice == "2":
+                self.set_language('en')
+                print("✅ English selected.")
+                break
+            else:
+                print("❌ Geçersiz seçim / Invalid choice. Lütfen 1 veya 2 girin / Please enter 1 or 2.")
+        
         return self.current_language
 
 # Global language manager instance
