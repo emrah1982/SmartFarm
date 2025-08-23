@@ -175,24 +175,18 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
 
     # Set up hyperparameters with safety checks
     if hyp is None and options.get('use_hyp', True):
-        hyp_path = os.path.join('data', 'hyp.yaml')
-        if os.path.exists(hyp_path):
-            with open(hyp_path, 'r') as f:
-                hyp = yaml.safe_load(f)
-            print(f"⚙️  Loaded hyperparameters from {hyp_path}")
-        else:
-            print("ℹ️  Hyperparameters file not found. Using default settings.")
-            hyp = {}
+        from hyperparameters import load_hyperparameters, create_hyperparameters_file
+        
+        # Ensure hyperparameters file exists
+        hyp_path = create_hyperparameters_file()
+        
+        # Load hyperparameters
+        hyp = load_hyperparameters(hyp_path)
+        print(f"⚙️  Loaded hyperparameters from {hyp_path}")
     
     # Configure augmentation with safety limits
     augmentation_cfg = setup_augmentation(hyp if hyp else {})
     
-    # Print augmentation settings
-    print("\n🔧 Augmentation settings with safety limits:")
-    for k, v in augmentation_cfg.items():
-        print(f"  {k}: {v}")
-    print("="*50 + "\n")
-
     # Bounding box safety wrapper for data loading
     def safe_load_image_and_boxes(img_path, label_path):
         """Load image and validate bboxes with safety checks."""
@@ -316,27 +310,25 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
         'project': options.get('project', 'runs/train'),
         'name': options.get('name', 'exp'),
         'exist_ok': options.get('exist_ok', True),
-        'resume': resume_training, # Set resume flag here
+        'resume': resume_training,
         
-        # Augmentation parameters with safety limits
-        'hsv_h': augmentation_cfg['hsv_h'],
-        'hsv_s': augmentation_cfg['hsv_s'],
-        'hsv_v': augmentation_cfg['hsv_v'],
-        'degrees': augmentation_cfg['degrees'],
-        'translate': augmentation_cfg['translate'],
-        'scale': augmentation_cfg['scale'],
-        'shear': augmentation_cfg['shear'],
-        'perspective': augmentation_cfg['perspective'],
-        'flipud': augmentation_cfg['flipud'],
-        'fliplr': augmentation_cfg['fliplr'],
-        'mosaic': augmentation_cfg['mosaic'],
-        'mixup': augmentation_cfg['mixup'],
+        # Use hyperparameters from hyp dict if available
+        'hsv_h': hyp.get('hsv_h', 0.015),
+        'hsv_s': hyp.get('hsv_s', 0.7),
+        'hsv_v': hyp.get('hsv_v', 0.4),
+        'degrees': hyp.get('degrees', 0.0),
+        'translate': hyp.get('translate', 0.1),
+        'scale': hyp.get('scale', 0.5),
+        'shear': hyp.get('shear', 0.0),
+        'perspective': hyp.get('perspective', 0.0),
+        'flipud': hyp.get('flipud', 0.0),
+        'fliplr': hyp.get('fliplr', 0.5),
+        'mosaic': hyp.get('mosaic', 1.0),
+        'mixup': hyp.get('mixup', 0.1),
         
-        # Add bbox safety checks
+        # Safety settings
         'rect': False,  # Disable rectangular training for better bbox safety
-        'pad': 0.0,     # No padding to prevent bbox issues
-        'copy_paste': 0.0,  # Disable copy-paste augmentation (can cause bbox issues)
-        # 'nolog' parametresini kaldırdık - bu parametre desteklenmiyor
+        'copy_paste': 0.0  # Disable copy-paste augmentation
     }
 
     # In speed mode, reduce overhead of plotting during training

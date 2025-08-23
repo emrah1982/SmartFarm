@@ -690,38 +690,51 @@ def main():
         else:
             print("\n⏭️ Paket yükleme atlandı. (colab_setup.py ile kurulumu yapabilirsiniz)")
         
-        # Create hyperparameter file
-        hyp_path = create_hyperparameters_file()
-        hyperparameters = load_hyperparameters(hyp_path)
-        
-        # Interactive setup
+        # Interactive setup - this will handle checkpoint checking
         options = interactive_training_setup()
         if options is None:
             return
         
-        # Process dataset(s)
-        dataset_config = options['dataset_config']
-        
-        if dataset_config['type'] == 'single':
-            # Single dataset processing (legacy)
-            from dataset_utils import download_dataset
+        # Check if we're resuming from a checkpoint
+        if options.get('resume'):
+            print("\n" + "="*50)
+            print(f"🔄 Eğitime devam ediliyor: {options['checkpoint_path']}")
+            print("="*50)
             
-            if not download_dataset(dataset_config['url']):
-                print('❌ Veri seti indirme başarısız. Çıkılıyor...')
-                return
+            # Skip dataset processing when resuming
+            results = train_model(options, hyp=None, epochs=options['epochs'], 
+                               drive_save_interval=options.get('save_interval', 10))
+        else:
+            # Process dataset(s) for new training
+            dataset_config = options['dataset_config']
+            
+            if dataset_config['type'] == 'single':
+                # Single dataset processing (legacy)
+                from dataset_utils import download_dataset
                 
-        elif dataset_config['type'] == 'hierarchical_multi':
-            # Hierarchical multi-dataset processing
-            if not process_hierarchical_datasets(dataset_config['setup']):
-                print('❌ Hiyerarşik veri seti işleme başarısız. Çıkılıyor...')
-                return
-        
-        # Show memory status before training
-        show_memory_usage("Eğitim Öncesi")
-        
-        # Train the model
-        print(f"\n🚀 Hiyerarşik model eğitimi başlatılıyor...")
-        results = train_model(options, hyp=hyperparameters, epochs=options['epochs'], drive_save_interval=options.get('save_interval', 10))
+                if not download_dataset(dataset_config['url']):
+                    print('❌ Veri seti indirme başarısız. Çıkılıyor...')
+                    return
+                    
+            elif dataset_config['type'] == 'hierarchical_multi':
+                # Hierarchical multi-dataset processing
+                if not process_hierarchical_datasets(dataset_config['setup']):
+                    print('❌ Hiyerarşik veri seti işleme başarısız. Çıkılıyor...')
+                    return
+            
+            # Show memory status before training
+            show_memory_usage("Eğitim Öncesi")
+            
+            # Create hyperparameter file for new training
+            from hyperparameters import create_hyperparameters_file, load_hyperparameters
+            hyp_path = create_hyperparameters_file()
+            hyperparameters = load_hyperparameters(hyp_path)
+            
+            # Start new training
+            print(f"\n🚀 Yeni model eğitimi başlatılıyor...")
+            results = train_model(options, hyp=hyperparameters, 
+                               epochs=options['epochs'], 
+                               drive_save_interval=options.get('save_interval', 10))
         
         if results:
             print('✅ Eğitim başarıyla tamamlandı!')
