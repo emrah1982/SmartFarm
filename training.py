@@ -405,74 +405,76 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
         
         # TensorBoard ve callbacks ayarları - model çağrılmadan önce ayarlama
         if hasattr(model, 'callbacks') and model.callbacks is not None:
-            # Eğer model callbacks'e sahipse
             try:
                 # TensorBoard callback'ini devre dışı bırak
                 model._callbacks = []  # Tüm callbacks'leri temizle ve yeniden ekle
-                # Sadece gerekli callback'leri ekle (TensorBoard hariç)
             except Exception as cb_err:
                 print(f"Callback devre dışı bırakma hatası: {cb_err}")
-        
-class SaveToDriveCallback:
-    """
-    Callback to save model checkpoints to Google Drive.
-    Handles both 'last.pt' and 'best.pt' models.
-    """
-    def __init__(self, drive_manager, project_dir, experiment_name):
-        self.drive_manager = drive_manager
-        self.weights_dir = Path(project_dir) / experiment_name / 'weights'
-        self.best_fitness = -1
-        self.last_epoch = 0
-        self.save_interval = 1  # Her epoch'ta kaydet
 
-    def __call__(self, trainer):
-        """Handle callbacks from trainer"""
-        if hasattr(trainer, 'epoch'):
-            self.on_train_epoch_end(trainer)
+        # -------------------------------
+        # SaveToDriveCallback TANIMI (try dışında)
+        # -------------------------------
+        class SaveToDriveCallback:
+            """
+            Callback to save model checkpoints to Google Drive.
+            Handles both 'last.pt' and 'best.pt' models.
+            """
+            def __init__(self, drive_manager, project_dir, experiment_name):
+                self.drive_manager = drive_manager
+                self.weights_dir = Path(project_dir) / experiment_name / 'weights'
+                self.best_fitness = -1
+                self.last_epoch = 0
+                self.save_interval = 1  # Her epoch'ta kaydet
 
-    def on_train_epoch_end(self, trainer):
-        """Called at the end of each training epoch"""
-        # Skip if not enough epochs passed since last save
-        if (trainer.epoch - self.last_epoch) < self.save_interval and trainer.epoch > 0:
-            return
-        
-        self.last_epoch = trainer.epoch
-        
-        # Save last.pt
-        last_pt_path = self.weights_dir / 'last.pt'
-        if last_pt_path.exists():
-            try:
-                print(f"\n💾 Syncing last.pt to Drive for epoch {trainer.epoch}...")
-                self.drive_manager.upload_model(
-                    str(last_pt_path), 
-                    f'epoch_{trainer.epoch:03d}.pt'
-                )
-            except Exception as e:
-                print(f"❌ Error saving last.pt: {e}")
-        
-        # Check for best model
-        current_fitness = getattr(trainer, 'fitness', None)
-        if current_fitness is not None and current_fitness > self.best_fitness:
-            self.best_fitness = current_fitness
-            best_pt_path = self.weights_dir / 'best.pt'
-            if best_pt_path.exists():
-                try:
-                    print(f"\n🏆 New best model found (fitness: {current_fitness:.4f})! Syncing best.pt to Drive...")
-                    self.drive_manager.upload_model(
-                        str(best_pt_path), 
-                        'best.pt'
-                    )
-                except Exception as e:
-                    print(f"❌ Error saving best.pt: {e}")
+            def __call__(self, trainer):
+                """Handle callbacks from trainer"""
+                if hasattr(trainer, 'epoch'):
+                    self.on_train_epoch_end(trainer)
 
-        # Create and register the callback
+            def on_train_epoch_end(self, trainer):
+                """Called at the end of each training epoch"""
+                # Skip if not enough epochs passed since last save
+                if (trainer.epoch - self.last_epoch) < self.save_interval and trainer.epoch > 0:
+                    return
+                
+                self.last_epoch = trainer.epoch
+                
+                # Save last.pt
+                last_pt_path = self.weights_dir / 'last.pt'
+                if last_pt_path.exists():
+                    try:
+                        print(f"\n💾 Syncing last.pt to Drive for epoch {trainer.epoch}...")
+                        self.drive_manager.upload_model(
+                            str(last_pt_path), 
+                            f'epoch_{trainer.epoch:03d}.pt'
+                        )
+                    except Exception as e:
+                        print(f"❌ Error saving last.pt: {e}")
+                
+                # Check for best model
+                current_fitness = getattr(trainer, 'fitness', None)
+                if current_fitness is not None and current_fitness > self.best_fitness:
+                    self.best_fitness = current_fitness
+                    best_pt_path = self.weights_dir / 'best.pt'
+                    if best_pt_path.exists():
+                        try:
+                            print(f"\n🏆 New best model found (fitness: {current_fitness:.4f})! Syncing best.pt to Drive...")
+                            self.drive_manager.upload_model(
+                                str(best_pt_path), 
+                                'best.pt'
+                            )
+                        except Exception as e:
+                            print(f"❌ Error saving best.pt: {e}")
+
+        # -------------------------------
+        # Callback'i modele ekle
+        # -------------------------------
         drive_save_callback = SaveToDriveCallback(
             drive_manager=drive_manager,
             project_dir=project_dir,
             experiment_name=experiment_name
         )
         
-        # Register the callback with the model
         try:
             if hasattr(model, 'add_callback'):
                 model.add_callback('on_train_epoch_end', drive_save_callback)
