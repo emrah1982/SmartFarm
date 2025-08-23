@@ -154,6 +154,33 @@ class DriveManager:
             print(f"❌ Klasör işlemi hatası ({folder_name}): {e}")
             return None
     
+    def select_existing_folder(self, folder_path: str, project_name: Optional[str] = None) -> bool:
+        """Var olan bir klasörü proje klasörü olarak ayarla (timestamp oluşturmadan).
+        folder_path: Drive kökünden itibaren yol, ör: "SmartFarm/colab_learn/yolo11_models"
+        """
+        if not self.service:
+            print("❌ Google Drive servisi başlatılmamış!")
+            return False
+        try:
+            folder_parts = [p for p in folder_path.split('/') if p]
+            parent_id = 'root'
+            for part in folder_parts:
+                # Bul veya oluştur (mevcutsa bulur, yoksa oluşturur)
+                fid = self._find_or_create_folder(part, parent_id)
+                if not fid:
+                    return False
+                parent_id = fid
+            self.drive_folder_id = parent_id
+            # Proje adı ayarla
+            self.project_name = project_name or folder_parts[-1]
+            # Konfigürasyonu kaydet
+            self._save_drive_config('/'.join(folder_parts[:-1]) if len(folder_parts) > 1 else '', folder_parts[-1])
+            print(f"✅ Var olan klasör proje klasörü olarak ayarlandı: {folder_path}")
+            return True
+        except Exception as e:
+            print(f"❌ Var olan klasör ayarlanamadı: {e}")
+            return False
+    
     def _save_drive_config(self, folder_path: str, project_folder_name: str):
         """Drive konfigürasyonunu kaydet"""
         config = {
@@ -247,27 +274,49 @@ class DriveManager:
             json.dump(uploads, f, indent=2, ensure_ascii=False)
     
     def find_latest_checkpoint(self) -> Tuple[Optional[str], Optional[str]]:
-        """Find the latest checkpoint ('last.pt' or 'best.pt') directly from Google Drive."""
+        """Drive klasöründe ve alt klasörlerde 'last.pt' veya 'best.pt' dosyalarını recursive ara.
+        Önce 'last.pt' için en güncelini, yoksa 'best.pt' için en güncelini döndür.
+        """
         if not self.service or not self.drive_folder_id:
             return None, None
 
         try:
-            # Search for 'last.pt' first
-            query_last = f"name='last.pt' and parents in '{self.drive_folder_id}' and trashed=false"
-            response_last = self.service.files().list(q=query_last, fields='files(id, name)').execute()
-            if response_last.get('files'):
-                file = response_last['files'][0]
-                print(f"🔍 Drive'da bulundu: {file['name']}")
-                return file['id'], file['name']
+            # BFS ile tüm alt klasörleri dolaş
+            from collections import deque
+            queue = deque([self.drive_folder_id])
+            found_last = []  # (file_id, name, modifiedTime)
+            found_best = []
 
-            # If not found, search for 'best.pt'
-            query_best = f"name='best.pt' and parents in '{self.drive_folder_id}' and trashed=false"
-            response_best = self.service.files().list(q=query_best, fields='files(id, name)').execute()
-            if response_best.get('files'):
-                file = response_best['files'][0]
-                print(f"🔍 Drive'da bulundu: {file['name']} ('last.pt' bulunamadı)")
-                return file['id'], file['name']
+            while queue:
+                parent = queue.popleft()
+                # Çocukları getir (klasör ve dosyalar)
+                results = self.service.files().list(
+                    q=f"parents in '{parent}' and trashed=false",
+                    fields="files(id,name,mimeType,modifiedTime)"
+                ).execute()
+                items = results.get('files', [])
+                for item in items:
+                    mime = item.get('mimeType', '')
+                    if mime == 'application/vnd.google-apps.folder':
+                        queue.append(item['id'])
+                    else:
+                        name = item.get('name', '')
+                        if name == 'last.pt':
+                            found_last.append((item['id'], name, item.get('modifiedTime', '')))
+                        elif name == 'best.pt':
+                            found_best.append((item['id'], name, item.get('modifiedTime', '')))
 
+            def pick_latest(files):
+                if not files:
+                    return None
+                # modifiedTime ISO8601, string olarak karşılaştırmak da çoğu zaman yeterlidir
+                files.sort(key=lambda x: x[2], reverse=True)
+                return files[0][0], files[0][1]
+
+            latest = pick_latest(found_last) or pick_latest(found_best)
+            if latest:
+                print(f"🔍 Drive'da bulundu: {latest[1]}")
+                return latest[0], latest[1]
             return None, None
 
         except Exception as e:
@@ -353,7 +402,19 @@ def setup_drive_integration() -> Optional[DriveManager]:
         use_existing = input("\n📂 Mevcut Drive konfigürasyonu bulundu. Kullanılsın mı? (y/n): ").lower()
         if use_existing.startswith('y'):
             return drive_manager
-    
+
+    # Var olan bir klasörü kullanmak ister misiniz?
+    use_existing_folder = input("\n📁 Var olan bir klasörü kullanmak ister misiniz? (y/n): ").lower()
+    if use_existing_folder.startswith('y'):
+        print("Örnek yol: SmartFarm/colab_learn/yolo11_models")
+        folder_path = input("Drive klasör yolu: ").strip()
+        if not folder_path:
+            print("❌ Geçerli bir klasör yolu girilmedi.")
+            return None
+        if not drive_manager.select_existing_folder(folder_path):
+            return None
+        return drive_manager
+
     # Yeni klasör yapısı kur
     if not drive_manager.setup_drive_folder():
         return None
