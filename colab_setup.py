@@ -67,6 +67,14 @@ def setup_colab_environment():
             print(f"  {pkg}: {ver}")
         else:
             print(f"  {pkg}: Yüklü değil")
+
+    # Eski NumPy/SciPy paketlerini kaldır (ABI uyumsuzluklarını önlemek için)
+    print("\n♻️ Eski NumPy/SciPy kaldırılıyor...")
+    try:
+        subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "numpy"], check=False)
+        subprocess.run([sys.executable, "-m", "pip", "uninstall", "-y", "scipy"], check=False)
+    except Exception as e:
+        print(f"Uyarı: Kaldırma sırasında sorun: {e}")
     
     # Gerekli paketleri yükle
     print("\n📦 Gerekli paketleri yükleniyor...")
@@ -135,6 +143,7 @@ def setup_colab_environment():
     # Restart runtime uyarısı
     print("\n🔄 ÖNEMLI: Kurulum tamamlandıktan sonra runtime'ı yeniden başlatın!")
     print("   Runtime → Restart runtime")
+    print("ℹ️ Yeniden başlatmadan aynı oturumda import yapılırsa ABI uyumsuzluğu hatası görebilirsiniz.")
     
     return len(failed_packages) == 0
 
@@ -185,8 +194,12 @@ if __name__ == "__main__":
     
     if setup_colab_environment():
         print("\n🎉 Kurulum başarılı!")
-        verify_installation()
-        setup_drive_credentials()
+        # Colab'da aynı kernel içinde doğrulama importları ABI çakışması yaratabilir.
+        # Bu yüzden kullanıcıdan önce runtime'ı yeniden başlatmasını istiyoruz.
+        print("\nLütfen şimdi Runtime → Restart runtime yapın ve ardından aşağıdaki doğrulamayı ayrı hücrede çalıştırın:")
+        print("from colab_setup import verify_installation; verify_installation()")
+        # Colab akışında betiği burada sonlandırmak güvenli
+        sys.exit(0)
     else:
         print("\n💥 Kurulum sırasında hatalar oluştu")
         print("Lütfen hataları düzeltin ve tekrar deneyin")
