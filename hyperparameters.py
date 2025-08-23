@@ -72,7 +72,15 @@ def create_hyperparameters_file():
         #   batch: 48
         #   imgsz: 512
         "batch": None,
-        "imgsz": None
+        "imgsz": None,
+
+        # Fine-tuning controls
+        # finetune: true -> mevcut bir .pt ağırlığından başlayarak yeni veride eğit
+        # finetune_lr0: 0.0001 gibi düşük bir öğrenme oranı (verilmezse lr0 * 0.1 kullanılır)
+        # freeze: Ultralytics'in "freeze" parametresi (örn: 10, veya [0,1,2])
+        "finetune": False,
+        "finetune_lr0": None,
+        "freeze": None
     }
 
     # Create YAML file
@@ -93,7 +101,8 @@ def load_hyperparameters(hyp_path):
         print("Important hyperparameters:")
         important_params = [
             "lr0", "mosaic", "fliplr", "patience", "box", "cls",
-            "speed_mode", "cache", "workers", "plots", "batch", "imgsz"
+            "speed_mode", "cache", "workers", "plots", "batch", "imgsz",
+            "finetune", "finetune_lr0", "freeze"
         ]
         for key in important_params:
             if key in hyperparameters:

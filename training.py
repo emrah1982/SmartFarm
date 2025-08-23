@@ -2,6 +2,65 @@
 # training.py - Model training functions for YOLO11
 
 import os
+import torch
+import yaml
+import numpy as np
+from pathlib import Path
+import gc
+import psutil
+import humanize
+from typing import List, Tuple, Optional
+import torchvision
+
+from ultralytics import YOLO
+
+def validate_bbox(bbox: List[float], image_size: Tuple[int, int]) -> bool:
+    """
+    Validate a bounding box.
+
+    Args:
+    - bbox (List[float]): Bounding box coordinates in the format [x1, y1, x2, y2].
+    - image_size (Tuple[int, int]): Size of the image.
+
+    Returns:
+    - bool: True if the bounding box is valid, False otherwise.
+    """
+    x1, y1, x2, y2 = bbox
+    image_width, image_height = image_size
+
+    # Check if the bounding box is within the image boundaries
+    if x1 < 0 or y1 < 0 or x2 > image_width or y2 > image_height:
+        return False
+
+    # Check if the bounding box has a valid width and height
+    if x2 - x1 <= 0 or y2 - y1 <= 0:
+        return False
+
+    return True
+
+def process_bbox(bbox: List[float], image_size: Tuple[int, int]) -> List[float]:
+    """
+    Process a bounding box.
+
+    Args:
+    - bbox (List[float]): Bounding box coordinates in the format [x1, y1, x2, y2].
+    - image_size (Tuple[int, int]): Size of the image.
+
+    Returns:
+    - List[float]: Processed bounding box coordinates.
+    """
+    x1, y1, x2, y2 = bbox
+    image_width, image_height = image_size
+
+    # Clip the bounding box to the image boundaries
+    x1 = max(0, x1)
+    y1 = max(0, y1)
+    x2 = min(image_width, x2)
+    y2 = min(image_height, y2)
+
+    return [x1, y1, x2, y2]
+
+import os
 import sys
 import yaml
 import torch
@@ -12,6 +71,38 @@ from ultralytics import YOLO
 from memory_utils import show_memory_usage, clean_memory
 from drive_manager import DriveManager, setup_drive_integration
 
+
+def find_latest_checkpoint(options: dict, drive_manager: Optional[DriveManager]) -> Optional[str]:
+    """Find the latest checkpoint locally or on Google Drive."""
+    # 1. Check Google Drive first if enabled
+    if drive_manager:
+        choice = input("\nEğitimi nereden devam ettirmek istiyorsunuz?\n1. Yerel dosyalardan\n2. Google Drive'dan\nSeçim (1/2): ").strip()
+        if choice == '2':
+            print("\n🔍 Drive'da en son checkpoint aranıyor...")
+            file_id, latest_epoch = drive_manager.find_latest_checkpoint()
+            if file_id and latest_epoch > 0:
+                print(f"📥 En son checkpoint bulundu: Epoch {latest_epoch}")
+                temp_checkpoint_path = f"temp_drive_checkpoint_epoch_{latest_epoch}.pt"
+                if drive_manager.download_checkpoint(file_id, temp_checkpoint_path):
+                    print(f'✅ Drive\'dan devam etmek için checkpoint indirildi: {temp_checkpoint_path}')
+                    return temp_checkpoint_path
+                else:
+                    print('❌ Drive\'dan checkpoint indirilemedi, yerel arama yapılacak.')
+            else:
+                print('❌ Drive\'da uygun bir checkpoint bulunamadı, yerel arama yapılacak.')
+
+    # 2. Check locally
+    runs_dir = Path(options.get('project', 'runs/train'))
+    exp_name = options.get('name', 'exp')
+    last_pt_path = runs_dir / exp_name / 'weights' / 'last.pt'
+
+    if last_pt_path.exists():
+        print(f'✅ Yerel checkpoint bulundu: {last_pt_path}')
+        return str(last_pt_path)
+    
+    print('❌ Yerel dizinlerde de checkpoint bulunamadı.')
+    return None
+
 # TensorBoard entegrasyonunu devre dışı bırak
 os.environ["TENSORBOARD_BINARY"] = "False"
 
@@ -21,29 +112,14 @@ try:
 except Exception:
     pass
 
-def train_model(options, hyp=None, resume=False, epochs=None, drive_save_interval=10):
-    """Train YOLO11 model"""
-    # Model selection - Check if it's a full path or just a filename
-    model_path = options['model']
+def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
+    """Train a YOLO model with the given options and hyperparameters."""
+    print("\n" + "="*50)
+    print(f"🚀 Starting training session")
     
-    # If it's just a filename and not a full path, check in the yolo11_models directory
-    if not os.path.isabs(model_path) and not os.path.exists(model_path):
-        yolo_models_dir = os.path.join("/content/colab_learn", "yolo11_models")
-        full_model_path = os.path.join(yolo_models_dir, os.path.basename(model_path))
-        
-        if os.path.exists(full_model_path):
-            print(f"Found model at: {full_model_path}")
-            model_path = full_model_path
-    
-    print(f"Loading model: {model_path}")
-    # Check model path - YOLO will download automatically if file doesn't exist
-    if not os.path.exists(model_path) and model_path.startswith('yolo11') and model_path.endswith('.pt'):
-        print(f"Model file not found. YOLO will automatically download the '{model_path}' model...")
-
-    # Google Drive entegrasyonu kurulumu (resume'dan önce)
-    print("\n🔧 Google Drive Entegrasyonu")
+    # Google Drive entegrasyonu (her şeyden önce)
+    print("\n🔧 Google Drive Integration")
     use_drive = input("Google Drive'a otomatik kaydetme kullanılsın mı? (y/n): ").lower().startswith('y')
-    
     drive_manager = None
     if use_drive:
         drive_manager = setup_drive_integration()
@@ -51,54 +127,90 @@ def train_model(options, hyp=None, resume=False, epochs=None, drive_save_interva
             print("⚠️ Drive entegrasyonu kurulamadı, sadece yerel kaydetme yapılacak.")
             use_drive = False
 
-    # Load pre-trained model or create a new one
-    if resume:
-        # Drive'dan devam etme seçeneği
-        resume_from_drive = False
-        if use_drive and drive_manager:
-            choice = input("\nEğitimi nereden devam ettirmek istiyorsunuz?\n1. Yerel dosyalardan\n2. Google Drive'dan\nSeçim (1/2): ")
-            if choice == '2':
-                resume_from_drive = True
-        
-        if resume_from_drive:
-            # Drive'dan en son checkpoint'i bul ve indir
-            print("\n🔍 Drive'da en son checkpoint aranıyor...")
-            file_id, latest_epoch = drive_manager.find_latest_checkpoint()
-            
-            if file_id and latest_epoch > 0:
-                print(f"📥 En son checkpoint bulundu: Epoch {latest_epoch}")
-                
-                # Geçici checkpoint dosyası oluştur
-                temp_checkpoint = f"temp_checkpoint_epoch_{latest_epoch}.pt"
-                
-                if drive_manager.download_checkpoint(file_id, temp_checkpoint):
-                    model_path = temp_checkpoint
-                    print(f'✅ Drive\'dan devam ediliyor: Epoch {latest_epoch}')
-                else:
-                    print('❌ Drive\'dan checkpoint indirilemedi, yerel aramaya geçiliyor')
-                    resume_from_drive = False
-            else:
-                print('❌ Drive\'da checkpoint bulunamadı, yerel aramaya geçiliyor')
-                resume_from_drive = False
-        
-        if not resume_from_drive:
-            # Yerel checkpoint arama (mevcut kod)
-            runs_dir = Path(options.get('save_dir', '') or options.get('project', 'runs/train'))
-            exp_name = options.get('name', 'exp')
-            weights_dir = runs_dir / exp_name / 'weights'
+    # --- Eğitim Modu Seçimi ---
+    mode = input("\nEğitim modunu seçin:\n1. Yeni Eğitim Başlat\n2. Kaldığı Yerden Devam Et (Resume)\n3. Fine-tune (Önceki Ağırlıklarla Başla)\nSeçim (1/2/3): ").strip()
 
-            if weights_dir.exists():
-                last_pt = weights_dir / 'last.pt'
-                if last_pt.exists():
-                    model_path = str(last_pt)
-                    print(f'Yerel dosyadan devam ediliyor: {model_path}')
-                else:
-                    print('Yerel checkpoint bulunamadı, sıfırdan başlanıyor')
-                    resume = False
-            else:
-                print('Önceki eğitim bulunamadı, sıfırdan başlanıyor')
-                resume = False
+    model_path = options['model']
+    resume_training = False
+    finetune_active = False
+
+    if mode == '2': # Resume
+        print("\n🔄 Kaldığı yerden devam etme modu seçildi.")
+        checkpoint_path = find_latest_checkpoint(options, drive_manager)
+        if checkpoint_path:
+            model_path = checkpoint_path
+            resume_training = True
+            print(f"Model şu checkpoint'ten devam edecek: {model_path}")
+        else:
+            print("❌ Devam edilecek checkpoint bulunamadı. Yeni bir eğitim başlatılıyor.")
+            # Fallback to new training
+
+    elif mode == '3': # Fine-tune
+        print("\n🎯 Fine-tune modu seçildi.")
+        finetune_source_path = find_latest_checkpoint(options, drive_manager) # Can also use last.pt for fine-tuning
+        if finetune_source_path:
+            model_path = finetune_source_path
+            finetune_active = True
+            print(f"Fine-tune için başlangıç ağırlığı: {model_path}")
+        else:
+            print(f"⚠️ Fine-tune için başlangıç ağırlığı bulunamadı. Varsayılan model '{model_path}' kullanılacak.")
+
+    # Set up hyperparameters with safety checks
+    if hyp is None and options.get('use_hyp', True):
+        hyp_path = os.path.join('data', 'hyp.yaml')
+        if os.path.exists(hyp_path):
+            with open(hyp_path, 'r') as f:
+                hyp = yaml.safe_load(f)
+            print(f"⚙️  Loaded hyperparameters from {hyp_path}")
+        else:
+            print("ℹ️  Hyperparameters file not found. Using default settings.")
+            hyp = {}
     
+    # Configure augmentation with safety limits
+    augmentation_cfg = setup_augmentation(hyp if hyp else {})
+    
+    # Print augmentation settings
+    print("\n🔧 Augmentation settings with safety limits:")
+    for k, v in augmentation_cfg.items():
+        print(f"  {k}: {v}")
+    print("="*50 + "\n")
+
+    # Bounding box safety wrapper for data loading
+    def safe_load_image_and_boxes(img_path, label_path):
+        """Load image and validate bboxes with safety checks."""
+        try:
+            # Load image
+            img = Image.open(img_path).convert('RGB')
+            img_width, img_height = img.size
+            
+            # Load and validate bboxes
+            valid_boxes = []
+            if os.path.exists(label_path):
+                with open(label_path, 'r') as f:
+                    for line in f:
+                        parts = line.strip().split()
+                        if len(parts) == 5:  # YOLO format: class x_center y_center width height
+                            cls_id, x_center, y_center, width, height = map(float, parts)
+                            
+                            # Convert to x1,y1,x2,y2
+                            x1 = (x_center - width/2) * img_width
+                            y1 = (y_center - height/2) * img_height
+                            x2 = (x_center + width/2) * img_width
+                            y2 = (y_center + height/2) * img_height
+                            
+                            # Process and validate bbox
+                            bbox = [x1, y1, x2, y2]
+                            if validate_bbox(bbox, (img_width, img_height)):
+                                valid_boxes.append([cls_id, x_center, y_center, width, height])
+                            else:
+                                print(f"⚠️ Invalid bbox in {label_path}: {bbox}")
+            
+            return img, valid_boxes
+            
+        except Exception as e:
+            print(f"❌ Error loading {img_path}: {str(e)}")
+            return None, []
+
     # Set epoch save interval
     if use_drive:
         save_interval = int(input(f"\nKaç epoch'ta bir Drive'a kaydetme yapılsın? (varsayılan: {drive_save_interval}): ") or str(drive_save_interval))
@@ -176,47 +288,39 @@ def train_model(options, hyp=None, resume=False, epochs=None, drive_save_interva
         else:
             cache_mode = "disk"
 
-    # Set training parameters - nolog parametresini kaldırdık
-    # Determine workers (increase in speed mode)
-    workers_val = options.get('workers', 2)
-    # hyp override for workers
-    if hyp is not None and isinstance(hyp, dict) and isinstance(hyp.get('workers', None), int):
-        workers_val = hyp['workers']
-    if speed_mode_flag and isinstance(workers_val, int) and workers_val < 8:
-        workers_val = 8
-
-    # Determine batch and imgsz (hyp overrides if provided)
-    batch_val = options.get('batch')
-    imgsz_val = options.get('imgsz')
-    if hyp is not None and isinstance(hyp, dict):
-        if hyp.get('batch') is not None:
-            try:
-                batch_val = int(hyp.get('batch'))
-            except Exception:
-                pass
-        if hyp.get('imgsz') is not None:
-            try:
-                imgsz_val = int(hyp.get('imgsz'))
-            except Exception:
-                pass
-
+    # Training arguments with augmentation safety
     train_args = {
         'model': model_path,
         'data': options['data'],
         'epochs': epochs if epochs is not None else options['epochs'],
-        'imgsz': imgsz_val,
-        'batch': batch_val,
+        'imgsz': options.get('imgsz', 640),
+        'batch': options.get('batch', 16),
+        'workers': options.get('workers', 4),
+        'cache': options.get('cache', False),
+        'device': options.get('device', '0' if torch.cuda.is_available() else 'cpu'),
         'project': options.get('project', 'runs/train'),
         'name': options.get('name', 'exp'),
-        'device': '0' if torch.cuda.is_available() else 'cpu',  # Use GPU 0 if available or CPU
-        'workers': workers_val,
-        'exist_ok': options.get('exist_ok', False),
-        'pretrained': options.get('pretrained', True),
-        'optimizer': options.get('optimizer', 'auto'),
-        'verbose': options.get('verbose', True),
-        'seed': options.get('seed', 0),
-        'cache': cache_mode,  # Use 'disk' by default to limit RAM usage
-        'resume': resume,  # Resume from checkpoint
+        'exist_ok': options.get('exist_ok', True),
+        'resume': resume_training, # Set resume flag here
+        
+        # Augmentation parameters with safety limits
+        'hsv_h': augmentation_cfg['hsv_h'],
+        'hsv_s': augmentation_cfg['hsv_s'],
+        'hsv_v': augmentation_cfg['hsv_v'],
+        'degrees': augmentation_cfg['degrees'],
+        'translate': augmentation_cfg['translate'],
+        'scale': augmentation_cfg['scale'],
+        'shear': augmentation_cfg['shear'],
+        'perspective': augmentation_cfg['perspective'],
+        'flipud': augmentation_cfg['flipud'],
+        'fliplr': augmentation_cfg['fliplr'],
+        'mosaic': augmentation_cfg['mosaic'],
+        'mixup': augmentation_cfg['mixup'],
+        
+        # Add bbox safety checks
+        'rect': False,  # Disable rectangular training for better bbox safety
+        'pad': 0.0,     # No padding to prevent bbox issues
+        'copy_paste': 0.0,  # Disable copy-paste augmentation (can cause bbox issues)
         # 'nolog' parametresini kaldırdık - bu parametre desteklenmiyor
     }
 
@@ -250,11 +354,34 @@ def train_model(options, hyp=None, resume=False, epochs=None, drive_save_interva
         # Default patience value
         train_args['patience'] = 50
 
+    # Fine-tune spesifik ayarlar: düşük lr0 ve freeze
+    if finetune_active:
+        # lr0 belirleme: hyp.finetune_lr0 > hyp.lr0*0.1 > 0.0005
+        ft_lr = None
+        if hyp is not None:
+            ft_lr = hyp.get('finetune_lr0')
+            if ft_lr is None and 'lr0' in hyp:
+                try:
+                    ft_lr = float(hyp['lr0']) * 0.1
+                except Exception:
+                    ft_lr = None
+        if ft_lr is None:
+            ft_lr = 0.0005
+        train_args['lr0'] = float(ft_lr)
+
+        # freeze parametresi
+        if hyp is not None and hyp.get('freeze') is not None:
+            train_args['freeze'] = hyp.get('freeze')
+
+        print(f"🔧 Fine-tune ayarları: lr0={train_args['lr0']}, freeze={train_args.get('freeze', None)}")
+
     print('Training parameters:')
     for k, v in train_args.items():
         print(f'  {k}: {v}')
     if speed_mode_flag:
         print("  ⚡ speed_mode: True (cache=ram, workers>=8, plots=False)")
+    if finetune_active:
+        print("  🎯 finetune: True (başlangıç ağırlığı: önceki checkpoint, resume=False)")
 
     # Show memory status before training
     show_memory_usage("Training Start Memory Status")
@@ -262,7 +389,7 @@ def train_model(options, hyp=None, resume=False, epochs=None, drive_save_interva
     # Manuel olarak memory clean up yapan callback oluştur
     project_dir = train_args.get('project', 'runs/train')
     experiment_name = train_args.get('name', 'exp')
-    save_interval_epochs = save_interval
+    save_interval_epochs = drive_save_interval
     drive_save_dir = options.get('drive_save_path')
 
     try:
