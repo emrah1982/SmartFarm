@@ -278,49 +278,88 @@ class DriveManager:
         Önce 'last.pt' için en güncelini, yoksa 'best.pt' için en güncelini döndür.
         """
         if not self.service or not self.drive_folder_id:
+            print("❌ Drive servisi veya klasör ID'si bulunamadı!")
             return None, None
 
         try:
+            print(f"🔍 Drive'da checkpoint aranıyor (Klasör ID: {self.drive_folder_id})...")
+            
             # BFS ile tüm alt klasörleri dolaş
             from collections import deque
-            queue = deque([self.drive_folder_id])
-            found_last = []  # (file_id, name, modifiedTime)
+            queue = deque([(self.drive_folder_id, "")])  # (folder_id, path)
+            found_last = []  # (file_id, name, modifiedTime, path)
             found_best = []
+            processed_folders = set()
+            processed_files = set()
 
             while queue:
-                parent = queue.popleft()
-                # Çocukları getir (klasör ve dosyalar)
-                results = self.service.files().list(
-                    q=f"parents in '{parent}' and trashed=false",
-                    fields="files(id,name,mimeType,modifiedTime)"
-                ).execute()
-                items = results.get('files', [])
-                for item in items:
-                    mime = item.get('mimeType', '')
-                    if mime == 'application/vnd.google-apps.folder':
-                        queue.append(item['id'])
-                    else:
+                parent_id, parent_path = queue.popleft()
+                
+                # Aynı klasörü tekrar işleme
+                if parent_id in processed_folders:
+                    continue
+                processed_folders.add(parent_id)
+                
+                try:
+                    # Çocukları getir (klasör ve dosyalar)
+                    results = self.service.files().list(
+                        q=f"'{parent_id}' in parents and trashed=false",
+                        fields="files(id,name,mimeType,modifiedTime)",
+                        pageSize=1000
+                    ).execute()
+                    
+                    items = results.get('files', [])
+                    
+                    for item in items:
+                        item_id = item['id']
+                        mime = item.get('mimeType', '')
                         name = item.get('name', '')
-                        if name == 'last.pt':
-                            found_last.append((item['id'], name, item.get('modifiedTime', '')))
-                        elif name == 'best.pt':
-                            found_best.append((item['id'], name, item.get('modifiedTime', '')))
+                        
+                        if mime == 'application/vnd.google-apps.folder':
+                            # Klasörse queue'ya ekle
+                            folder_name = name
+                            folder_path = f"{parent_path}/{folder_name}" if parent_path else folder_name
+                            queue.append((item_id, folder_path))
+                        else:
+                            # Dosyaysa ve daha önce işlenmediyse kontrol et
+                            if item_id not in processed_files:
+                                processed_files.add(item_id)
+                                
+                                if name == 'last.pt' or name == 'best.pt':
+                                    file_path = f"{parent_path}/{name}" if parent_path else name
+                                    file_info = (item_id, name, item.get('modifiedTime', ''), file_path)
+                                    
+                                    if name == 'last.pt':
+                                        found_last.append(file_info)
+                                    elif name == 'best.pt':
+                                        found_best.append(file_info)
+                                    
+                                    print(f"✅ Bulundu: {file_path} (Son değişiklik: {item.get('modifiedTime', 'bilinmiyor')})")
+                
+                except Exception as e:
+                    print(f"❌ Klasör içeriği alınırken hata (ID: {parent_id}, Yol: {parent_path}): {str(e)}")
+                    continue
 
             def pick_latest(files):
                 if not files:
-                    return None
-                # modifiedTime ISO8601, string olarak karşılaştırmak da çoğu zaman yeterlidir
+                    return None, None
+                # modifiedTime'a göre sırala (en yeni en başta)
                 files.sort(key=lambda x: x[2], reverse=True)
-                return files[0][0], files[0][1]
+                print(f"📊 En güncel dosya seçildi: {files[0][3]} (Tarih: {files[0][2]})")
+                return files[0][0], files[0][1]  # (file_id, filename)
 
+            # Önce last.pt, yoksa best.pt'yi dene
             latest = pick_latest(found_last) or pick_latest(found_best)
-            if latest:
-                print(f"🔍 Drive'da bulundu: {latest[1]}")
-                return latest[0], latest[1]
-            return None, None
+            
+            if not latest[0]:
+                print("❌ Drive'da uygun bir checkpoint dosyası bulunamadı.")
+                
+            return latest
 
         except Exception as e:
-            print(f"❌ Drive'da checkpoint arama hatası: {e}")
+            print(f"❌ Drive'da checkpoint arama sırasında beklenmeyen bir hata oluştu: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return None, None
     
     def download_checkpoint(self, file_id: str, local_path: str) -> bool:

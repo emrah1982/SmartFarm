@@ -77,29 +77,46 @@ def find_latest_checkpoint(options: dict, drive_manager: Optional[DriveManager])
     """Find the latest checkpoint locally or on Google Drive."""
     # 1. Check Google Drive first if enabled
     if drive_manager:
-        choice = input("\nEğitimi nereden devam ettirmek istiyorsunuz?\n1. Yerel dosyalardan\n2. Google Drive'dan\nSeçim (1/2): ").strip()
-        if choice == '2':
-            print("\n🔍 Drive'da en son checkpoint aranıyor...")
-            file_id, filename = drive_manager.find_latest_checkpoint()
-            if file_id and filename:
-                print(f"📥 Drive'da checkpoint bulundu: {filename}")
-                temp_checkpoint_path = f"temp_drive_{filename}"
-                if drive_manager.download_checkpoint(file_id, temp_checkpoint_path):
-                    print(f'✅ Drive\'dan devam etmek için checkpoint indirildi: {temp_checkpoint_path}')
-                    return temp_checkpoint_path
-                else:
-                    print('❌ Drive\'dan checkpoint indirilemedi, yerel arama yapılacak.')
+        print("\n🔍 Google Drive'da checkpoint aranıyor...")
+        file_id, filename = drive_manager.find_latest_checkpoint()
+        if file_id and filename:
+            print(f"📥 Drive'da checkpoint bulundu: {filename}")
+            temp_checkpoint_path = f"temp_drive_{filename}"
+            if drive_manager.download_checkpoint(file_id, temp_checkpoint_path):
+                print(f'✅ Drive\'dan devam etmek için checkpoint indirildi: {temp_checkpoint_path}')
+                return temp_checkpoint_path
             else:
-                print('❌ Drive\'da uygun bir checkpoint bulunamadı, yerel arama yapılacak.')
+                print('❌ Drive\'dan checkpoint indirilemedi.')
+        else:
+            print('❌ Drive\'da uygun bir checkpoint bulunamadı.')
 
     # 2. Check locally
     runs_dir = Path(options.get('project', 'runs/train'))
     exp_name = options.get('name', 'exp')
-    last_pt_path = runs_dir / exp_name / 'weights' / 'last.pt'
-
-    if last_pt_path.exists():
-        print(f'✅ Yerel checkpoint bulundu: {last_pt_path}')
-        return str(last_pt_path)
+    
+    # Check multiple possible locations for checkpoints
+    possible_paths = [
+        runs_dir / exp_name / 'weights' / 'last.pt',
+        runs_dir / exp_name / 'weights' / 'best.pt',
+        Path('/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models') / exp_name / 'weights' / 'last.pt',
+        Path('/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models') / exp_name / 'weights' / 'best.pt',
+        Path('/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models') / exp_name / 'last.pt',
+        Path('/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models') / exp_name / 'best.pt'
+    ]
+    
+    for checkpoint_path in possible_paths:
+        if checkpoint_path.exists():
+            print(f'✅ Checkpoint bulundu: {checkpoint_path}')
+            return str(checkpoint_path)
+    
+    # Check if the exact path provided by user exists
+    user_path = Path('/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models/20250821_203234')
+    if user_path.exists():
+        for filename in ['last.pt', 'best.pt']:
+            checkpoint_path = user_path / filename
+            if checkpoint_path.exists():
+                print(f'✅ Kullanıcı tanımlı klasörde checkpoint bulundu: {checkpoint_path}')
+                return str(checkpoint_path)
     
     print('❌ Yerel dizinlerde de checkpoint bulunamadı.')
     return None
