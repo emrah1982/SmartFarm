@@ -61,6 +61,18 @@ class TomatoDiseaseAugmentation:
             'skipped_images': 0,
             'errors': 0
         }
+        # Görüntüleri sabit boyuta getirmek için ön işleme (letterbox)
+        # 512x512 önerilen; YOLO uyumlu gri arkaplan ile pad edilir
+        self.target_size = 512
+        self.preprocess = A.Compose([
+            A.LongestMaxSize(max_size=self.target_size),
+            A.PadIfNeeded(min_height=self.target_size, min_width=self.target_size,
+                          border_mode=cv2.BORDER_CONSTANT, value=(114, 114, 114))
+        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels']))
+
+        # BBox filtreleme için minimum genişlik/yükseklik eşikleri (normalized YOLO formatında)
+        self.min_box_w = 1e-3
+        self.min_box_h = 1e-3
 
     def setup_logging(self, log_level):
         """Logging konfigürasyonu"""
@@ -73,6 +85,52 @@ class TomatoDiseaseAugmentation:
             ]
         )
         self.logger = logging.getLogger(__name__)
+
+    def _clip_and_filter_bboxes(self, bboxes, class_labels):
+        """
+        YOLO formatındaki bbox'ları [0,1] aralığına kırpar ve geçersiz/boş kutuları eler.
+
+        Args:
+            bboxes (list[list[float]]): [x, y, w, h] listesi
+            class_labels (list[int]): sınıf etiketleri
+
+        Returns:
+            tuple: (filtered_bboxes, filtered_labels)
+        """
+        if not bboxes:
+            return [], (class_labels if class_labels else [])
+
+        filtered_bboxes = []
+        filtered_labels = []
+        for i, bbox in enumerate(bboxes):
+            try:
+                x, y, w, h = bbox
+                # NaN/inf kontrolü
+                if not all(np.isfinite([x, y, w, h])):
+                    continue
+                # [0,1] sınırına kırp
+                x = float(np.clip(x, 0.0, 1.0))
+                y = float(np.clip(y, 0.0, 1.0))
+                w = float(np.clip(w, 0.0, 1.0))
+                h = float(np.clip(h, 0.0, 1.0))
+                # Degenerate kutuları ele
+                if w < self.min_box_w or h < self.min_box_h:
+                    continue
+                filtered_bboxes.append([x, y, w, h])
+                if class_labels:
+                    filtered_labels.append(class_labels[i])
+            except Exception:
+                continue
+        # Her zaman (bboxes, labels) döndür
+        return filtered_bboxes, filtered_labels
+
+    def _is_valid_size(self, image, expected=512):
+        """Görüntü boyutunun expected x expected olup olmadığını doğrular."""
+        try:
+            h, w = image.shape[:2]
+            return (h == expected and w == expected)
+        except Exception:
+            return False
 
     def get_early_blight_transform(self):
         """
@@ -469,18 +527,53 @@ class TomatoDiseaseAugmentation:
                 # Augmentation işlemleri
                 for i in range(num_augmentations):
                     try:
+                        # Önce preprocess (sabit boyut letterbox)
+                        pre = self.preprocess(
+                            image=image_rgb,
+                            bboxes=bboxes or [],
+                            class_labels=class_labels or []
+                        )
+                        pre_image = pre['image']
+                        pre_bboxes = pre['bboxes']
+                        pre_labels = pre['class_labels']
+
+                        # Boyut doğrulama (preprocess sonrası mutlaka 512x512 olmalı)
+                        if not self._is_valid_size(pre_image, self.target_size):
+                            self.logger.warning(f"Preprocess sonrası beklenmeyen boyut, atlandı: {image_path}")
+                            self.log_to_csv(csv_path, disease_type, image_path, 'SKIPPED', 'Invalid size after preprocess')
+                            self.stats['skipped_images'] += 1
+                            continue
+
+                        # BBox kırpma/filtreleme (preprocess sonrası)
+                        if pre_bboxes:
+                            pre_bboxes, pre_labels = self._clip_and_filter_bboxes(pre_bboxes, pre_labels)
+                            if not pre_bboxes:
+                                # Eğer tüm kutular elendiyse, etiketsiz devam edebiliriz
+                                pre_labels = []
+
                         # Transform uygula
-                        if bboxes:
-                            transformed = transform(image=image_rgb, bboxes=bboxes, class_labels=class_labels)
+                        if pre_bboxes:
+                            transformed = transform(image=pre_image, bboxes=pre_bboxes, class_labels=pre_labels)
                             augmented_image = transformed['image']
                             augmented_bboxes = transformed['bboxes']
                             augmented_labels = transformed['class_labels']
                         else:
-                            transformed = transform(image=image_rgb)
+                            transformed = transform(image=pre_image)
                             augmented_image = transformed['image']
                             augmented_bboxes = []
                             augmented_labels = []
-                        
+
+                        # Boyut doğrulama (transform sonrası)
+                        if not self._is_valid_size(augmented_image, self.target_size):
+                            self.logger.warning(f"Transform sonrası beklenmeyen boyut, atlandı: {image_path}")
+                            self.log_to_csv(csv_path, disease_type, image_path, 'SKIPPED', 'Invalid size after transform')
+                            self.stats['skipped_images'] += 1
+                            continue
+
+                        # BBox kırpma/filtreleme (transform sonrası)
+                        if augmented_bboxes:
+                            augmented_bboxes, augmented_labels = self._clip_and_filter_bboxes(augmented_bboxes, augmented_labels)
+
                         # Augmented görüntüyü kaydet
                         output_image_name = f"{image_name}_{disease_type}_aug_{i+1}.jpg"
                         output_image_path = os.path.join(images_output_dir, output_image_name)

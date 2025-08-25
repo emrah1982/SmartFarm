@@ -76,6 +76,41 @@ class TomatoPestAugmentation:
             'skipped_images': 0,
             'errors': 0
         }
+        # Sabit boyut ön işleme (letterbox) - YOLO uyumlu gri arkaplan
+        self.target_size = 512
+        self.preprocess = A.Compose([
+            A.LongestMaxSize(max_size=self.target_size),
+            A.PadIfNeeded(min_height=self.target_size, min_width=self.target_size,
+                          border_mode=cv2.BORDER_CONSTANT, value=(114, 114, 114))
+        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels']))
+
+    def _clip_and_filter_bboxes(self, bboxes, class_labels):
+        """YOLO bbox'ları [0,1] aralığına kırp ve sıfır/alakasız kutuları filtrele"""
+        if not bboxes:
+            return [], []
+        clipped, labels = [], []
+        for bbox, cid in zip(bboxes, class_labels):
+            x, y, w, h = bbox
+            x = min(max(x, 0.0), 1.0)
+            y = min(max(y, 0.0), 1.0)
+            w = min(max(w, 0.0), 1.0)
+            h = min(max(h, 0.0), 1.0)
+            if w <= 0 or h <= 0:
+                continue
+            if x - w/2 < 0 or x + w/2 > 1 or y - h/2 < 0 or y + h/2 > 1:
+                left = max(0.0, x - w/2)
+                right = min(1.0, x + w/2)
+                top = max(0.0, y - h/2)
+                bottom = min(1.0, y + h/2)
+                w = max(0.0, right - left)
+                h = max(0.0, bottom - top)
+                if w <= 0 or h <= 0:
+                    continue
+                x = (left + right) / 2
+                y = (top + bottom) / 2
+            clipped.append([x, y, w, h])
+            labels.append(cid)
+        return clipped, labels
 
     def setup_logging(self, log_level):
         """Logging konfigürasyonu"""
@@ -883,12 +918,35 @@ class TomatoPestAugmentation:
                 # Augmentation uygula
                 for i in range(multiplier):
                     try:
+                        # Giriş bboxlarını doğrula/temizle
+                        bboxes_valid, labels_valid = self._clip_and_filter_bboxes(bboxes, class_labels)
+                        if not bboxes_valid:
+                            self.log_to_csv(pest_type, image_path, "SKIPPED", "Geçerli bbox bulunamadı (giriş)")
+                            continue
+
+                        # Önce preprocess (sabit boyut letterbox)
+                        pre = self.preprocess(image=image, bboxes=bboxes_valid, class_labels=labels_valid)
+                        pre_image, pre_bboxes, pre_labels = pre['image'], pre['bboxes'], pre['class_labels']
+                        # Preprocess sonrası boyut doğrulaması
+                        if pre_image is None or pre_image.shape[:2] != (self.target_size, self.target_size):
+                            self.log_to_csv(pest_type, image_path, "ERROR", f"Preprocess boyutu hatalı: {None if pre_image is None else pre_image.shape}")
+                            continue
+
                         # Transform uygula
                         transformed = transform(
-                            image=image,
-                            bboxes=bboxes,
-                            class_labels=class_labels
+                            image=pre_image,
+                            bboxes=pre_bboxes,
+                            class_labels=pre_labels
                         )
+                        # Çıkış doğrulama
+                        out_img = transformed['image']
+                        out_bboxes, out_labels = self._clip_and_filter_bboxes(transformed['bboxes'], transformed['class_labels'])
+                        if out_img is None or out_img.shape[:2] != (self.target_size, self.target_size):
+                            self.log_to_csv(pest_type, image_path, "ERROR", f"Çıkış boyutu hatalı: {None if out_img is None else out_img.shape}")
+                            continue
+                        if not out_bboxes:
+                            self.log_to_csv(pest_type, image_path, "SKIPPED", "Geçerli bbox bulunamadı (çıkış)")
+                            continue
                         
                         # Çıkış dosya adları
                         output_image_name = f"{image_path.stem}_{pest_type}_aug_{i+1}{image_path.suffix}"
@@ -898,14 +956,14 @@ class TomatoPestAugmentation:
                         output_label_path = self.output_labels_dir / output_label_name
                         
                         # Görüntüyü kaydet
-                        transformed_image = cv2.cvtColor(transformed['image'], cv2.COLOR_RGB2BGR)
+                        transformed_image = cv2.cvtColor(out_img, cv2.COLOR_RGB2BGR)
                         cv2.imwrite(str(output_image_path), transformed_image)
                         
                         # Etiketleri kaydet
                         self.save_yolo_annotation(
                             output_label_path,
-                            transformed['bboxes'],
-                            transformed['class_labels']
+                            out_bboxes,
+                            out_labels
                         )
                         
                         successful_count += 1
@@ -1047,11 +1105,15 @@ class TomatoPestAugmentation:
                 # Augmentation uygula
                 for i in range(multiplier):
                     try:
+                        # Önce preprocess (sabit boyut letterbox)
+                        pre = self.preprocess(image=image, bboxes=bboxes or [], class_labels=class_labels or [])
+                        pre_image, pre_bboxes, pre_labels = pre['image'], pre['bboxes'], pre['class_labels']
+
                         # Transform uygula
                         transformed = transform(
-                            image=image,
-                            bboxes=bboxes,
-                            class_labels=class_labels
+                            image=pre_image,
+                            bboxes=pre_bboxes,
+                            class_labels=pre_labels
                         )
                         
                         # Çıkış dosya adları

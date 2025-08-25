@@ -130,6 +130,13 @@ try:
 except Exception:
     pass
 
+# Optimize matmul precision if available (PyTorch >= 2.0)
+try:
+    if hasattr(torch, 'set_float32_matmul_precision'):
+        torch.set_float32_matmul_precision('high')
+except Exception:
+    pass
+
 def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
     """Train a YOLO model with the given options and hyperparameters."""
     print("\n" + "="*50)
@@ -303,6 +310,24 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
         else:
             cache_mode = "disk"
 
+    # DataLoader workers dinamik ayarı
+    cpu_cnt = os.cpu_count() or 4
+    workers_value = options.get('workers')
+    try:
+        workers_value = int(workers_value) if workers_value is not None else None
+    except Exception:
+        workers_value = None
+    if speed_mode_flag:
+        # Hız modunda: CPU'ya göre en az 8 worker kullanmaya çalış
+        workers_value = max(8, (cpu_cnt - 1) if cpu_cnt > 1 else 0)
+        print(f"⚡ Hız modu: DataLoader workers -> {workers_value} (cpu={cpu_cnt})")
+        print("ℹ️ Ultralytics düşük hafıza tespit ederse bu değeri runtime'da düşürebilir.")
+    else:
+        if workers_value is None:
+            # Normal mod: mantıklı varsayılan (CPU-1, 2 ile 4 arasında)
+            workers_value = max(2, min(4, cpu_cnt - 1)) if cpu_cnt > 1 else 2
+        print(f"🧰 DataLoader workers seçimi: {workers_value} (cpu={cpu_cnt})")
+
     # Training arguments with augmentation safety
     train_args = {
         'model': model_path,
@@ -310,8 +335,8 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
         'epochs': epochs if epochs is not None else options['epochs'],
         'imgsz': options.get('imgsz', 640),
         'batch': options.get('batch', 16),
-        'workers': options.get('workers', 4),
-        'cache': options.get('cache', False),
+        'workers': workers_value,
+        'cache': cache_mode,
         'device': options.get('device', '0' if torch.cuda.is_available() else 'cpu'),
         'project': options.get('project', 'runs/train'),
         'name': options.get('name', 'exp'),
@@ -366,6 +391,10 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
     else:
         # Default patience value
         train_args['patience'] = 50
+
+    # Enable AMP when CUDA is available (Ultralytics supports 'amp')
+    if torch.cuda.is_available():
+        train_args['amp'] = True
 
     # Fine-tune spesifik ayarlar: düşük lr0 ve freeze
     if finetune_active:
@@ -422,23 +451,20 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
         try:
             # last.pt kaydet
             if last_pt_path.exists():
-                drive_manager.upload_model(
-                    str(last_pt_path), 
-                    f'epoch_{current_epoch:03d}.pt'
-                )
-                drive_manager.upload_model(
-                    str(last_pt_path), 
-                    'last.pt'
-                )
-                print(f"✅ last.pt kaydedildi (epoch {current_epoch})")
+                ok1 = drive_manager.upload_model(str(last_pt_path), f'epoch_{current_epoch:03d}.pt')
+                ok2 = drive_manager.upload_model(str(last_pt_path), 'last.pt')
+                if ok1 and ok2:
+                    print(f"✅ last.pt yüklendi (epoch_{current_epoch:03d}.pt ve last.pt)")
+                else:
+                    print(f"❌ last.pt yükleme başarısız (epoch {current_epoch}). Ayrıntılar yukarıdaki loglarda.")
             
             # best.pt kaydet
             if best_pt_path.exists():
-                drive_manager.upload_model(
-                    str(best_pt_path), 
-                    'best.pt'
-                )
-                print(f"✅ best.pt kaydedildi (epoch {current_epoch})")
+                okb = drive_manager.upload_model(str(best_pt_path), 'best.pt')
+                if okb:
+                    print(f"✅ best.pt yüklendi (epoch {current_epoch})")
+                else:
+                    print(f"❌ best.pt yükleme başarısız (epoch {current_epoch}). Ayrıntılar yukarıdaki loglarda.")
                 
         except Exception as e:
             print(f"❌ Model kaydetme hatası (epoch {current_epoch}): {e}")
@@ -496,6 +522,26 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
             save_thread.start()
             print("🔄 Periyodik kaydetme thread'i başlatıldı")
             
+        # Resume modunda: tespit edilen checkpoint'in klasöründeki last.pt/best.pt dosyalarını
+        # yeni deneyin weights klasörüne kopyalayarak başlangıç dosyalarını hazırla
+        try:
+            if resume_training and isinstance(model_path, str):
+                src_dir = Path(model_path).parent
+                dst_weights = Path(project_dir) / experiment_name / 'weights'
+                dst_weights.mkdir(parents=True, exist_ok=True)
+                copied_any = False
+                for fname in ['last.pt', 'best.pt']:
+                    src = src_dir / fname
+                    if src.exists():
+                        import shutil as _shutil
+                        _shutil.copy2(src, dst_weights / fname)
+                        print(f"📄 Başlangıç dosyası kopyalandı → {dst_weights / fname}")
+                        copied_any = True
+                if not copied_any:
+                    print("ℹ️ Resume için kopyalanacak last.pt/best.pt bulunamadı (devam ediliyor).")
+        except Exception as prep_e:
+            print(f"⚠️ Resume başlangıç dosyaları kopyalanırken hata: {prep_e}")
+
         # Model eğitimini başlat
         results = model.train(**train_args)
         
@@ -513,14 +559,21 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
 
             # 1) Drive API ile yükleme (eğer etkinse)
             if use_drive and drive_manager:
+                # Doğru imza: upload_model(local_path, drive_filename)
                 if os.path.exists(best_path):
-                    success = drive_manager.upload_model(best_path, final_epoch, is_best=True)
-                    if success:
-                        print("✅ Final best model Drive API ile yüklendi")
+                    ok_best_name = drive_manager.upload_model(best_path, 'best.pt')
+                    ok_best_epoch = drive_manager.upload_model(best_path, f'epoch_{final_epoch:03d}_best.pt')
+                    if ok_best_name and ok_best_epoch:
+                        print("✅ Final best.pt yüklendi (best.pt ve epoch_*_best.pt)")
+                    else:
+                        print("❌ Final best.pt yükleme başarısız. Ayrıntılar yukarıdaki loglarda.")
                 if os.path.exists(last_path):
-                    success = drive_manager.upload_model(last_path, final_epoch, is_best=False)
-                    if success:
-                        print("✅ Final checkpoint Drive API ile yüklendi")
+                    ok_last_name = drive_manager.upload_model(last_path, 'last.pt')
+                    ok_last_epoch = drive_manager.upload_model(last_path, f'epoch_{final_epoch:03d}.pt')
+                    if ok_last_name and ok_last_epoch:
+                        print("✅ Final last.pt yüklendi (last.pt ve epoch_*.pt)")
+                    else:
+                        print("❌ Final last.pt yükleme başarısız. Ayrıntılar yukarıdaki loglarda.")
                 print("\n📋 Drive'daki tüm modeller:")
                 drive_manager.list_drive_models()
 

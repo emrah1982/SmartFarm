@@ -778,30 +778,40 @@ def setup_drive_integration() -> Optional[DriveManager]:
     # Kimlik doğrulama
     if not drive_manager.authenticate():
         return None
-    
-    # Mevcut konfigürasyon var mı kontrol et
-    if drive_manager.load_drive_config():
-        use_existing = input("\n📂 Mevcut Drive konfigürasyonu bulundu. Kullanılsın mı? (y/n): ").lower()
-        if use_existing.startswith('y'):
-            return drive_manager
-
-    # Var olan bir klasörü kullanmak ister misiniz?
-    use_existing_folder = input("\n📁 Var olan bir klasörü kullanmak ister misiniz? (y/n): ").lower()
-    if use_existing_folder.startswith('y'):
-        print("Örnek yol: SmartFarm/colab_learn/yolo11_models")
-        folder_path = input("Drive klasör yolu: ").strip()
-        if not folder_path:
-            print("❌ Geçerli bir klasör yolu girilmedi.")
-            return None
-        if not drive_manager.select_existing_folder(folder_path):
-            return None
-        return drive_manager
-
-    # Yeni klasör yapısı kur
-    if not drive_manager.setup_drive_folder():
-        return None
-    
+    # Başarılı doğrulamada mevcut drive_manager'ı döndür
     return drive_manager
+
+def activate_drive_integration(folder_path: str, project_name: Optional[str] = None) -> Optional[DriveManager]:
+    """Etkileşimsiz (non-interactive) Drive entegrasyonu başlatır.
+
+    Parametreler:
+      - folder_path: Drive üzerinde kullanılacak proje klasörü yolu.
+        Örnek API modu: "Tarım/SmartFarm/Models"
+        Örnek Colab modu: "SmartFarm/Training/20250825_Projex"
+      - project_name: İsteğe bağlı proje adı. Belirtilmezse klasör adından türetilir.
+
+    Dönüş:
+      - Başarılıysa yapılandırılmış DriveManager döner, aksi halde None.
+    """
+    try:
+        dm = DriveManager()
+        # Kimlik doğrulama
+        if not dm.authenticate():
+            print("❌ Drive kimlik doğrulama başarısız!")
+            return None
+
+        # Var olan (veya yoksa oluşturulacak) klasörü proje klasörü olarak seç
+        ok = dm.select_existing_folder(folder_path, project_name)
+        if not ok:
+            print(f"❌ Proje klasörü ayarlanamadı: {folder_path}")
+            return None
+
+        print("✅ Drive entegrasyonu hazır (etkileşimsiz mod)")
+        return dm
+    except Exception as e:
+        print(f"❌ Drive entegrasyonu başlatılamadı: {e}")
+        return None
+
 
 
 if __name__ == "__main__":

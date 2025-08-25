@@ -60,6 +60,14 @@ class YOLOAugmentationPipeline:
         
         self.config = self.severity_configs.get(severity_level, self.severity_configs['medium'])
         
+        # Preprocess: enforce fixed size with letterbox (keeps aspect ratio, pads to square)
+        # This prevents size mismatch errors and keeps bbox coordinates consistent
+        self.preprocess = A.Compose([
+            A.LongestMaxSize(max_size=self.image_size),
+            A.PadIfNeeded(min_height=self.image_size, min_width=self.image_size,
+                          border_mode=cv2.BORDER_CONSTANT, value=(114, 114, 114))
+        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels']))
+        
         # Agricultural specific augmentations
         self.agricultural_transforms = self._create_agricultural_pipeline()
         self.geometric_transforms = self._create_geometric_pipeline()
@@ -193,6 +201,10 @@ class YOLOAugmentationPipeline:
             bboxes = formatted_bboxes
         
         try:
+            # Preprocess to fixed size first (letterbox to self.image_size)
+            pre = self.preprocess(image=image, bboxes=bboxes, class_labels=class_labels)
+            image, bboxes, class_labels = pre['image'], pre['bboxes'], pre['class_labels']
+            
             if augmentation_type == 'agricultural':
                 transformed = self.agricultural_transforms(
                     image=image,
