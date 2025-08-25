@@ -842,7 +842,14 @@ def setup_drive_integration() -> Optional[DriveManager]:
     # Kimlik doğrulama
     if not drive_manager.authenticate():
         return None
-    # Başarılı doğrulamada mevcut drive_manager'ı döndür
+    
+    # Proje klasörü kurulumu (eksik olan kısım!)
+    print("\n📁 Proje klasörü kurulumu...")
+    if not drive_manager.setup_drive_folder():
+        print("❌ Proje klasörü kurulamadı!")
+        return None
+    
+    print("✅ Drive entegrasyonu tamamlandı!")
     return drive_manager
 
 def activate_drive_integration(folder_path: str, project_name: Optional[str] = None) -> Optional[DriveManager]:
