@@ -424,68 +424,56 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
 
         def on_train_epoch_end(self, trainer):
             """Her epoch sonunda çağrılır"""
-            # Son kayıttan bu yana yeterli epoch geçmediyse atla
-            if (trainer.epoch - self.last_epoch) < self.save_interval and trainer.epoch > 0:
-                return
-            
-            self.last_epoch = trainer.epoch
-            
-            last_pt_path = self.weights_dir / 'last.pt'
-            best_pt_path = self.weights_dir / 'best.pt'
-            
-            # Sadece belirtilen epoch aralığında kayıt yap
-            if trainer.epoch % self.save_interval == 0 or trainer.epoch == 1:
-                # 1. last.pt dosyasını Google Drive'a kaydet
-                if last_pt_path.exists():
-                    try:
-                        print(f"\n💾 last.pt dosyası Google Drive'a kopyalanıyor (epoch {trainer.epoch})...")
-                        # Epoch bazlı kopya
-                        self.drive_manager.upload_model(
-                            str(last_pt_path), 
-                            f'epoch_{trainer.epoch:03d}.pt'
-                        )
-                        # Güncel last.pt'yi de kaydet
-                        self.drive_manager.upload_model(
-                            str(last_pt_path), 
-                            'last.pt'
-                        )
-                        print("✅ last.pt başarıyla Google Drive'a kopyalandı")
-                    except Exception as e:
-                        print(f"❌ last.pt kaydedilirken hata oluştu: {e}")
+            try:
+                self.last_epoch = trainer.epoch
                 
-                # 2. best.pt dosyasını her seferinde güncelle
+                last_pt_path = self.weights_dir / 'last.pt'
+                best_pt_path = self.weights_dir / 'best.pt'
+                
+                # Her epoch sonunda best.pt'yi kontrol et ve güncelle
                 if best_pt_path.exists():
                     try:
-                        # Fitness değerini kontrol et (eğer mevcutsa)
                         current_fitness = getattr(trainer, 'fitness', None)
-                        if current_fitness is not None:
-                            if current_fitness > self.best_fitness:
-                                self.best_fitness = current_fitness
-                                print(f"\n🏆 Yeni en iyi model bulundu (fitness: {current_fitness:.4f})!")
+                        if current_fitness is not None and current_fitness > self.best_fitness:
+                            self.best_fitness = current_fitness
+                            print(f"\n🏆 Yeni en iyi model bulundu (fitness: {current_fitness:.4f})!")
                             
-                            print(f"💾 best.pt Google Drive'a kopyalanıyor (epoch {trainer.epoch})...")
-                            # Her seferinde best.pt'yi güncelle
-                            self.drive_manager.upload_model(
-                                str(best_pt_path), 
-                                'best.pt'
-                            )
-                            print("✅ best.pt başarıyla Google Drive'a kopyalandı")
-                    except Exception as e:
-                        print(f"❌ best.pt kaydedilirken hata oluştu: {e}")
-            else:
-                print(f"\nℹ️ Kayıt aralığı {self.save_interval} epoch - Sonraki kayıt: epoch {((trainer.epoch // self.save_interval) + 1) * self.save_interval}")
-                
-                # Her durumda best.pt'yi güncelle (aralık dışında bile)
-                if best_pt_path.exists():
-                    try:
-                        # Sessizce güncelle, kullanıcıyı bilgilendirme
+                        # Her epoch'ta best.pt'yi güncelle
                         self.drive_manager.upload_model(
                             str(best_pt_path), 
-                            'best.pt',
-                            verbose=False
+                            'best.pt'
                         )
-                    except Exception:
-                        pass  # Hata durumunda sessizce geç
+                        print(f"✅ best.pt güncellendi (epoch {trainer.epoch})")
+                    except Exception as e:
+                        print(f"❌ best.pt güncellenirken hata: {e}")
+                
+                # Belirtilen aralıklarda last.pt'yi kaydet
+                if trainer.epoch % self.save_interval == 0 or trainer.epoch == 1:
+                    # last.pt dosyasını Google Drive'a kaydet
+                    if last_pt_path.exists():
+                        try:
+                            print(f"\n💾 last.pt dosyası Google Drive'a kopyalanıyor (epoch {trainer.epoch})...")
+                            # Epoch bazlı kopya
+                            self.drive_manager.upload_model(
+                                str(last_pt_path), 
+                                f'epoch_{trainer.epoch:03d}.pt'
+                            )
+                            # Güncel last.pt'yi de kaydet
+                            self.drive_manager.upload_model(
+                                str(last_pt_path), 
+                                'last.pt'
+                            )
+                            print("✅ last.pt başarıyla Google Drive'a kopyalandı")
+                        except Exception as e:
+                            print(f"❌ last.pt kaydedilirken hata oluştu: {e}")
+                else:
+                    next_save_epoch = ((trainer.epoch // self.save_interval) * self.save_interval) + self.save_interval
+                    print(f"\nℹ️ Kayıt aralığı {self.save_interval} epoch - Sonraki kayıt: epoch {next_save_epoch}")
+            
+            except Exception as e:
+                print(f"❌ Epoch sonu işlemlerinde beklenmeyen hata: {e}")
+                import traceback
+                traceback.print_exc()  # Hata detaylarını yazdır
 
     try:
         # Manage model training with periodic memory cleanup
