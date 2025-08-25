@@ -689,14 +689,16 @@ class DriveManager:
                         timestamp_dirs.append(item_path)
                 
                 if timestamp_dirs:
-                    # En yeni timestamp klasörünü al
-                    latest_timestamp_dir = max(timestamp_dirs, key=lambda x: os.path.getmtime(x))
-                    print(f"📅 En yeni timestamp klasörü: {os.path.basename(latest_timestamp_dir)}")
+                    # Timestamp klasörlerini en küçükten en büyüğe sırala (20250821_203234 formatı)
+                    timestamp_dirs.sort(key=lambda x: os.path.basename(x))
+                    print(f"📅 Bulunan timestamp klasörleri: {[os.path.basename(d) for d in timestamp_dirs]}")
                     
-                    # Bu klasörde checkpoint ara
-                    result = self._search_checkpoint_in_dir(latest_timestamp_dir)
-                    if result[0]:
-                        return result
+                    # Tüm timestamp klasörlerinde checkpoint ara (en yeniden başlayarak)
+                    for timestamp_dir in reversed(timestamp_dirs):
+                        print(f"📅 Kontrol ediliyor: {os.path.basename(timestamp_dir)}")
+                        result = self._search_checkpoint_in_dir(timestamp_dir)
+                        if result[0]:
+                            return result
                 
                 # Timestamp klasörü yoksa doğrudan base_dir'de ara
                 result = self._search_checkpoint_in_dir(base_dir)
@@ -711,60 +713,53 @@ class DriveManager:
         return None, None
     
     def _search_checkpoint_in_dir(self, search_dir):
-        """Belirli bir klasörde checkpoint ara"""
+        """Belirli bir klasörde checkpoint ara - en son checkpoint'i bul"""
         print(f"📁 Aranıyor: {search_dir}")
         
-        # Alt klasörleri de kontrol et (models, checkpoints, vs.)
-        search_subdirs = [
-            search_dir,                                    # Ana klasör
-            os.path.join(search_dir, 'models'),           # models alt klasörü
-            os.path.join(search_dir, 'checkpoints'),      # checkpoints alt klasörü
-        ]
-        
-        for subdir in search_subdirs:
-            if not os.path.exists(subdir):
-                continue
-                
-            try:
-                # Klasör içeriğini listele
-                files = os.listdir(subdir)
-                pt_files = [f for f in files if f.endswith('.pt')]
-                
-                if pt_files:
-                    print(f"📋 Bulunan .pt dosyaları: {pt_files}")
-                
-                # Öncelik sırasına göre ara: last.pt -> best.pt -> epoch_*.pt -> diğerleri
-                priority_files = ['last.pt', 'best.pt']
-                
-                for filename in priority_files:
-                    if filename in pt_files:
-                        checkpoint_path = os.path.join(subdir, filename)
-                        file_size = os.path.getsize(checkpoint_path) / (1024*1024)
-                        print(f"✅ Checkpoint bulundu: {checkpoint_path} ({file_size:.1f} MB)")
-                        return checkpoint_path, filename
-                
-                # Epoch dosyalarını ara (epoch_XXX.pt)
-                epoch_files = [f for f in pt_files if f.startswith('epoch_')]
-                if epoch_files:
-                    # En yüksek epoch numaralı dosyayı al
+        # Doğrudan timestamp klasöründe checkpoint dosyalarını ara
+        try:
+            files = os.listdir(search_dir)
+            pt_files = [f for f in files if f.endswith('.pt')]
+            
+            if pt_files:
+                print(f"📋 Bulunan .pt dosyaları: {pt_files}")
+            
+            # Checkpoint dosyalarını öncelik sırasına göre ara
+            checkpoint_files = ['last.pt', 'best.pt']
+            
+            # Önce last.pt ve best.pt kontrol et
+            for filename in checkpoint_files:
+                if filename in pt_files:
+                    checkpoint_path = os.path.join(search_dir, filename)
+                    
+                    # Dosya tarihini kontrol et (en son değişiklik)
+                    file_mtime = os.path.getmtime(checkpoint_path)
+                    file_size = os.path.getsize(checkpoint_path) / (1024*1024)
+                    
+                    from datetime import datetime
+                    file_date = datetime.fromtimestamp(file_mtime).strftime("%Y-%m-%d %H:%M:%S")
+                    
+                    print(f"✅ Checkpoint bulundu: {checkpoint_path}")
+                    print(f"📊 Boyut: {file_size:.1f} MB | 📅 Tarih: {file_date}")
+                    return checkpoint_path, filename
+            
+            # Eğer last.pt ve best.pt yoksa, epoch dosyalarını ara
+            epoch_files = [f for f in pt_files if f.startswith('epoch_') and f.endswith('.pt')]
+            if epoch_files:
+                # En yüksek epoch numaralı dosyayı bul
+                try:
                     latest_epoch = max(epoch_files, key=lambda f: int(f.split('_')[1].split('.')[0]))
-                    checkpoint_path = os.path.join(subdir, latest_epoch)
+                    checkpoint_path = os.path.join(search_dir, latest_epoch)
                     file_size = os.path.getsize(checkpoint_path) / (1024*1024)
                     print(f"✅ Epoch checkpoint bulundu: {checkpoint_path} ({file_size:.1f} MB)")
                     return checkpoint_path, latest_epoch
-                
-                # Diğer .pt dosyalarını ara
-                if pt_files:
-                    # En yeni dosyayı al
-                    latest_file = max(pt_files, key=lambda f: os.path.getmtime(os.path.join(subdir, f)))
-                    latest_path = os.path.join(subdir, latest_file)
-                    file_size = os.path.getsize(latest_path) / (1024*1024)
-                    print(f"✅ En yeni checkpoint bulundu: {latest_path} ({file_size:.1f} MB)")
-                    return latest_path, latest_file
-                
-            except Exception as e:
-                print(f"⚠️ {subdir} arama hatası: {e}")
-                continue
+                except:
+                    pass
+            
+            print(f"⚠️ {search_dir} klasöründe uygun checkpoint bulunamadı")
+            
+        except Exception as e:
+            print(f"⚠️ {search_dir} arama hatası: {e}")
         
         return None, None
     
