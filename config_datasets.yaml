@@ -35,20 +35,14 @@ datasets:
       
     plant_diseases_comprehensive:
       url: "https://universe.roboflow.com/ds/0UULi7Pnno?key=PU2zi8AslM"
-      description: "Comprehensive plant diseases dataset with 30+ disease types"
+      description: "Comprehensive plant diseases dataset with leaf disease detection"
       resize_info: "Stretch to 416x416"
       expected_classes: [
-        "Apple Scab Leaf", "Apple leaf", "Apple rust leaf", "Bell_pepper leaf", 
-        "Bell_pepper leaf spot", "Blueberry leaf", "Cherry leaf", "Corn Gray leaf spot", 
-        "Corn leaf blight", "Corn rust leaf", "Peach leaf", "Potato leaf", 
-        "Potato leaf early blight", "Potato leaf late blight", "Raspberry leaf", 
-        "Soyabean leaf", "Soybean leaf", "Squash Powdery mildew leaf", "Strawberry leaf", 
-        "Tomato Early blight leaf", "Tomato Septoria leaf spot", "Tomato leaf", 
-        "Tomato leaf bacterial spot", "Tomato leaf late blight", "Tomato leaf mosaic virus", 
-        "Tomato leaf yellow virus", "Tomato mold leaf", "Tomato two spotted spider mites leaf", 
-        "grape leaf", "grape leaf black rot"
+        "Apple leaf", "Blueberry leaf", "Cherry leaf", "Peach leaf", 
+        "Raspberry leaf", "Soyabean leaf", "Strawberry leaf", 
+        "Tomato leaf", "grape leaf"
       ]
-      class_count: 30
+      class_count: 9
       priority: 1
       category: "diseases"
       dataset_type: "diseases"
@@ -178,9 +172,9 @@ datasets:
 class_mapping:
   # SAĞLIKLI BİTKİLER - Healthy plants
   healthy:
-    sub_classes: ["healthy", "Apple leaf", "Bell_pepper leaf", "Blueberry leaf", 
-                 "Cherry leaf", "Peach leaf", "Potato leaf", "Raspberry leaf", 
-                 "Soyabean leaf", "Soybean leaf", "Strawberry leaf", "Tomato leaf", "grape leaf"]
+    sub_classes: ["Apple leaf", "Blueberry leaf", "Cherry leaf", "Peach leaf", 
+                 "Raspberry leaf", "Soyabean leaf", "Strawberry leaf", 
+                 "Tomato leaf", "grape leaf"]
     keywords: ["healthy", "normal", "good", "leaf"]
     color: "#2E8B57"  # Forest Green
     bbox_color: [46, 139, 87]  # RGB for OpenCV
@@ -315,7 +309,7 @@ class_mapping:
     description: "Ripe fruits ready for harvest"
     detection_label: "OLGUN MEYVE"
     
-  # OLMAMI MEYVE - Unripe fruit
+  # OLMAMIŞ MEYVE - Unripe fruit
   fruit_unripe:
     sub_classes: ["unripe"]
     keywords: ["unripe", "ham"]
@@ -430,7 +424,8 @@ dataset_groups:
     batch_size: 8
     image_size: 640
     target_classes: ["healthy", "fungal_disease", "viral_disease", "bacterial_disease", 
-                    "pest_damage", "nutrient_deficiency", "fruit_ripe", "fruit_unripe"]
+                    "pest_damage", "nutrient_deficiency", "weeds", "fruit_ripe", 
+                    "fruit_unripe"]
 
 # ============================================================================
 # DETECTION VISUALIZATION SETTINGS

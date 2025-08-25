@@ -175,17 +175,16 @@ class ClassMapper:
                                 print(f"  🔍 Keyword: '{class_name}' → '{main_class}' (keyword: {keyword})")
                                 break
         
-        # Handle unmapped classes
+        # Handle unmapped classes - SKIP unknown mapping to prevent issues
         unmapped_classes = all_classes - mapped_classes
         if unmapped_classes:
             print(f"\n⚠️  Unmapped classes found: {len(unmapped_classes)}")
             for class_name in unmapped_classes:
                 print(f"  - {class_name}")
             
-            # Assign to 'unknown' category
-            for class_name in unmapped_classes:
-                self.manager.class_mapping[class_name] = 'unknown'
-                print(f"  📝 Mapped '{class_name}' → 'unknown'")
+            # SKIP unknown mapping - these classes will be ignored
+            print(f"  ⚠️  These classes will be IGNORED to prevent 'unknown' issues")
+            print(f"  💡 Add them to config_datasets.yaml if needed")
         
         # Create hierarchical class structure
         self.manager.hierarchical_classes = defaultdict(list)

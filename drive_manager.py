@@ -11,8 +11,31 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 
-# Ortam tespiti
-IS_COLAB = 'google.colab' in str(get_ipython()) if 'get_ipython' in globals() else False
+# Ortam tespiti - Geliştirilmiş
+def detect_colab_environment():
+    """Colab ortamını güvenli şekilde tespit et"""
+    try:
+        # get_ipython() fonksiyonunu kontrol et
+        if 'get_ipython' in globals():
+            ipython_info = str(get_ipython())
+            if 'google.colab' in ipython_info:
+                return True
+        
+        # Alternatif kontrol: sys.modules
+        import sys
+        if 'google.colab' in sys.modules:
+            return True
+            
+        # Alternatif kontrol: ortam değişkenleri
+        if 'COLAB_GPU' in os.environ or 'COLAB_TPU_ADDR' in os.environ:
+            return True
+            
+        return False
+    except Exception as e:
+        print(f"⚠️ Colab tespit hatası: {e}")
+        return False
+
+IS_COLAB = detect_colab_environment()
 
 GOOGLE_DRIVE_AVAILABLE = False
 try:
@@ -59,25 +82,51 @@ class DriveManager:
             return self._authenticate_api()
     
     def _authenticate_colab(self) -> bool:
-        """Colab için Drive bağlama"""
+        """Colab için Drive bağlama - Geliştirilmiş"""
         try:
             from google.colab import drive
-            drive.mount('/content/drive')
+            print("🔄 Google Drive mount işlemi başlatılıyor...")
             
-            # Drive'ın bağlandığını kontrol et
+            # Drive mount et
+            drive.mount('/content/drive', force_remount=True)
+            
+            # Detaylı kontrol
             if os.path.exists(self.base_drive_path):
-                self.is_mounted = True
-                print("✅ Google Drive başarıyla bağlandı!")
-                return True
+                # İzin kontrolü
+                try:
+                    test_file = os.path.join(self.base_drive_path, 'test_write.txt')
+                    with open(test_file, 'w') as f:
+                        f.write('test')
+                    os.remove(test_file)
+                    
+                    self.is_mounted = True
+                    print("✅ Google Drive başarıyla bağlandı ve yazma izni var!")
+                    print(f"📁 Drive yolu: {self.base_drive_path}")
+                    return True
+                    
+                except PermissionError:
+                    print("❌ Drive bağlandı ama yazma izni yok!")
+                    return False
+                except Exception as perm_e:
+                    print(f"❌ İzin testi hatası: {perm_e}")
+                    return False
             else:
-                print("❌ Drive bağlanamadı!")
+                print(f"❌ Drive bağlanamadı! Yol mevcut değil: {self.base_drive_path}")
+                print("💡 Çözüm önerileri:")
+                print("  1. Colab'de 'Files' panelinden Drive'ı manuel mount edin")
+                print("  2. Google hesabınızın Drive erişim izni olduğunu kontrol edin")
                 return False
                 
         except ImportError:
             print("❌ Bu kod Google Colab dışında çalışıyor!")
+            print(f"🔍 Tespit edilen ortam: IS_COLAB={self.is_colab}")
             return False
         except Exception as e:
             print(f"❌ Drive bağlama hatası: {e}")
+            print("💡 Çözüm önerileri:")
+            print("  1. Colab'i yeniden başlatın")
+            print("  2. Google hesabınızı yeniden doğrulayın")
+            print("  3. force_remount=True parametresini deneyin")
             return False
     
     def _authenticate_api(self) -> bool:
@@ -127,21 +176,30 @@ class DriveManager:
             return self._setup_api_folder()
     
     def _setup_colab_folder(self) -> bool:
-        """Colab için klasör kurulumu"""
+        """Colab için klasör kurulumu - Otomatik ve Manuel Seçenekli"""
         if not self.is_mounted:
             print("❌ Drive bağlı değil! Önce authenticate() çalıştırın.")
             return False
         
         try:
-            # Kullanıcıdan bilgileri al
             print("\n🔧 Google Drive Klasör Ayarları")
-            folder_path = input("Klasör yolu (örn: SmartFarm/Training): ").strip()
-            if not folder_path:
-                folder_path = "SmartFarm/Training"
             
-            self.project_name = input("Proje adı (varsayılan: SmartFarm_Training): ").strip()
-            if not self.project_name:
+            # Otomatik kurulum seçeneği
+            auto_setup = input("Otomatik klasör kurulumu kullanılsın mı? (e/h, varsayılan: e): ").lower().strip()
+            if not auto_setup or auto_setup.startswith('e'):
+                # Otomatik kurulum
+                folder_path = "SmartFarm/Training"
                 self.project_name = "SmartFarm_Training"
+                print(f"✅ Otomatik kurulum: {folder_path}")
+            else:
+                # Manuel kurulum
+                folder_path = input("Klasör yolu (örn: SmartFarm/Training): ").strip()
+                if not folder_path:
+                    folder_path = "SmartFarm/Training"
+                
+                self.project_name = input("Proje adı (varsayılan: SmartFarm_Training): ").strip()
+                if not self.project_name:
+                    self.project_name = "SmartFarm_Training"
             
             # Zaman damgası oluştur
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -808,6 +866,85 @@ class DriveManager:
             print(f"❌ Model listeleme hatası: {e}")
             return []
 
+
+def debug_colab_environment():
+    """Colab ortamını detaylı debug et"""
+    print("\n🔍 Colab Ortam Debug Raporu")
+    print("=" * 50)
+    
+    # 1. Ortam tespiti
+    is_colab = detect_colab_environment()
+    print(f"🔍 Colab tespit edildi: {is_colab}")
+    
+    # 2. Modül kontrolü
+    import sys
+    colab_modules = [m for m in sys.modules.keys() if 'colab' in m.lower()]
+    print(f"📦 Colab modülleri: {colab_modules}")
+    
+    # 3. Ortam değişkenleri
+    colab_env_vars = {k: v for k, v in os.environ.items() if 'colab' in k.lower()}
+    print(f"🌍 Colab ortam değişkenleri: {colab_env_vars}")
+    
+    # 4. Drive mount kontrolü
+    drive_paths = ['/content/drive', '/content/drive/MyDrive']
+    for path in drive_paths:
+        exists = os.path.exists(path)
+        print(f"📁 {path}: {'✅ Mevcut' if exists else '❌ Yok'}")
+        if exists:
+            try:
+                items = os.listdir(path)[:5]  # İlk 5 öğe
+                print(f"   📋 İçerik örneği: {items}")
+            except Exception as e:
+                print(f"   ❌ Listeleme hatası: {e}")
+    
+    # 5. Google Colab kütüphanesi kontrolü
+    try:
+        from google.colab import drive, files
+        print("✅ google.colab kütüphanesi mevcut")
+    except ImportError as e:
+        print(f"❌ google.colab import hatası: {e}")
+    
+    return is_colab
+
+def test_drive_operations():
+    """Drive işlemlerini test et"""
+    print("\n🧪 Drive İşlemleri Test Raporu")
+    print("=" * 50)
+    
+    # Drive Manager oluştur
+    dm = DriveManager()
+    print(f"🔍 DriveManager oluşturuldu (is_colab: {dm.is_colab})")
+    
+    # Kimlik doğrulama testi
+    print("\n1️⃣ Kimlik Doğrulama Testi")
+    auth_success = dm.authenticate()
+    print(f"   Sonuç: {'✅ Başarılı' if auth_success else '❌ Başarısız'}")
+    
+    if not auth_success:
+        return False
+    
+    # Klasör kurulum testi
+    print("\n2️⃣ Klasör Kurulum Testi")
+    # Otomatik test klasörü oluştur
+    if dm.is_colab and dm.is_mounted:
+        test_folder = os.path.join(dm.base_drive_path, 'SmartFarm_Test')
+        try:
+            os.makedirs(test_folder, exist_ok=True)
+            test_file = os.path.join(test_folder, 'test.txt')
+            with open(test_file, 'w') as f:
+                f.write('Test dosyası')
+            print(f"   ✅ Test klasörü oluşturuldu: {test_folder}")
+            
+            # Temizlik
+            os.remove(test_file)
+            os.rmdir(test_folder)
+            print("   🧹 Test dosyaları temizlendi")
+            return True
+        except Exception as e:
+            print(f"   ❌ Test klasörü hatası: {e}")
+            return False
+    
+    return auth_success
 
 def setup_drive_integration() -> Optional[DriveManager]:
     """Drive entegrasyonunu kur"""
