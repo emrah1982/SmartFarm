@@ -335,15 +335,15 @@ class_mapping:
     description: "Damaged or deteriorated plant parts"
     detection_label: "HASARLI"
     
-  # BİLİNMEYEN - Unknown
-  unknown:
-    sub_classes: ["class 1", "class 2", "class 3", "class 4", "class 5", "class 6"]
-    keywords: ["class", "unknown", "bilinmeyen"]
-    color: "#808080"  # Gray
-    bbox_color: [128, 128, 128]  # RGB for OpenCV
-    priority: 4
-    description: "Unknown or unclassified items"
-    detection_label: "BİLİNMEYEN"
+  # BİLİNMEYEN - Unknown (DISABLED - causes issues)
+  # unknown:
+  #   sub_classes: ["class 1", "class 2", "class 3", "class 4", "class 5", "class 6"]
+  #   keywords: ["class", "unknown", "bilinmeyen"]
+  #   color: "#808080"  # Gray
+  #   bbox_color: [128, 128, 128]  # RGB for OpenCV
+  #   priority: 4
+  #   description: "Unknown or unclassified items"
+  #   detection_label: "BİLİNMEYEN"
 
 # ============================================================================
 # DATASET GROUPS - Optimized for hierarchical detection
@@ -388,8 +388,7 @@ dataset_groups:
       # "plant_village",  # REMOVED
       "plant_diseases_comprehensive", "fruit_ripeness", 
       "agricultural_pests", "pest_detection_advanced", "nutrient_deficiency", 
-      "weeds_detection", "agricultural_dataset_4", "agricultural_dataset_5", 
-      "general_classes"
+      "weeds_detection", "agricultural_dataset_4", "agricultural_dataset_5"
     ]
     use_case: "Research and experimental hierarchical model"
     estimated_training_time: "6-12 hours"
@@ -398,7 +397,7 @@ dataset_groups:
     image_size: 640
     target_classes: ["healthy", "fungal_disease", "viral_disease", "bacterial_disease", 
                     "pest_damage", "nutrient_deficiency", "weeds", "fruit_ripe", 
-                    "fruit_unripe", "damaged", "unknown"]
+                    "fruit_unripe", "damaged"]
     
   # ⚡ QUICK TEST - Fast testing subset (FIXED)
   quick_unified_test:
