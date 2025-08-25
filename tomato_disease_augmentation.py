@@ -89,48 +89,67 @@ class TomatoDiseaseAugmentation:
     def _clip_and_filter_bboxes(self, bboxes, class_labels):
         """
         YOLO formatındaki bbox'ları [0,1] aralığına kırpar ve geçersiz/boş kutuları eler.
-
+        
         Args:
-            bboxes (list[list[float]]): [x, y, w, h] listesi
-            class_labels (list[int]): sınıf etiketleri
-
+            bboxes: YOLO format bbox listesi [(x_center, y_center, width, height), ...]
+            class_labels: Sınıf etiketleri listesi
+            
         Returns:
-            tuple: (filtered_bboxes, filtered_labels)
+            tuple: (kırpılmış_bboxes, filtrelenmiş_labels)
         """
         if not bboxes:
-            return [], (class_labels if class_labels else [])
-
+            return [], []
+        
         filtered_bboxes = []
         filtered_labels = []
-        for i, bbox in enumerate(bboxes):
-            try:
-                x, y, w, h = bbox
-                # NaN/inf kontrolü
-                if not all(np.isfinite([x, y, w, h])):
-                    continue
-                # [0,1] sınırına kırp
-                x = float(np.clip(x, 0.0, 1.0))
-                y = float(np.clip(y, 0.0, 1.0))
-                w = float(np.clip(w, 0.0, 1.0))
-                h = float(np.clip(h, 0.0, 1.0))
-                # Degenerate kutuları ele
-                if w < self.min_box_w or h < self.min_box_h:
-                    continue
-                filtered_bboxes.append([x, y, w, h])
-                if class_labels:
-                    filtered_labels.append(class_labels[i])
-            except Exception:
+        
+        for bbox, label in zip(bboxes, class_labels):
+            x_center, y_center, width, height = bbox
+            
+            # Önce tüm değerleri [0,1] aralığına zorla kırp
+            x_center = max(0.0, min(1.0, float(x_center)))
+            y_center = max(0.0, min(1.0, float(y_center)))
+            width = max(0.0, min(1.0, float(width)))
+            height = max(0.0, min(1.0, float(height)))
+            
+            # Minimum boyut kontrolü
+            if width < 1e-4 or height < 1e-4:
                 continue
-        # Her zaman (bboxes, labels) döndür
+                
+            # Bbox'un görüntü sınırları içinde kalmasını sağla
+            x1 = x_center - width / 2.0
+            y1 = y_center - height / 2.0
+            x2 = x_center + width / 2.0
+            y2 = y_center + height / 2.0
+            
+            # Sınırları kırp
+            x1 = max(0.0, x1)
+            y1 = max(0.0, y1)
+            x2 = min(1.0, x2)
+            y2 = min(1.0, y2)
+            
+            # Yeni boyutları hesapla
+            new_width = x2 - x1
+            new_height = y2 - y1
+            
+            # Çok küçükse atla
+            if new_width < self.min_box_w or new_height < self.min_box_h:
+                continue
+                
+            # Yeni merkezi hesapla
+            new_x_center = (x1 + x2) / 2.0
+            new_y_center = (y1 + y2) / 2.0
+            
+            # Son kontrol: tüm değerlerin [0,1] aralığında olduğundan emin ol
+            new_x_center = max(0.0, min(1.0, new_x_center))
+            new_y_center = max(0.0, min(1.0, new_y_center))
+            new_width = max(0.0, min(1.0, new_width))
+            new_height = max(0.0, min(1.0, new_height))
+            
+            filtered_bboxes.append([new_x_center, new_y_center, new_width, new_height])
+            filtered_labels.append(label)
+        
         return filtered_bboxes, filtered_labels
-
-    def _is_valid_size(self, image, expected=512):
-        """Görüntü boyutunun expected x expected olup olmadığını doğrular."""
-        try:
-            h, w = image.shape[:2]
-            return (h == expected and w == expected)
-        except Exception:
-            return False
 
     def get_early_blight_transform(self):
         """

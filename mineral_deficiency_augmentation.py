@@ -52,27 +52,49 @@ class MineralDeficiencyAugmentation:
             return [], []
         clipped, labels = [], []
         for bbox, cid in zip(bboxes, class_labels):
-            x, y, w, h = bbox
-            x = min(max(x, 0.0), 1.0)
-            y = min(max(y, 0.0), 1.0)
-            w = min(max(w, 0.0), 1.0)
-            h = min(max(h, 0.0), 1.0)
-            if w <= 0 or h <= 0:
+            x_center, y_center, width, height = bbox
+            
+            # Önce tüm değerleri [0,1] aralığına zorla kırp
+            x_center = max(0.0, min(1.0, float(x_center)))
+            y_center = max(0.0, min(1.0, float(y_center)))
+            width = max(0.0, min(1.0, float(width)))
+            height = max(0.0, min(1.0, float(height)))
+            
+            # Minimum boyut kontrolü
+            if width < 1e-4 or height < 1e-4:
                 continue
-            # Kutunun görüntü sınırları içinde kalmasını sağla
-            if x - w/2 < 0 or x + w/2 > 1 or y - h/2 < 0 or y + h/2 > 1:
-                # Aşımı kırp: Merkez sabit, genişlik/yükseklik azalt
-                left = max(0.0, x - w/2)
-                right = min(1.0, x + w/2)
-                top = max(0.0, y - h/2)
-                bottom = min(1.0, y + h/2)
-                w = max(0.0, right - left)
-                h = max(0.0, bottom - top)
-                if w <= 0 or h <= 0:
-                    continue
-                x = (left + right) / 2
-                y = (top + bottom) / 2
-            clipped.append([x, y, w, h])
+                
+            # Bbox'un görüntü sınırları içinde kalmasını sağla
+            x1 = x_center - width / 2.0
+            y1 = y_center - height / 2.0
+            x2 = x_center + width / 2.0
+            y2 = y_center + height / 2.0
+            
+            # Sınırları kırp
+            x1 = max(0.0, x1)
+            y1 = max(0.0, y1)
+            x2 = min(1.0, x2)
+            y2 = min(1.0, y2)
+            
+            # Yeni boyutları hesapla
+            new_width = x2 - x1
+            new_height = y2 - y1
+            
+            # Çok küçükse atla
+            if new_width < 1e-4 or new_height < 1e-4:
+                continue
+                
+            # Yeni merkezi hesapla
+            new_x_center = (x1 + x2) / 2.0
+            new_y_center = (y1 + y2) / 2.0
+            
+            # Son kontrol: tüm değerlerin [0,1] aralığında olduğundan emin ol
+            new_x_center = max(0.0, min(1.0, new_x_center))
+            new_y_center = max(0.0, min(1.0, new_y_center))
+            new_width = max(0.0, min(1.0, new_width))
+            new_height = max(0.0, min(1.0, new_height))
+            
+            clipped.append([new_x_center, new_y_center, new_width, new_height])
             labels.append(cid)
         return clipped, labels
     
