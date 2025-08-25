@@ -553,6 +553,12 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
     save_interval_epochs = save_interval
     drive_save_dir = options.get('drive_save_path')
 
+    # Ultralytics yerel periyodik kaydetme (weights/epoch_XXX.pt) için native parametre
+    try:
+        train_args['save_period'] = int(save_interval_epochs)
+    except Exception:
+        train_args['save_period'] = save_interval_epochs
+
     # -------------------------------
     # Gelişmiş Drive Kaydetme Fonksiyonu - Colab Kapanma Korumalı
     # -------------------------------
@@ -655,26 +661,39 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
         import time
         
         def periodic_save_thread():
-            """Arka planda periyodik kaydetme"""
-            last_saved_epoch = 0
+            """Arka planda periyodik kaydetme (dosya izleme ile gerçek epoch)"""
+            seen_epochs = set()
+            last_report = 0
             while True:
-                time.sleep(30)  # 30 saniyede bir kontrol et
+                time.sleep(10)  # 10 sn'de bir kontrol
                 try:
-                    # Mevcut epoch'u weights klasöründen tahmin et
                     weights_dir = Path(project_dir) / experiment_name / 'weights'
-                    if weights_dir.exists():
-                        # Son değişiklik zamanından epoch tahmini
-                        last_pt = weights_dir / 'last.pt'
-                        if last_pt.exists():
-                            # Dosya değişiklik zamanından epoch hesapla (yaklaşık)
-                            current_time = time.time()
-                            file_time = last_pt.stat().st_mtime
-                            # Basit epoch tahmini - her epoch ~1-2 dakika sürer
-                            estimated_epoch = int((current_time - file_time) / 60) + last_saved_epoch
-                            
-                            if estimated_epoch >= last_saved_epoch + save_interval_epochs:
-                                save_models_periodically(project_dir, experiment_name, drive_manager, save_interval_epochs, estimated_epoch)
-                                last_saved_epoch = estimated_epoch
+                    if not weights_dir.exists():
+                        continue
+
+                    # epoch_*.pt dosyalarını tara
+                    epoch_files = list(weights_dir.glob('epoch_*.pt'))
+                    for p in epoch_files:
+                        try:
+                            stem = p.stem  # epoch_XXX
+                            ep = int(stem.split('_')[1])
+                        except Exception:
+                            continue
+
+                        if ep in seen_epochs:
+                            continue
+
+                        seen_epochs.add(ep)
+                        if ep % int(save_interval_epochs) == 0:
+                            save_models_periodically(project_dir, experiment_name, drive_manager, int(save_interval_epochs), ep)
+
+                    # Bilgi mesajı (çok sık değil)
+                    import time as _t
+                    now = _t.time()
+                    if now - last_report > 60:
+                        last_seen = max(seen_epochs) if seen_epochs else 0
+                        print(f"📡 Dosya izleme aktif - son görülen epoch: {last_seen}")
+                        last_report = now
                 except Exception as e:
                     print(f"⚠️ Periyodik kaydetme thread hatası: {e}")
                     break
