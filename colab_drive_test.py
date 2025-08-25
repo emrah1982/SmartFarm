@@ -108,8 +108,13 @@ def test_model_upload_simulation():
                     uploaded_file = os.path.join(test_project_folder, 'models', 'test_model.pt')
                     if os.path.exists(uploaded_file):
                         os.remove(uploaded_file)
-                    os.rmdir(os.path.join(test_project_folder, 'models'))
-                    os.rmdir(test_project_folder)
+                    
+                    models_dir = os.path.join(test_project_folder, 'models')
+                    if os.path.exists(models_dir) and not os.listdir(models_dir):
+                        os.rmdir(models_dir)
+                    
+                    if os.path.exists(test_project_folder) and not os.listdir(test_project_folder):
+                        os.rmdir(test_project_folder)
                     print("🧹 Test dosyaları temizlendi")
                 else:
                     print("❌ Model yükleme testi başarısız")
