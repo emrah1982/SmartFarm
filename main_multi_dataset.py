@@ -771,7 +771,7 @@ def main():
         choice = "2"  # Continue to training
         
     if choice == "2":
-        in_colab = is_colab()
+        in_colab = is_colab
         
         # (Opsiyonel) Gerekli paketleri yükleme
         # Not: Paket kurulumlarını genellikle colab_setup.py üzerinden yönetmeniz önerilir.
