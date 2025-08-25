@@ -5,6 +5,8 @@ import os
 import json
 import pickle
 import shutil
+import time
+import hashlib
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
@@ -384,26 +386,36 @@ class DriveManager:
         try:
             # Hedef yol
             target_path = os.path.join(self.project_folder, 'models', drive_filename)
-            
-            # Klasörü oluştur
             os.makedirs(os.path.dirname(target_path), exist_ok=True)
-            
-            # Dosyayı kopyala
+
+            # Değişiklik algılama: varsa boyut karşılaştır
+            local_size = os.path.getsize(local_path) if os.path.exists(local_path) else 0
+            target_exists = os.path.exists(target_path)
+            if target_exists:
+                target_size = os.path.getsize(target_path)
+                if local_size == target_size:
+                    print(f"⏭️ Atlandı (değişiklik yok): {drive_filename} ({local_size/(1024*1024):.1f} MB)")
+                    return True
+
+            t0 = time.time()
             shutil.copy2(local_path, target_path)
-            
+            dt = time.time() - t0
+
+            mb = os.path.getsize(target_path) / (1024*1024)
+            speed = (mb / dt) if dt > 0 else 0
             print(f"✅ Model Drive'a kaydedildi: {target_path}")
-            print(f"📁 Dosya boyutu: {os.path.getsize(target_path) / (1024*1024):.1f} MB")
-            
+            print(f"📁 Boyut: {mb:.1f} MB | ⏱️ Süre: {dt:.2f}s | 🚀 Hız: {speed:.2f} MB/s")
+
             # Log tut
             self._log_upload_colab(drive_filename, local_path, target_path)
             return True
-            
+
         except Exception as e:
             print(f"❌ Model kaydetme hatası: {e}")
             return False
     
     def _upload_model_api(self, local_path: str, drive_filename: str) -> bool:
-        """API ile model yükleme (orijinal kod)"""
+        """API ile model yükleme (geliştirilmiş: retry, değişiklik algı, log)"""
         if not self.service or not self.drive_folder_id:
             print("❌ Drive service or folder ID not found!")
             return False
@@ -413,26 +425,78 @@ class DriveManager:
             return False
 
         try:
-            # Check if the file already exists in Drive
+            # Yardımcılar
+            def _md5(path: str) -> Optional[str]:
+                try:
+                    h = hashlib.md5()
+                    with open(path, 'rb') as f:
+                        for chunk in iter(lambda: f.read(1024 * 1024), b''):
+                            h.update(chunk)
+                    return h.hexdigest()
+                except Exception:
+                    return None
+
+            def _retry(fn, attempts=3):
+                delay = 1.0
+                last_exc = None
+                for i in range(attempts):
+                    try:
+                        return fn()
+                    except Exception as e:
+                        last_exc = e
+                        print(f"⚠️ Deneme {i+1}/{attempts} hata: {e}. {delay:.1f}s sonra tekrar denenecek...")
+                        time.sleep(delay)
+                        delay = delay * 2 + 0.5
+                if last_exc:
+                    raise last_exc
+
+            # Mevcut dosyayı bul ve md5/size al
             query = f"name='{drive_filename}' and parents in '{self.drive_folder_id}' and trashed=false"
-            response = self.service.files().list(q=query, fields='files(id)').execute()
+            response = self.service.files().list(q=query, fields='files(id, name, md5Checksum, size)').execute()
             existing_files = response.get('files', [])
+
+            local_size = os.path.getsize(local_path)
+            local_md5 = _md5(local_path)
+
+            # Değişiklik algıla: aynı md5 veya aynı size ise (md5 yoksa) yüklemeyi atlayabiliriz
+            if existing_files:
+                meta = existing_files[0]
+                file_id = meta['id']
+                remote_md5 = meta.get('md5Checksum')
+                remote_size = int(meta.get('size', 0)) if meta.get('size') is not None else None
+
+                if (remote_md5 and local_md5 and remote_md5 == local_md5) or (remote_md5 is None and remote_size == local_size):
+                    print(f"⏭️ Atlandı (değişiklik yok): {drive_filename} ({local_size/(1024*1024):.1f} MB)")
+                    return True
 
             media = MediaFileUpload(local_path, resumable=True)
 
+            t0 = time.time()
             if existing_files:
-                # Update existing file
                 file_id = existing_files[0]['id']
-                self.service.files().update(fileId=file_id, media_body=media).execute()
-                print(f"✅ Model güncellendi: {drive_filename}")
+
+                def _do_update():
+                    return self.service.files().update(fileId=file_id, media_body=media).execute()
+
+                result = _retry(_do_update)
+                dt = time.time() - t0
+                mb = local_size / (1024*1024)
+                speed = (mb / dt) if dt > 0 else 0
+                print(f"✅ Model güncellendi: {drive_filename} | ⏱️ {dt:.2f}s | 🚀 {speed:.2f} MB/s")
                 self._log_upload(drive_filename, 0, file_id, False)
             else:
-                # Create new file
                 file_metadata = {'name': drive_filename, 'parents': [self.drive_folder_id]}
-                result = self.service.files().create(body=file_metadata, media_body=media).execute()
-                print(f"✅ Model Drive'a yüklendi: {drive_filename}")
+
+                def _do_create():
+                    return self.service.files().create(body=file_metadata, media_body=media).execute()
+
+                result = _retry(_do_create)
+                dt = time.time() - t0
+                mb = local_size / (1024*1024)
+                speed = (mb / dt) if dt > 0 else 0
+                print(f"✅ Model Drive'a yüklendi: {drive_filename} | ⏱️ {dt:.2f}s | 🚀 {speed:.2f} MB/s")
                 self._log_upload(drive_filename, 0, result.get('id'), False)
-            
+
             return True
 
         except Exception as e:

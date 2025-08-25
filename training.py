@@ -73,6 +73,61 @@ from memory_utils import show_memory_usage, clean_memory
 from drive_manager import DriveManager, setup_drive_integration
 
 
+def auto_profile_training(options: dict, speed_mode: bool) -> None:
+    """Set sensible defaults for batch and imgsz based on hardware if not provided.
+    - Only overrides when options doesn't include 'batch' or 'imgsz'.
+    - Uses simple VRAM buckets.
+    """
+    try:
+        user_specified_batch = 'batch' in options and options['batch'] is not None
+        user_specified_imgsz = 'imgsz' in options and options['imgsz'] is not None
+
+        total_vram_gb = None
+        if torch.cuda.is_available():
+            try:
+                dev = torch.cuda.current_device()
+                props = torch.cuda.get_device_properties(dev)
+                total_vram_gb = props.total_memory / (1024 ** 3)
+            except Exception:
+                total_vram_gb = None
+
+        # Determine defaults
+        default_batch = None
+        default_imgsz = None
+        if total_vram_gb is None:
+            # CPU or unknown GPU: conservative defaults
+            default_batch = 8
+            default_imgsz = 512
+        else:
+            if total_vram_gb >= 16:
+                default_batch = 32 if speed_mode else 24
+                default_imgsz = 1024 if speed_mode else 896
+            elif total_vram_gb >= 12:
+                default_batch = 24 if speed_mode else 16
+                default_imgsz = 896 if speed_mode else 832
+            elif total_vram_gb >= 8:
+                default_batch = 16 if speed_mode else 12
+                default_imgsz = 832 if speed_mode else 640
+            elif total_vram_gb >= 6:
+                default_batch = 8 if speed_mode else 6
+                default_imgsz = 640 if speed_mode else 576
+            else:
+                default_batch = 4
+                default_imgsz = 512
+
+        # Apply only if user did not specify
+        if not user_specified_batch and default_batch is not None:
+            options['batch'] = default_batch
+        if not user_specified_imgsz and default_imgsz is not None:
+            options['imgsz'] = default_imgsz
+
+        # Log decision
+        info_vram = f"GPU VRAM ~{total_vram_gb:.1f}GB" if total_vram_gb is not None else "GPU yok/okunamadı"
+        print(f"🧪 Auto-profile: {info_vram} -> batch={options.get('batch')} imgsz={options.get('imgsz')} (speed_mode={speed_mode})")
+        print("ℹ️ Bu değerler kullanıcı tarafından geçersiz kılınabilir (options['batch'], options['imgsz']).")
+    except Exception as _auto_prof_err:
+        print(f"⚠️ Auto-profile başarısız: {_auto_prof_err}")
+
 def find_latest_checkpoint(options: dict, drive_manager: Optional[DriveManager]) -> Optional[str]:
     """Find the latest checkpoint locally or on Google Drive."""
     # 1. Check Google Drive first if enabled
@@ -310,6 +365,9 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
         else:
             cache_mode = "disk"
 
+    # Hardware auto-profile: set batch/imgsz defaults if not provided
+    auto_profile_training(options, speed_mode_flag)
+
     # DataLoader workers dinamik ayarı
     cpu_cnt = os.cpu_count() or 4
     workers_value = options.get('workers')
@@ -431,7 +489,8 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
     # Manuel olarak memory clean up yapan callback oluştur
     project_dir = train_args.get('project', 'runs/train')
     experiment_name = train_args.get('name', 'exp')
-    save_interval_epochs = drive_save_interval
+    # Kullanıcıdan alınan değerle eşitle (önceki hatalı kullanım: drive_save_interval)
+    save_interval_epochs = save_interval
     drive_save_dir = options.get('drive_save_path')
 
     # -------------------------------
