@@ -532,7 +532,7 @@ def interactive_training_setup():
         except ValueError:
             print("❌ Lütfen geçerli bir sayı girin.")
     
-    # Model size selection
+    # Model size selection (tek soru)
     print("\nModel boyutunu seçin:")
     print("1) yolo11s.pt - Küçük (en hızlı, düşük doğruluk)")
     print("2) yolo11m.pt - Orta (dengeli)")
@@ -540,10 +540,7 @@ def interactive_training_setup():
     print("4) yolo11x.pt - Çok Büyük (en yüksek doğruluk, en yavaş)")
 
     while True:
-        if dataset_config['type'] == 'hierarchical_multi':
-            model_choice = input("\nModel seçin [1-4] (varsayılan: 3): ") or "3"
-        else:
-            model_choice = input("\nModel seçin [1-4] (varsayılan: 3): ") or "3"
+        model_choice = input("\nModel seçin [1-4] (varsayılan: 3): ") or "3"
         
         model_options = {
             "1": "yolo11s.pt",
