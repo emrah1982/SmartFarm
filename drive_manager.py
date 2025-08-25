@@ -661,30 +661,73 @@ class DriveManager:
             return self._find_checkpoint_api()
     
     def _find_checkpoint_colab(self) -> Tuple[Optional[str], Optional[str]]:
-        """Colab için checkpoint arama - Geliştirilmiş"""
-        if not self.project_folder:
-            print("❌ Proje klasörü ayarlanmamış!")
-            return None, None
+        """Colab için checkpoint arama - colab_learn/yolo11_models yapısına uygun"""
         
-        # Arama yapılacak klasörler (öncelik sırasına göre)
-        search_dirs = [
-            os.path.join(self.project_folder, 'models'),      # Ana model klasörü
-            os.path.join(self.project_folder, 'checkpoints'), # Checkpoint klasörü
-            self.project_folder                               # Ana proje klasörü
+        # SmartFarm colab_learn klasör yapısında ara
+        base_model_dir = "/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models"
+        
+        # Eğer project_folder ayarlanmışsa onu da kontrol et
+        search_base_dirs = [base_model_dir]
+        if self.project_folder:
+            search_base_dirs.append(self.project_folder)
+        
+        print(f"🔍 Checkpoint arama başlıyor...")
+        
+        for base_dir in search_base_dirs:
+            if not os.path.exists(base_dir):
+                print(f"⏭️ Ana klasör mevcut değil: {base_dir}")
+                continue
+            
+            print(f"📁 Ana klasör kontrol ediliyor: {base_dir}")
+            
+            # Timestamp klasörlerini bul (20250821_203234 formatında)
+            try:
+                timestamp_dirs = []
+                for item in os.listdir(base_dir):
+                    item_path = os.path.join(base_dir, item)
+                    if os.path.isdir(item_path) and len(item) == 15 and '_' in item:
+                        timestamp_dirs.append(item_path)
+                
+                if timestamp_dirs:
+                    # En yeni timestamp klasörünü al
+                    latest_timestamp_dir = max(timestamp_dirs, key=lambda x: os.path.getmtime(x))
+                    print(f"📅 En yeni timestamp klasörü: {os.path.basename(latest_timestamp_dir)}")
+                    
+                    # Bu klasörde checkpoint ara
+                    result = self._search_checkpoint_in_dir(latest_timestamp_dir)
+                    if result[0]:
+                        return result
+                
+                # Timestamp klasörü yoksa doğrudan base_dir'de ara
+                result = self._search_checkpoint_in_dir(base_dir)
+                if result[0]:
+                    return result
+                    
+            except Exception as e:
+                print(f"⚠️ {base_dir} arama hatası: {e}")
+                continue
+        
+        print("❌ Hiçbir klasörde checkpoint bulunamadı!")
+        return None, None
+    
+    def _search_checkpoint_in_dir(self, search_dir):
+        """Belirli bir klasörde checkpoint ara"""
+        print(f"📁 Aranıyor: {search_dir}")
+        
+        # Alt klasörleri de kontrol et (models, checkpoints, vs.)
+        search_subdirs = [
+            search_dir,                                    # Ana klasör
+            os.path.join(search_dir, 'models'),           # models alt klasörü
+            os.path.join(search_dir, 'checkpoints'),      # checkpoints alt klasörü
         ]
         
-        print(f"🔍 Checkpoint arama başlıyor: {self.project_folder}")
-        
-        for search_dir in search_dirs:
-            if not os.path.exists(search_dir):
-                print(f"⏭️ Klasör mevcut değil: {search_dir}")
+        for subdir in search_subdirs:
+            if not os.path.exists(subdir):
                 continue
                 
-            print(f"📁 Aranıyor: {search_dir}")
-            
             try:
                 # Klasör içeriğini listele
-                files = os.listdir(search_dir)
+                files = os.listdir(subdir)
                 pt_files = [f for f in files if f.endswith('.pt')]
                 
                 if pt_files:
@@ -695,7 +738,7 @@ class DriveManager:
                 
                 for filename in priority_files:
                     if filename in pt_files:
-                        checkpoint_path = os.path.join(search_dir, filename)
+                        checkpoint_path = os.path.join(subdir, filename)
                         file_size = os.path.getsize(checkpoint_path) / (1024*1024)
                         print(f"✅ Checkpoint bulundu: {checkpoint_path} ({file_size:.1f} MB)")
                         return checkpoint_path, filename
@@ -705,7 +748,7 @@ class DriveManager:
                 if epoch_files:
                     # En yüksek epoch numaralı dosyayı al
                     latest_epoch = max(epoch_files, key=lambda f: int(f.split('_')[1].split('.')[0]))
-                    checkpoint_path = os.path.join(search_dir, latest_epoch)
+                    checkpoint_path = os.path.join(subdir, latest_epoch)
                     file_size = os.path.getsize(checkpoint_path) / (1024*1024)
                     print(f"✅ Epoch checkpoint bulundu: {checkpoint_path} ({file_size:.1f} MB)")
                     return checkpoint_path, latest_epoch
@@ -713,31 +756,15 @@ class DriveManager:
                 # Diğer .pt dosyalarını ara
                 if pt_files:
                     # En yeni dosyayı al
-                    latest_file = max(pt_files, key=lambda f: os.path.getmtime(os.path.join(search_dir, f)))
-                    latest_path = os.path.join(search_dir, latest_file)
+                    latest_file = max(pt_files, key=lambda f: os.path.getmtime(os.path.join(subdir, f)))
+                    latest_path = os.path.join(subdir, latest_file)
                     file_size = os.path.getsize(latest_path) / (1024*1024)
                     print(f"✅ En yeni checkpoint bulundu: {latest_path} ({file_size:.1f} MB)")
                     return latest_path, latest_file
                 
             except Exception as e:
-                print(f"⚠️ {search_dir} arama hatası: {e}")
+                print(f"⚠️ {subdir} arama hatası: {e}")
                 continue
-        
-        print("❌ Hiçbir klasörde checkpoint bulunamadı!")
-        
-        # Debug: Proje klasörü içeriğini göster
-        try:
-            if os.path.exists(self.project_folder):
-                contents = os.listdir(self.project_folder)
-                print(f"🔍 Proje klasörü içeriği: {contents}")
-                
-                for item in contents:
-                    item_path = os.path.join(self.project_folder, item)
-                    if os.path.isdir(item_path):
-                        sub_contents = os.listdir(item_path)
-                        print(f"📁 {item}/: {sub_contents}")
-        except Exception as e:
-            print(f"⚠️ Debug listesi hatası: {e}")
         
         return None, None
     
