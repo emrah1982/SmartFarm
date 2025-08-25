@@ -346,7 +346,7 @@ def hierarchical_dataset_setup():
         print("\nSınıf bazlı hedefler (boş bırakılırsa genel varsayılan kullanılacak):")
         for cls in manager.hierarchical_classes.keys():
             try:
-                val = input(f"  • {cls} için hedef (varsayılan {target_count}): ")
+                val = input(f"  • {cls} için hedef (varsayılan {target_count}): ") or str(target_count)
                 if val.strip() == "":
                     continue
                 n = int(val)
@@ -459,7 +459,7 @@ def interactive_training_setup():
         }
     else:
         # Single dataset (legacy)
-        roboflow_url = input("\nRoboflow URL: ").strip()
+        roboflow_url = input("\nRoboflow URL (varsayılan: boş): ").strip() or ""
         if not roboflow_url:
             print("❌ URL sağlanmadı")
             return None
@@ -847,12 +847,12 @@ def main():
             print("❌ Hiyerarşik tespit araçları mevcut değil.")
             return
         
-        model_path = input("Eğitilmiş model yolunu girin (örn: runs/train/exp/weights/best.pt): ").strip()
+        model_path = input("Eğitilmiş model yolunu girin (varsayılan: runs/train/exp/weights/best.pt): ").strip() or "runs/train/exp/weights/best.pt"
         if not model_path or not os.path.exists(model_path):
             print("❌ Model dosyası bulunamadı.")
             return
         
-        test_image = input("Test görüntüsü yolunu girin: ").strip()
+        test_image = input("Test görüntüsü yolunu girin (varsayılan: test.jpg): ").strip() or "test.jpg"
         if not test_image or not os.path.exists(test_image):
             print("❌ Test görüntüsü bulunamadı.")
             return

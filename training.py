@@ -135,18 +135,24 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
     print("\n" + "="*50)
     print(f"🚀 Starting training session")
     
-    # Google Drive entegrasyonu (her şeyden önce)
-    print("\n🔧 Google Drive Integration")
-    drive_default = 'y'  # Varsayılan değer
-    use_drive = input(f"Google Drive'a otomatik kaydetme kullanılsın mı? (Y/n) [Default: {drive_default}]: ").lower() or drive_default
-    use_drive = use_drive.startswith('y')
+    # Google Drive entegrasyonu (tek seferlik soru)
+    print("\n🔧 Google Drive Entegrasyonu")
+    drive_default = 'e'  # Varsayılan değer
+    use_drive = input(f"Google Drive'a otomatik kaydetme kullanılsın mı? (e/h, varsayılan: {drive_default}): ").lower() or drive_default
+    use_drive = use_drive.startswith('e')
     
     drive_manager = None
+    save_interval = 50  # Varsayılan kaydetme aralığı
+    
     if use_drive:
+        # Drive kaydetme aralığını da burada sor
+        save_interval = int(input(f"Kaç epoch'ta bir Drive'a kaydetme yapılsın? (varsayılan: {drive_save_interval}): ") or str(drive_save_interval))
+        
         drive_manager = setup_drive_integration()
         if not drive_manager:
             print("⚠️ Drive entegrasyonu kurulamadı, sadece yerel kaydetme yapılacak.")
             use_drive = False
+            save_interval = 50  # Yerel kaydetme için varsayılan
 
     # --- Eğitim Modu Seçimi ---
     mode = input("\nEğitim modunu seçin:\n1. Yeni Eğitim Başlat\n2. Kaldığı Yerden Devam Et (Resume)\n3. Fine-tune (Önceki Ağırlıklarla Başla)\nSeçim (1/2/3): ").strip()
@@ -226,11 +232,8 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
             print(f"❌ Error loading {img_path}: {str(e)}")
             return None, []
 
-    # Set epoch save interval
-    if use_drive:
-        save_interval = int(input(f"\nKaç epoch'ta bir Drive'a kaydetme yapılsın? (varsayılan: {drive_save_interval}): ") or str(drive_save_interval))
-    else:
-        save_interval = int(input("\nHow often to save the model (epochs)? (default: 50): ") or "50")
+    # Kaydetme aralığı zaten yukarıda belirlendi
+    print(f"\n💾 Kaydetme aralığı: Her {save_interval} epoch'ta bir")
 
     try:
         # Handle PyTorch model loading with compatibility settings
