@@ -364,6 +364,38 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
         print(f"Model loading error: {e}")
         return None
 
+    # --- Güvenlik: nc (sınıf sayısı) uyuşmazlığında resume devre dışı bırak ---
+    try:
+        # Dataset nc'yi oku
+        dataset_nc = None
+        data_yaml_path = options.get('data')
+        if isinstance(data_yaml_path, (str, os.PathLike)) and os.path.exists(str(data_yaml_path)):
+            with open(data_yaml_path, 'r') as f:
+                data_cfg = yaml.safe_load(f) or {}
+            if isinstance(data_cfg.get('names'), (list, tuple)):
+                dataset_nc = len(data_cfg['names'])
+            elif isinstance(data_cfg.get('nc'), int):
+                dataset_nc = data_cfg['nc']
+
+        # Checkpoint/model nc'yi oku
+        model_nc = None
+        try:
+            model_nc = getattr(getattr(model, 'model', None), 'nc', None)
+        except Exception:
+            model_nc = None
+
+        if resume_training and (dataset_nc is not None) and (model_nc is not None) and dataset_nc != model_nc:
+            print("\n⚠️  Sınıf sayısı uyuşmazlığı tespit edildi (checkpoint nc="
+                  f"{model_nc} ≠ dataset nc={dataset_nc}).")
+            print("🔁 'Resume' yerine güvenli mod: fine-tune olarak devam edilecek (resume=False).")
+            # Resume'ı kapat, fine-tune bayrağını aç
+            resume_training = False
+            finetune_active = True
+            # model_path aynı kalır; Ultralytics 'data' içindeki nc'ye göre head'i ayarlar ve
+            # uyumsuz katmanları transfer learning mantığıyla yeniden oluşturur.
+    except Exception as _nc_err:
+        print(f"⚠️ nc uyuşmazlık kontrolü başarısız: {_nc_err}")
+
     # Determine control flags from options/hyp
     speed_mode_flag = bool(options.get('speed_mode'))
     if hyp is not None and isinstance(hyp, dict):
