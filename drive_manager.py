@@ -661,46 +661,85 @@ class DriveManager:
             return self._find_checkpoint_api()
     
     def _find_checkpoint_colab(self) -> Tuple[Optional[str], Optional[str]]:
-        """Colab için checkpoint arama"""
+        """Colab için checkpoint arama - Geliştirilmiş"""
         if not self.project_folder:
             print("❌ Proje klasörü ayarlanmamış!")
             return None, None
         
-        # Önce checkpoints klasörünü kontrol et
-        checkpoint_dir = os.path.join(self.project_folder, 'checkpoints')
+        # Arama yapılacak klasörler (öncelik sırasına göre)
+        search_dirs = [
+            os.path.join(self.project_folder, 'models'),      # Ana model klasörü
+            os.path.join(self.project_folder, 'checkpoints'), # Checkpoint klasörü
+            self.project_folder                               # Ana proje klasörü
+        ]
         
-        # Eğer checkpoints klasörü yoksa models klasörünü kontrol et
-        if not os.path.exists(checkpoint_dir):
-            checkpoint_dir = os.path.join(self.project_folder, 'models')
-            if not os.path.exists(checkpoint_dir):
-                print("❌ Ne checkpoint ne de models klasörü bulunamadı!")
-                return None, None
+        print(f"🔍 Checkpoint arama başlıyor: {self.project_folder}")
         
-        try:
-            # Önce last.pt, sonra best.pt ara
-            for filename in ['last.pt', 'best.pt']:
-                checkpoint_path = os.path.join(checkpoint_dir, filename)
-                if os.path.exists(checkpoint_path):
+        for search_dir in search_dirs:
+            if not os.path.exists(search_dir):
+                print(f"⏭️ Klasör mevcut değil: {search_dir}")
+                continue
+                
+            print(f"📁 Aranıyor: {search_dir}")
+            
+            try:
+                # Klasör içeriğini listele
+                files = os.listdir(search_dir)
+                pt_files = [f for f in files if f.endswith('.pt')]
+                
+                if pt_files:
+                    print(f"📋 Bulunan .pt dosyaları: {pt_files}")
+                
+                # Öncelik sırasına göre ara: last.pt -> best.pt -> epoch_*.pt -> diğerleri
+                priority_files = ['last.pt', 'best.pt']
+                
+                for filename in priority_files:
+                    if filename in pt_files:
+                        checkpoint_path = os.path.join(search_dir, filename)
+                        file_size = os.path.getsize(checkpoint_path) / (1024*1024)
+                        print(f"✅ Checkpoint bulundu: {checkpoint_path} ({file_size:.1f} MB)")
+                        return checkpoint_path, filename
+                
+                # Epoch dosyalarını ara (epoch_XXX.pt)
+                epoch_files = [f for f in pt_files if f.startswith('epoch_')]
+                if epoch_files:
+                    # En yüksek epoch numaralı dosyayı al
+                    latest_epoch = max(epoch_files, key=lambda f: int(f.split('_')[1].split('.')[0]))
+                    checkpoint_path = os.path.join(search_dir, latest_epoch)
                     file_size = os.path.getsize(checkpoint_path) / (1024*1024)
-                    print(f"✅ Checkpoint bulundu: {checkpoint_path} ({file_size:.1f} MB)")
-                    return checkpoint_path, filename
-            
-            # Diğer .pt dosyalarını ara
-            pt_files = [f for f in os.listdir(checkpoint_dir) if f.endswith('.pt')]
-            if pt_files:
-                # En yeni dosyayı al
-                latest_file = max(pt_files, key=lambda f: os.path.getmtime(os.path.join(checkpoint_dir, f)))
-                latest_path = os.path.join(checkpoint_dir, latest_file)
-                file_size = os.path.getsize(latest_path) / (1024*1024)
-                print(f"✅ En yeni checkpoint bulundu: {latest_path} ({file_size:.1f} MB)")
-                return latest_path, latest_file
-            
-            print(f"❌ {checkpoint_dir} klasöründe hiçbir checkpoint bulunamadı!")
-            return None, None
-            
+                    print(f"✅ Epoch checkpoint bulundu: {checkpoint_path} ({file_size:.1f} MB)")
+                    return checkpoint_path, latest_epoch
+                
+                # Diğer .pt dosyalarını ara
+                if pt_files:
+                    # En yeni dosyayı al
+                    latest_file = max(pt_files, key=lambda f: os.path.getmtime(os.path.join(search_dir, f)))
+                    latest_path = os.path.join(search_dir, latest_file)
+                    file_size = os.path.getsize(latest_path) / (1024*1024)
+                    print(f"✅ En yeni checkpoint bulundu: {latest_path} ({file_size:.1f} MB)")
+                    return latest_path, latest_file
+                
+            except Exception as e:
+                print(f"⚠️ {search_dir} arama hatası: {e}")
+                continue
+        
+        print("❌ Hiçbir klasörde checkpoint bulunamadı!")
+        
+        # Debug: Proje klasörü içeriğini göster
+        try:
+            if os.path.exists(self.project_folder):
+                contents = os.listdir(self.project_folder)
+                print(f"🔍 Proje klasörü içeriği: {contents}")
+                
+                for item in contents:
+                    item_path = os.path.join(self.project_folder, item)
+                    if os.path.isdir(item_path):
+                        sub_contents = os.listdir(item_path)
+                        print(f"📁 {item}/: {sub_contents}")
         except Exception as e:
-            print(f"❌ Checkpoint arama hatası: {e}")
-            return None, None
+            print(f"⚠️ Debug listesi hatası: {e}")
+        
+        return None, None
     
     def _find_checkpoint_api(self) -> Tuple[Optional[str], Optional[str]]:
         """API ile checkpoint arama (orijinal kod)"""

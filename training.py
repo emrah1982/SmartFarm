@@ -135,47 +135,27 @@ def find_latest_checkpoint(options: dict, drive_manager: Optional[DriveManager])
     if drive_manager:
         print("\n🔍 Google Drive'da checkpoint aranıyor...")
         
-        # Training state dosyasını ara
+        # Drive'da checkpoint ara - Güncellenmiş yöntem
         try:
-            state_files = drive_manager.list_drive_models()
-            training_state_file = None
+            checkpoint_path, filename = drive_manager.find_latest_checkpoint()
             
-            for file_info in state_files:
-                if file_info.get('name') == 'training_state.json':
-                    training_state_file = file_info
-                    break
-            
-            if training_state_file:
-                print("📋 Eğitim durumu dosyası bulundu, indiriliyor...")
-                temp_state_path = "temp_training_state.json"
+            if checkpoint_path and filename:
+                print(f"📥 Drive'da checkpoint bulundu: {filename}")
+                print(f"📁 Checkpoint yolu: {checkpoint_path}")
                 
-                if drive_manager.download_checkpoint(training_state_file['id'], temp_state_path):
-                    import json
-                    with open(temp_state_path, 'r') as f:
-                        training_state = json.load(f)
-                    
-                    last_epoch = training_state.get('current_epoch', 0)
-                    print(f"📊 Son kaydedilen epoch: {last_epoch}")
-                    
-                    # Temizlik
-                    os.remove(temp_state_path)
-                    
-        except Exception as e:
-            print(f"⚠️ Training state okuma hatası: {e}")
-        
-        # En son checkpoint'i ara
-        file_id, filename = drive_manager.find_latest_checkpoint()
-        if file_id and filename:
-            print(f"📥 Drive'da checkpoint bulundu: {filename}")
-            temp_checkpoint_path = f"temp_drive_{filename}"
-            if drive_manager.download_checkpoint(file_id, temp_checkpoint_path):
-                print(f'✅ Drive\'dan checkpoint indirildi: {temp_checkpoint_path}')
-                print("💡 Colab kapandıktan sonra eğitim devam edecek!")
-                return temp_checkpoint_path
+                # Dosya zaten Drive'da mevcut, doğrudan kullan
+                if os.path.exists(checkpoint_path):
+                    file_size = os.path.getsize(checkpoint_path) / (1024*1024)
+                    print(f"✅ Checkpoint hazır: {checkpoint_path} ({file_size:.1f} MB)")
+                    print("💡 Colab kapandıktan sonra eğitim devam edecek!")
+                    return checkpoint_path
+                else:
+                    print(f"❌ Checkpoint dosyası erişilemez: {checkpoint_path}")
             else:
-                print("❌ Drive'dan checkpoint indirilemedi")
-        else:
-            print("ℹ️ Drive'da checkpoint bulunamadı")
+                print("ℹ️ Drive'da checkpoint bulunamadı")
+                
+        except Exception as e:
+            print(f"⚠️ Drive checkpoint arama hatası: {e}")
     
     # 2. Check local runs directory - Gelişmiş yerel arama
     print("\n🔍 Yerel checkpoint aranıyor...")
