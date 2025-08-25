@@ -403,78 +403,42 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
     drive_save_dir = options.get('drive_save_path')
 
     # -------------------------------
-    # SaveToDriveCallback TANIMI
+    # Drive Kaydetme Fonksiyonu (Manuel - Callback Devre Dışı)
     # -------------------------------
-    class SaveToDriveCallback:
-        """
-        Callback to save model checkpoints to Google Drive.
-        Handles both 'last.pt' and 'best.pt' models.
-        """
-        def __init__(self, drive_manager, project_dir, experiment_name, save_interval=10):
-            self.drive_manager = drive_manager
-            self.weights_dir = Path(project_dir) / experiment_name / 'weights'
-            self.best_fitness = -1
-            self.last_epoch = 0
-            self.save_interval = save_interval  # Kullanıcının belirttiği aralıkta kaydet
-
-        def __call__(self, trainer):
-            """Handle callbacks from trainer"""
-            if hasattr(trainer, 'epoch'):
-                self.on_train_epoch_end(trainer)
-
-        def on_train_epoch_end(self, trainer):
-            """Her epoch sonunda çağrılır"""
-            try:
-                self.last_epoch = trainer.epoch
-                
-                last_pt_path = self.weights_dir / 'last.pt'
-                best_pt_path = self.weights_dir / 'best.pt'
-                
-                # Her epoch sonunda best.pt'yi kontrol et ve güncelle
-                if best_pt_path.exists():
-                    try:
-                        current_fitness = getattr(trainer, 'fitness', None)
-                        if current_fitness is not None and current_fitness > self.best_fitness:
-                            self.best_fitness = current_fitness
-                            print(f"\n🏆 Yeni en iyi model bulundu (fitness: {current_fitness:.4f})!")
-                            
-                        # Her epoch'ta best.pt'yi güncelle
-                        self.drive_manager.upload_model(
-                            str(best_pt_path), 
-                            'best.pt'
-                        )
-                        print(f"✅ best.pt güncellendi (epoch {trainer.epoch})")
-                    except Exception as e:
-                        print(f"❌ best.pt güncellenirken hata: {e}")
-                
-                # Sadece belirtilen aralıklarda kaydet (her epoch değil)
-                if trainer.epoch % self.save_interval == 0:
-                    # last.pt dosyasını Google Drive'a kaydet
-                    if last_pt_path.exists():
-                        try:
-                            print(f"\n💾 Belirlenen aralık geldi - last.pt dosyası Google Drive'a kopyalanıyor (epoch {trainer.epoch})...")
-                            # Epoch bazlı kopya
-                            self.drive_manager.upload_model(
-                                str(last_pt_path), 
-                                f'epoch_{trainer.epoch:03d}.pt'
-                            )
-                            # Güncel last.pt'yi de kaydet
-                            self.drive_manager.upload_model(
-                                str(last_pt_path), 
-                                'last.pt'
-                            )
-                            print("✅ last.pt başarıyla Google Drive'a kopyalandı")
-                        except Exception as e:
-                            print(f"❌ last.pt kaydedilirken hata oluştu: {e}")
-                # Her epoch'ta bilgi verme - sadece kayıt yapılan epoch'larda
-                elif trainer.epoch % 10 == 0:  # Her 10 epoch'ta bir bilgi ver
-                    next_save_epoch = ((trainer.epoch // self.save_interval) + 1) * self.save_interval
-                    print(f"\nℹ️ Epoch {trainer.epoch} - Sonraki Drive kaydı: epoch {next_save_epoch}")
+    def save_models_periodically(project_dir, experiment_name, drive_manager, save_interval_epochs, current_epoch):
+        """Belirlenen aralıklarda modelleri Drive'a kaydet"""
+        if current_epoch % save_interval_epochs != 0:
+            return  # Kaydetme zamanı değil
             
-            except Exception as e:
-                print(f"❌ Epoch sonu işlemlerinde beklenmeyen hata: {e}")
-                import traceback
-                traceback.print_exc()  # Hata detaylarını yazdır
+        weights_dir = Path(project_dir) / experiment_name / 'weights'
+        last_pt_path = weights_dir / 'last.pt'
+        best_pt_path = weights_dir / 'best.pt'
+        
+        print(f"\n💾 Belirlenen aralık geldi (epoch {current_epoch}) - Modeller Drive'a kaydediliyor...")
+        
+        try:
+            # last.pt kaydet
+            if last_pt_path.exists():
+                drive_manager.upload_model(
+                    str(last_pt_path), 
+                    f'epoch_{current_epoch:03d}.pt'
+                )
+                drive_manager.upload_model(
+                    str(last_pt_path), 
+                    'last.pt'
+                )
+                print(f"✅ last.pt kaydedildi (epoch {current_epoch})")
+            
+            # best.pt kaydet
+            if best_pt_path.exists():
+                drive_manager.upload_model(
+                    str(best_pt_path), 
+                    'best.pt'
+                )
+                print(f"✅ best.pt kaydedildi (epoch {current_epoch})")
+                
+        except Exception as e:
+            print(f"❌ Model kaydetme hatası (epoch {current_epoch}): {e}")
 
     try:
         # Manage model training with periodic memory cleanup
@@ -489,10 +453,45 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
                 print(f"Callback devre dışı bırakma hatası: {cb_err}")
 
         # -------------------------------
-        # Drive kaydetme ayarları (sadece kullanıcı belirlediği aralıkta)
+        # Drive kaydetme ayarları (Manuel Kontrol)
         # -------------------------------
         print(f"💾 Drive kaydetme aralığı: Her {save_interval_epochs} epoch'ta bir")
-        print("ℹ️  Her epoch'ta kaydetme devre dışı - sadece belirlenen aralıkta kaydetme yapılacak")
+        print("ℹ️  Callback sistemi devre dışı - manuel kaydetme kullanılacak")
+        
+        # Eğitim sırasında periyodik kaydetme için thread başlat
+        import threading
+        import time
+        
+        def periodic_save_thread():
+            """Arka planda periyodik kaydetme"""
+            last_saved_epoch = 0
+            while True:
+                time.sleep(30)  # 30 saniyede bir kontrol et
+                try:
+                    # Mevcut epoch'u weights klasöründen tahmin et
+                    weights_dir = Path(project_dir) / experiment_name / 'weights'
+                    if weights_dir.exists():
+                        # Son değişiklik zamanından epoch tahmini
+                        last_pt = weights_dir / 'last.pt'
+                        if last_pt.exists():
+                            # Dosya değişiklik zamanından epoch hesapla (yaklaşık)
+                            current_time = time.time()
+                            file_time = last_pt.stat().st_mtime
+                            # Basit epoch tahmini - her epoch ~1-2 dakika sürer
+                            estimated_epoch = int((current_time - file_time) / 60) + last_saved_epoch
+                            
+                            if estimated_epoch >= last_saved_epoch + save_interval_epochs:
+                                save_models_periodically(project_dir, experiment_name, drive_manager, save_interval_epochs, estimated_epoch)
+                                last_saved_epoch = estimated_epoch
+                except Exception as e:
+                    print(f"⚠️ Periyodik kaydetme thread hatası: {e}")
+                    break
+        
+        # Thread'i başlat (daemon olarak)
+        if use_drive and drive_manager:
+            save_thread = threading.Thread(target=periodic_save_thread, daemon=True)
+            save_thread.start()
+            print("🔄 Periyodik kaydetme thread'i başlatıldı")
             
         # Model eğitimini başlat
         results = model.train(**train_args)
