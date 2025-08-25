@@ -129,51 +129,84 @@ def auto_profile_training(options: dict, speed_mode: bool) -> None:
         print(f"⚠️ Auto-profile başarısız: {_auto_prof_err}")
 
 def find_latest_checkpoint(options: dict, drive_manager: Optional[DriveManager]) -> Optional[str]:
-    """Find the latest checkpoint locally or on Google Drive."""
-    # 1. Check Google Drive first if enabled
+    """Find the latest checkpoint locally or on Google Drive - Colab kapanma korumalı."""
+    
+    # 1. Check Google Drive first if enabled - Gelişmiş arama
     if drive_manager:
         print("\n🔍 Google Drive'da checkpoint aranıyor...")
+        
+        # Training state dosyasını ara
+        try:
+            state_files = drive_manager.list_drive_models()
+            training_state_file = None
+            
+            for file_info in state_files:
+                if file_info.get('name') == 'training_state.json':
+                    training_state_file = file_info
+                    break
+            
+            if training_state_file:
+                print("📋 Eğitim durumu dosyası bulundu, indiriliyor...")
+                temp_state_path = "temp_training_state.json"
+                
+                if drive_manager.download_checkpoint(training_state_file['id'], temp_state_path):
+                    import json
+                    with open(temp_state_path, 'r') as f:
+                        training_state = json.load(f)
+                    
+                    last_epoch = training_state.get('current_epoch', 0)
+                    print(f"📊 Son kaydedilen epoch: {last_epoch}")
+                    
+                    # Temizlik
+                    os.remove(temp_state_path)
+                    
+        except Exception as e:
+            print(f"⚠️ Training state okuma hatası: {e}")
+        
+        # En son checkpoint'i ara
         file_id, filename = drive_manager.find_latest_checkpoint()
         if file_id and filename:
             print(f"📥 Drive'da checkpoint bulundu: {filename}")
             temp_checkpoint_path = f"temp_drive_{filename}"
             if drive_manager.download_checkpoint(file_id, temp_checkpoint_path):
-                print(f'✅ Drive\'dan devam etmek için checkpoint indirildi: {temp_checkpoint_path}')
+                print(f'✅ Drive\'dan checkpoint indirildi: {temp_checkpoint_path}')
+                print("💡 Colab kapandıktan sonra eğitim devam edecek!")
                 return temp_checkpoint_path
             else:
-                print('❌ Drive\'dan checkpoint indirilemedi.')
+                print("❌ Drive'dan checkpoint indirilemedi")
         else:
-            print('❌ Drive\'da uygun bir checkpoint bulunamadı.')
-
-    # 2. Check locally
-    runs_dir = Path(options.get('project', 'runs/train'))
-    exp_name = options.get('name', 'exp')
+            print("ℹ️ Drive'da checkpoint bulunamadı")
     
-    # Check multiple possible locations for checkpoints
-    possible_paths = [
-        runs_dir / exp_name / 'weights' / 'last.pt',
-        runs_dir / exp_name / 'weights' / 'best.pt',
-        Path('/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models') / exp_name / 'weights' / 'last.pt',
-        Path('/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models') / exp_name / 'weights' / 'best.pt',
-        Path('/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models') / exp_name / 'last.pt',
-        Path('/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models') / exp_name / 'best.pt'
-    ]
+    # 2. Check local runs directory - Gelişmiş yerel arama
+    print("\n🔍 Yerel checkpoint aranıyor...")
+    runs_dir = Path("runs/train")
+    if runs_dir.exists():
+        # En son experiment dizinini bul
+        exp_dirs = [d for d in runs_dir.iterdir() if d.is_dir()]
+        if exp_dirs:
+            latest_exp = max(exp_dirs, key=lambda x: x.stat().st_mtime)
+            weights_dir = latest_exp / "weights"
+            
+            # Training state kontrol et
+            state_file = weights_dir / "training_state.json"
+            if state_file.exists():
+                try:
+                    import json
+                    with open(state_file, 'r') as f:
+                        training_state = json.load(f)
+                    last_epoch = training_state.get('current_epoch', 0)
+                    print(f"📊 Yerel training state bulundu - Son epoch: {last_epoch}")
+                except Exception:
+                    pass
+            
+            # last.pt dosyasını kontrol et
+            last_pt = weights_dir / "last.pt"
+            if last_pt.exists():
+                print(f"✅ Yerel checkpoint bulundu: {last_pt}")
+                return str(last_pt)
     
-    for checkpoint_path in possible_paths:
-        if checkpoint_path.exists():
-            print(f'✅ Checkpoint bulundu: {checkpoint_path}')
-            return str(checkpoint_path)
-    
-    # Check if the exact path provided by user exists
-    user_path = Path('/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models/20250821_203234')
-    if user_path.exists():
-        for filename in ['last.pt', 'best.pt']:
-            checkpoint_path = user_path / filename
-            if checkpoint_path.exists():
-                print(f'✅ Kullanıcı tanımlı klasörde checkpoint bulundu: {checkpoint_path}')
-                return str(checkpoint_path)
-    
-    print('❌ Yerel dizinlerde de checkpoint bulunamadı.')
+    print("❌ Hiçbir checkpoint bulunamadı")
+    print("💡 Yeni eğitim başlatılacak")
     return None
 
 # TensorBoard entegrasyonunu devre dışı bırak
@@ -198,8 +231,8 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
     print(f"🚀 Starting training session")
     
     # Google Drive entegrasyonu (tek seferlik soru)
-    print("\n🔧 Google Drive Entegrasyonu")
-    drive_default = 'e'  # Varsayılan değer
+    print("\n🔧 Google Drive kaydetme ayarları - Colab kapanma durumu için optimize edilmiş")
+    drive_default = "e"  # Varsayılan olarak Drive kullanımını öner
     use_drive = input(f"Google Drive'a otomatik kaydetme kullanılsın mı? (e/h, varsayılan: {drive_default}): ").lower() or drive_default
     use_drive = use_drive.startswith('e')
     
@@ -207,14 +240,28 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
     save_interval = drive_save_interval  # Fonksiyon parametresini kullan
     
     if use_drive:
-        # Drive kaydetme aralığını da burada sor
-        save_interval = int(input(f"Kaç epoch'ta bir Drive'a kaydetme yapılsın? (varsayılan: {drive_save_interval}): ") or str(drive_save_interval))
+        print("\n🔄 Colab Kapanma Koruması Ayarları")
+        print("Colab bazen kendiliğinden kapanabilir. Bu duruma karşı:")
+        print("1. Daha sık yedekleme (3-5 epoch)")
+        print("2. Normal yedekleme (10 epoch)")
+        print("3. Özel aralık")
+        
+        backup_mode = input("Yedekleme sıklığı seçin (1/2/3, varsayılan: 1): ").strip() or "1"
+        
+        if backup_mode == "1":
+            save_interval = 3  # Colab kapanma koruması için sık yedekleme
+            print("✅ Sık yedekleme modu: Her 3 epoch'ta bir kaydetme")
+        elif backup_mode == "2":
+            save_interval = 10  # Normal yedekleme
+            print("✅ Normal yedekleme modu: Her 10 epoch'ta bir kaydetme")
+        else:
+            save_interval = int(input(f"Özel aralık (epoch): ") or str(drive_save_interval))
+            print(f"✅ Özel yedekleme modu: Her {save_interval} epoch'ta bir kaydetme")
         
         drive_manager = setup_drive_integration()
         if not drive_manager:
             print("⚠️ Drive entegrasyonu kurulamadı, sadece yerel kaydetme yapılacak.")
             use_drive = False
-            # Drive başarısız olursa kullanıcının seçtiği değeri koru
             print(f"ℹ️ Yerel kaydetme aralığı: {save_interval} epoch")
 
     # --- Eğitim Modu Seçimi ---
@@ -495,39 +542,83 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
     drive_save_dir = options.get('drive_save_path')
 
     # -------------------------------
-    # Drive Kaydetme Fonksiyonu (Manuel - Callback Devre Dışı)
+    # Gelişmiş Drive Kaydetme Fonksiyonu - Colab Kapanma Korumalı
     # -------------------------------
     def save_models_periodically(project_dir, experiment_name, drive_manager, save_interval_epochs, current_epoch):
-        """Belirlenen aralıklarda modelleri Drive'a kaydet"""
+        """Belirlenen aralıklarda modelleri Drive'a kaydet - Colab kapanma korumalı"""
         if current_epoch % save_interval_epochs != 0:
             return  # Kaydetme zamanı değil
-            
+        
         weights_dir = Path(project_dir) / experiment_name / 'weights'
         last_pt_path = weights_dir / 'last.pt'
         best_pt_path = weights_dir / 'best.pt'
         
-        print(f"\n💾 Belirlenen aralık geldi (epoch {current_epoch}) - Modeller Drive'a kaydediliyor...")
+        print(f"\n💾 Colab Kapanma Koruması - Epoch {current_epoch} yedekleme başlıyor...")
+        
+        # Eğitim durumu bilgilerini kaydet
+        training_state = {
+            'current_epoch': current_epoch,
+            'project_dir': str(project_dir),
+            'experiment_name': experiment_name,
+            'timestamp': time.time(),
+            'save_interval': save_interval_epochs
+        }
         
         try:
-            # last.pt kaydet
+            # Eğitim durumu dosyasını kaydet
+            state_file = weights_dir / 'training_state.json'
+            with open(state_file, 'w') as f:
+                import json
+                json.dump(training_state, f, indent=2)
+            
+            # last.pt kaydet (en önemli - devam etmek için gerekli)
             if last_pt_path.exists():
                 ok1 = drive_manager.upload_model(str(last_pt_path), f'epoch_{current_epoch:03d}.pt')
                 ok2 = drive_manager.upload_model(str(last_pt_path), 'last.pt')
-                if ok1 and ok2:
-                    print(f"✅ last.pt yüklendi (epoch_{current_epoch:03d}.pt ve last.pt)")
+                
+                # Eğitim durumu da kaydet
+                ok3 = drive_manager.upload_model(str(state_file), 'training_state.json')
+                
+                if ok1 and ok2 and ok3:
+                    print(f"✅ Checkpoint kaydedildi: epoch_{current_epoch:03d}.pt, last.pt, training_state.json")
                 else:
-                    print(f"❌ last.pt yükleme başarısız (epoch {current_epoch}). Ayrıntılar yukarıdaki loglarda.")
+                    print(f"⚠️ Kısmi yedekleme (epoch {current_epoch})")
             
-            # best.pt kaydet
+            # best.pt kaydet (varsa)
             if best_pt_path.exists():
                 okb = drive_manager.upload_model(str(best_pt_path), 'best.pt')
                 if okb:
                     print(f"✅ best.pt yüklendi (epoch {current_epoch})")
                 else:
-                    print(f"❌ best.pt yükleme başarısız (epoch {current_epoch}). Ayrıntılar yukarıdaki loglarda.")
-                
+                    print(f"⚠️ best.pt yükleme başarısız (epoch {current_epoch})")
+            
+            # Eski checkpoint'leri temizle (disk alanı için)
+            cleanup_old_checkpoints(weights_dir, current_epoch, keep_last=3)
+                    
         except Exception as e:
-            print(f"❌ Model kaydetme hatası (epoch {current_epoch}): {e}")
+            print(f"❌ Yedekleme hatası (epoch {current_epoch}): {e}")
+            print("💡 Colab kapanırsa son kaydedilen checkpoint'ten devam edebilirsiniz")
+    
+    def cleanup_old_checkpoints(weights_dir, current_epoch, keep_last=3):
+        """Eski checkpoint'leri temizle - disk alanı tasarrufu"""
+        try:
+            pattern = weights_dir / 'epoch_*.pt'
+            checkpoint_files = list(weights_dir.glob('epoch_*.pt'))
+            
+            if len(checkpoint_files) > keep_last:
+                # Epoch numarasına göre sırala
+                checkpoint_files.sort(key=lambda x: int(x.stem.split('_')[1]))
+                
+                # Eski dosyaları sil (son N tanesini koru)
+                for old_file in checkpoint_files[:-keep_last]:
+                    try:
+                        old_file.unlink()
+                        print(f"🧹 Eski checkpoint temizlendi: {old_file.name}")
+                    except Exception:
+                        pass  # Sessizce devam et
+                        
+        except Exception:
+            pass  # Temizlik hatası kritik değil
 
     try:
         # Manage model training with periodic memory cleanup
