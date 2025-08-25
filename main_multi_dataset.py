@@ -648,16 +648,6 @@ def interactive_training_setup():
         'speed_mode': speed_mode
     }
     
-    # Save interval prompt (Drive kullanılıyorsa 10, değilse 50 varsayılan)
-    save_interval_default = 10 if drive_save_path else 50
-    try:
-        if drive_save_path:
-            save_interval = int(input(f"Drive'a kaç epoch'ta bir kaydedilsin? (varsayılan: {save_interval_default}): ") or str(save_interval_default))
-        else:
-            save_interval = int(input(f"Modele kaç epoch'ta bir yerel kaydetme yapılsın? (varsayılan: {save_interval_default}): ") or str(save_interval_default))
-    except ValueError:
-        save_interval = save_interval_default
-    options['save_interval'] = save_interval
     
     # Display selected parameters
     print("\n===== Seçilen Eğitim Parametreleri =====")
@@ -689,10 +679,7 @@ def interactive_training_setup():
                 if shown >= 10:
                     print("  • ... (daha fazla sınıf var)")
                     break
-    if drive_save_path:
-        print(f"Drive'a kaydetme aralığı: {options['save_interval']} epoch")
-    else:
-        print(f"Yerel kaydetme aralığı: {options['save_interval']} epoch")
+    # Kaydetme aralığı sorusu training.py içinde (menülü) yönetiliyor
     
     if drive_save_path:
         print(f"Drive kaydetme yolu: {drive_save_path}")
@@ -794,8 +781,7 @@ def main():
             print("="*50)
             
             # Skip dataset processing when resuming
-            results = train_model(options, hyp=None, epochs=options['epochs'], 
-                               drive_save_interval=options.get('save_interval', 10))
+            results = train_model(options, hyp=None, epochs=options['epochs'])
         else:
             # Process dataset(s) for new training
             dataset_config = options['dataset_config']
