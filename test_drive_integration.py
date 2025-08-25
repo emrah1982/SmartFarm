@@ -3,6 +3,7 @@
 
 import sys
 import os
+import pickle
 from pathlib import Path
 
 # Gerekli kütüphanelerin yüklü olup olmadığını kontrol et

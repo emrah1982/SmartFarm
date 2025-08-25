@@ -1,4 +1,4 @@
-""
+"""
 Training Utilities for SmartFarm
 
 This module provides utility functions for training models with safe Drive integration.
@@ -132,11 +132,11 @@ def save_checkpoint(
             'timestamp': time.time()
         }
         
-        # Dosya adını belirle
+        # Dosya adını belirle (standart YOLO formatında)
         if is_best:
-            filename = f"{model_name}_best.pt"
+            filename = "best.pt"
         else:
-            filename = f"{model_name}_last.pt"
+            filename = "last.pt"
             
         # Dosya yolunu oluştur
         filepath = os.path.join(model_dir, filename)
@@ -174,11 +174,10 @@ def upload_to_drive(
     if not drive_filename:
         drive_filename = os.path.basename(local_path)
     
-    # Eğer en iyi modelse, dosya adına 'best' ekle
-    if is_best and not drive_filename.startswith('best'):
-        drive_filename = f"best_{drive_filename}"
+    # Dosya boyutunu göster
+    file_size = os.path.getsize(local_path) / (1024*1024)
+    print(f"☁️ Drive'a yükleniyor: {drive_filename} ({file_size:.1f} MB)...")
     
-    print(f"☁️ Drive'a yükleniyor: {drive_filename}...")
     return safe_upload_model(local_path, drive_filename)
 
 def train_epoch(

@@ -112,7 +112,7 @@ def mount_google_drive():
 def save_models_to_drive(drive_folder_path, best_file=True, last_file=True):
     """Save best and last model files to Google Drive"""
     if not is_colab():
-        print("ℹ️  This function only works in Google Colab.")
+        print("ℹ️  Bu fonksiyon sadece Google Colab'da çalışır.")
         return False
     
     # Check if Google Drive is mounted
@@ -120,41 +120,99 @@ def save_models_to_drive(drive_folder_path, best_file=True, last_file=True):
         if not mount_google_drive():
             return False
     
-    # Check source directory
-    source_dir = "runs/train/exp/weights"
+    # Find the most recent training directory
+    runs_dir = "runs/train"
+    if not os.path.exists(runs_dir):
+        print(f"❌ Eğitim dizini bulunamadı: {runs_dir}")
+        return False
+    
+    # Get the latest experiment directory
+    exp_dirs = [d for d in os.listdir(runs_dir) if d.startswith('exp')]
+    if not exp_dirs:
+        print(f"❌ Hiçbir eğitim denemesi bulunamadı: {runs_dir}")
+        return False
+    
+    # Sort to get the latest (exp, exp2, exp3, etc.)
+    exp_dirs.sort(key=lambda x: int(x[3:]) if x[3:].isdigit() else 0)
+    latest_exp = exp_dirs[-1]
+    source_dir = os.path.join(runs_dir, latest_exp, "weights")
+    
     if not os.path.exists(source_dir):
-        print(f"❌ Source directory not found: {source_dir}")
+        print(f"❌ Ağırlık dizini bulunamadı: {source_dir}")
         return False
     
     # Create target directory
-    os.makedirs(drive_folder_path, exist_ok=True)
+    try:
+        os.makedirs(drive_folder_path, exist_ok=True)
+        print(f"📁 Hedef dizin oluşturuldu: {drive_folder_path}")
+    except Exception as e:
+        print(f"❌ Hedef dizin oluşturulamadı: {e}")
+        return False
     
     # Copy files
     copied_files = []
     
-    if best_file and os.path.exists(os.path.join(source_dir, "best.pt")):
-        shutil.copy2(os.path.join(source_dir, "best.pt"), os.path.join(drive_folder_path, "best.pt"))
-        copied_files.append("best.pt")
+    # Copy best.pt
+    if best_file:
+        best_path = os.path.join(source_dir, "best.pt")
+        if os.path.exists(best_path):
+            try:
+                target_best = os.path.join(drive_folder_path, "best.pt")
+                shutil.copy2(best_path, target_best)
+                copied_files.append("best.pt")
+                print(f"✅ best.pt kopyalandı: {target_best}")
+            except Exception as e:
+                print(f"❌ best.pt kopyalanamadı: {e}")
+        else:
+            print(f"⚠️  best.pt bulunamadı: {best_path}")
     
-    if last_file and os.path.exists(os.path.join(source_dir, "last.pt")):
-        shutil.copy2(os.path.join(source_dir, "last.pt"), os.path.join(drive_folder_path, "last.pt"))
-        copied_files.append("last.pt")
+    # Copy last.pt
+    if last_file:
+        last_path = os.path.join(source_dir, "last.pt")
+        if os.path.exists(last_path):
+            try:
+                target_last = os.path.join(drive_folder_path, "last.pt")
+                shutil.copy2(last_path, target_last)
+                copied_files.append("last.pt")
+                print(f"✅ last.pt kopyalandı: {target_last}")
+            except Exception as e:
+                print(f"❌ last.pt kopyalanamadı: {e}")
+        else:
+            print(f"⚠️  last.pt bulunamadı: {last_path}")
     
-    # Copy additional files
+    # Copy additional files from project root
     additional_files = ["merged_dataset.yaml", "unified_class_mapping.json", "analysis_report.json"]
     for file_name in additional_files:
         if os.path.exists(file_name):
-            shutil.copy2(file_name, os.path.join(drive_folder_path, file_name))
-            copied_files.append(file_name)
+            try:
+                target_file = os.path.join(drive_folder_path, file_name)
+                shutil.copy2(file_name, target_file)
+                copied_files.append(file_name)
+                print(f"✅ {file_name} kopyalandı: {target_file}")
+            except Exception as e:
+                print(f"❌ {file_name} kopyalanamadı: {e}")
+    
+    # Copy training results and plots if available
+    results_dir = os.path.join(runs_dir, latest_exp)
+    result_files = ["results.png", "confusion_matrix.png", "F1_curve.png", "P_curve.png", "R_curve.png"]
+    for file_name in result_files:
+        result_path = os.path.join(results_dir, file_name)
+        if os.path.exists(result_path):
+            try:
+                target_file = os.path.join(drive_folder_path, file_name)
+                shutil.copy2(result_path, target_file)
+                copied_files.append(file_name)
+                print(f"✅ {file_name} kopyalandı: {target_file}")
+            except Exception as e:
+                print(f"❌ {file_name} kopyalanamadı: {e}")
     
     if copied_files:
-        print(f"✅ Files saved to Google Drive: {', '.join(copied_files)}")
-        print(f"📁 Save location: {drive_folder_path}")
-        print(f"📂 Dosyalar şu klasörde: {drive_folder_path}")
-        print(f"🗂️  Kaydedilen dosya sayısı: {len(copied_files)}")
+        print(f"\n✅ Google Drive'a kaydedilen dosyalar: {', '.join(copied_files)}")
+        print(f"📁 Kaydetme konumu: {drive_folder_path}")
+        print(f"🗂️  Toplam kaydedilen dosya: {len(copied_files)}")
         return True
     else:
-        print("❌ No files found to copy.")
+        print("❌ Kopyalanacak dosya bulunamadı.")
         return False
 
 def download_models_menu():
@@ -543,7 +601,7 @@ def interactive_training_setup():
     speed_mode_input = (input("\nHız modu (cache=ram, workers=8, plots=False) açılsın mı? (e/h, varsayılan: e): ") or "e").lower()
     speed_mode = speed_mode_input.startswith('e')
     
-    # Google Drive save settings
+    # Google Drive save settings (tek seferlik soru)
     drive_save_path = None
     if is_colab():
         print("\nGoogle Drive kaydetme ayarları:")
@@ -557,7 +615,12 @@ def interactive_training_setup():
             drive_save_path = os.path.join(drive_save_path, timestamp)
             print(f"📁 Modeller şuraya kaydedilecek: {drive_save_path}")
             # Klasörleri oluştur
-            os.makedirs(drive_save_path, exist_ok=True)
+            try:
+                os.makedirs(drive_save_path, exist_ok=True)
+                print(f"✅ Drive klasörü hazırlandı: {drive_save_path}")
+            except Exception as e:
+                print(f"❌ Drive klasörü oluşturulamadı: {e}")
+                drive_save_path = None
     
     # Hyperparameter file
     use_hyp = input("\nHiperparametre dosyası kullan (hyp.yaml)? (e/h, varsayılan: e): ").lower() or "e"
@@ -750,7 +813,7 @@ def main():
                 except Exception as e:
                     print(f"⚠️  Hiyerarşik tespit başlatılamadı: {e}")
             
-            # Save to Google Drive
+            # Save to Google Drive (otomatik kaydetme - tekrar soru sorma)
             if in_colab and options.get('drive_save_path'):
                 drive_path = options['drive_save_path']
                 print(f"\n💾 Modeller Google Drive'a kaydediliyor...")
@@ -763,18 +826,16 @@ def main():
         else:
             print('❌ Eğitim başarısız veya kesildi.')
             
-            # Save partial results if available
+            # Save partial results if available (otomatik kaydetme)
             if in_colab and options.get('drive_save_path'):
-                save_anyway = input("\nKısmi eğitim sonuçlarını Google Drive'a kaydet? (e/h, varsayılan: e): ").lower() or "e"
-                if save_anyway.startswith("e"):
-                    drive_path = options['drive_save_path']
-                    print(f"\n💾 Kısmi sonuçlar Google Drive'a kaydediliyor...")
-                    print(f"📁 Hedef klasör: {drive_path}")
-                    if save_models_to_drive(drive_path):
-                        print(f"✅ Kısmi sonuçlar kaydedildi: {drive_path}")
-                        print(f"📂 Kaydedilen dosyalar şu konumda: {drive_path}")
-                    else:
-                        print("❌ Kısmi sonuçlar kaydedilemedi.")
+                drive_path = options['drive_save_path']
+                print(f"\n💾 Kısmi sonuçlar Google Drive'a kaydediliyor...")
+                print(f"📁 Hedef klasör: {drive_path}")
+                if save_models_to_drive(drive_path):
+                    print(f"✅ Kısmi sonuçlar kaydedildi: {drive_path}")
+                    print(f"📂 Kaydedilen dosyalar şu konumda: {drive_path}")
+                else:
+                    print("❌ Kısmi sonuçlar kaydedilemedi.")
         
         # Clean memory
         show_memory_usage("Eğitim Sonrası")

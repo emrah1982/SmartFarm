@@ -392,6 +392,7 @@ class DriveManager:
             shutil.copy2(local_path, target_path)
             
             print(f"✅ Model Drive'a kaydedildi: {target_path}")
+            print(f"📁 Dosya boyutu: {os.path.getsize(target_path) / (1024*1024):.1f} MB")
             
             # Log tut
             self._log_upload_colab(drive_filename, local_path, target_path)
@@ -498,20 +499,26 @@ class DriveManager:
     def _find_checkpoint_colab(self) -> Tuple[Optional[str], Optional[str]]:
         """Colab için checkpoint arama"""
         if not self.project_folder:
+            print("❌ Proje klasörü ayarlanmamış!")
             return None, None
         
+        # Önce checkpoints klasörünü kontrol et
         checkpoint_dir = os.path.join(self.project_folder, 'checkpoints')
         
+        # Eğer checkpoints klasörü yoksa models klasörünü kontrol et
         if not os.path.exists(checkpoint_dir):
-            print("❌ Checkpoint klasörü bulunamadı!")
-            return None, None
+            checkpoint_dir = os.path.join(self.project_folder, 'models')
+            if not os.path.exists(checkpoint_dir):
+                print("❌ Ne checkpoint ne de models klasörü bulunamadı!")
+                return None, None
         
         try:
             # Önce last.pt, sonra best.pt ara
             for filename in ['last.pt', 'best.pt']:
                 checkpoint_path = os.path.join(checkpoint_dir, filename)
                 if os.path.exists(checkpoint_path):
-                    print(f"✅ Checkpoint bulundu: {checkpoint_path}")
+                    file_size = os.path.getsize(checkpoint_path) / (1024*1024)
+                    print(f"✅ Checkpoint bulundu: {checkpoint_path} ({file_size:.1f} MB)")
                     return checkpoint_path, filename
             
             # Diğer .pt dosyalarını ara
@@ -520,10 +527,11 @@ class DriveManager:
                 # En yeni dosyayı al
                 latest_file = max(pt_files, key=lambda f: os.path.getmtime(os.path.join(checkpoint_dir, f)))
                 latest_path = os.path.join(checkpoint_dir, latest_file)
-                print(f"✅ En yeni checkpoint bulundu: {latest_path}")
+                file_size = os.path.getsize(latest_path) / (1024*1024)
+                print(f"✅ En yeni checkpoint bulundu: {latest_path} ({file_size:.1f} MB)")
                 return latest_path, latest_file
             
-            print("❌ Hiçbir checkpoint bulunamadı!")
+            print(f"❌ {checkpoint_dir} klasöründe hiçbir checkpoint bulunamadı!")
             return None, None
             
         except Exception as e:
