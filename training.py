@@ -653,19 +653,12 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
         # Manage model training with periodic memory cleanup
         print("\n--- Training Model ---")
         
-        # TensorBoard ve callbacks ayarları - model çağrılmadan önce ayarlama
-        if hasattr(model, 'callbacks') and model.callbacks is not None:
-            try:
-                # TensorBoard callback'ini devre dışı bırak
-                model._callbacks = []  # Tüm callbacks'leri temizle ve yeniden ekle
-            except Exception as cb_err:
-                print(f"Callback devre dışı bırakma hatası: {cb_err}")
+        # TensorBoard'i ağır buluyorsanız yalnızca plotting kapatıldı (plots=False). Callback'ler korunur.
 
         # -------------------------------
-        # Drive kaydetme ayarları (Manuel Kontrol)
+        # Drive kaydetme ayarları
         # -------------------------------
         print(f"💾 Drive kaydetme aralığı: Her {save_interval_epochs} epoch'ta bir")
-        print("ℹ️  Callback sistemi devre dışı - manuel kaydetme kullanılacak")
         
         # Eğitim sırasında periyodik kaydetme için thread başlat
         import threading
