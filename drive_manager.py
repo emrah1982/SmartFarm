@@ -82,15 +82,56 @@ class DriveManager:
             return self._authenticate_api()
     
     def _authenticate_colab(self) -> bool:
-        """Colab için Drive bağlama - Geliştirilmiş"""
+        """Colab için Drive bağlama - Güvenli Versiyon"""
         try:
             from google.colab import drive
             print("🔄 Google Drive mount işlemi başlatılıyor...")
             
-            # Drive mount et
-            drive.mount('/content/drive', force_remount=True)
+            # Önce mevcut mount durumunu kontrol et
+            if os.path.exists(self.base_drive_path):
+                print("ℹ️ Drive zaten mount edilmiş görünüyor, kontrol ediliyor...")
+                
+                # Yazma testi yap
+                try:
+                    test_file = os.path.join(self.base_drive_path, 'test_write.txt')
+                    with open(test_file, 'w') as f:
+                        f.write('test')
+                    os.remove(test_file)
+                    
+                    self.is_mounted = True
+                    print("✅ Mevcut Drive mount'u çalışıyor!")
+                    print(f"📁 Drive yolu: {self.base_drive_path}")
+                    return True
+                    
+                except Exception:
+                    print("⚠️ Mevcut mount çalışmıyor, yeniden mount ediliyor...")
             
-            # Detaylı kontrol
+            # Drive mount et - önce normal mount dene
+            try:
+                drive.mount('/content/drive')
+                print("✅ Normal mount başarılı")
+            except Exception as mount_error:
+                print(f"⚠️ Normal mount başarısız: {mount_error}")
+                
+                # force_remount'u daha güvenli şekilde dene
+                try:
+                    print("🔄 Force remount deneniyor...")
+                    # Kernel referansı sorununu önlemek için farklı yaklaşım
+                    import subprocess
+                    result = subprocess.run(['python', '-c', 
+                        'from google.colab import drive; drive.mount("/content/drive", force_remount=True)'], 
+                        capture_output=True, text=True, timeout=30)
+                    
+                    if result.returncode != 0:
+                        # Subprocess başarısız, direkt mount dene
+                        drive.mount('/content/drive')
+                        
+                except Exception as force_error:
+                    print(f"⚠️ Force remount başarısız: {force_error}")
+                    # Son çare: basit mount
+                    drive.mount('/content/drive')
+            
+            # Mount sonrası kontrol
             if os.path.exists(self.base_drive_path):
                 # İzin kontrolü
                 try:
@@ -115,6 +156,7 @@ class DriveManager:
                 print("💡 Çözüm önerileri:")
                 print("  1. Colab'de 'Files' panelinden Drive'ı manuel mount edin")
                 print("  2. Google hesabınızın Drive erişim izni olduğunu kontrol edin")
+                print("  3. Runtime'ı yeniden başlatıp tekrar deneyin")
                 return False
                 
         except ImportError:
@@ -124,9 +166,9 @@ class DriveManager:
         except Exception as e:
             print(f"❌ Drive bağlama hatası: {e}")
             print("💡 Çözüm önerileri:")
-            print("  1. Colab'i yeniden başlatın")
+            print("  1. Runtime > Restart runtime menüsünden yeniden başlatın")
             print("  2. Google hesabınızı yeniden doğrulayın")
-            print("  3. force_remount=True parametresini deneyin")
+            print("  3. Manuel mount: from google.colab import drive; drive.mount('/content/drive')")
             return False
     
     def _authenticate_api(self) -> bool:
@@ -945,6 +987,46 @@ def test_drive_operations():
             return False
     
     return auth_success
+
+def manual_drive_mount():
+    """Manuel Drive mount işlemi - Kernel hatası durumunda kullanın"""
+    print("\n🔧 Manuel Drive Mount İşlemi")
+    print("=" * 40)
+    
+    try:
+        from google.colab import drive
+        
+        # Basit mount işlemi
+        print("🔄 Basit mount işlemi deneniyor...")
+        drive.mount('/content/drive')
+        
+        # Kontrol
+        if os.path.exists('/content/drive/MyDrive'):
+            print("✅ Manuel mount başarılı!")
+            print("📁 Drive yolu: /content/drive/MyDrive")
+            
+            # Yazma testi
+            try:
+                test_file = '/content/drive/MyDrive/test_manual_mount.txt'
+                with open(test_file, 'w') as f:
+                    f.write('Manuel mount test')
+                os.remove(test_file)
+                print("✅ Yazma izni doğrulandı")
+                return True
+            except Exception as e:
+                print(f"❌ Yazma izni hatası: {e}")
+                return False
+        else:
+            print("❌ Manuel mount başarısız")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Manuel mount hatası: {e}")
+        print("\n💡 Alternatif çözümler:")
+        print("1. Colab'de Files panelinden 'Mount Drive' butonuna tıklayın")
+        print("2. Runtime > Restart runtime yapıp tekrar deneyin")
+        print("3. Yeni bir Colab notebook açıp kodu oraya kopyalayın")
+        return False
 
 def setup_drive_integration() -> Optional[DriveManager]:
     """Drive entegrasyonunu kur"""

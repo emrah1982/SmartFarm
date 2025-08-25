@@ -713,6 +713,38 @@ def main():
     # Language selection at startup
     select_language()
     
+    # Drive bağlantı kontrolü (dil seçiminden sonra)
+    try:
+        from drive_manager import debug_colab_environment, manual_drive_mount
+        
+        # Colab ortamında Drive kontrolü
+        is_colab = debug_colab_environment()
+        if is_colab:
+            print(f"\n{get_text('drive_check_title', default='🔍 Google Drive Bağlantı Kontrolü')}")
+            print("="*50)
+            
+            # Drive mount durumu kontrol et
+            import os
+            if not os.path.exists('/content/drive/MyDrive'):
+                print(f"{get_text('drive_not_mounted', default='❌ Google Drive mount edilmemiş!')}")
+                
+                mount_choice = input(f"{get_text('mount_drive_question', default='Drive\'ı şimdi mount etmek ister misiniz? (e/h, varsayılan: e)')} ").lower() or "e"
+                
+                if mount_choice.startswith('e'):
+                    if manual_drive_mount():
+                        print(f"{get_text('drive_mount_success', default='✅ Drive başarıyla mount edildi!')}")
+                    else:
+                        print(f"{get_text('drive_mount_failed', default='❌ Drive mount başarısız. Eğitim yerel kaydetme ile devam edecek.')}")
+                else:
+                    print(f"{get_text('drive_skip_info', default='ℹ️ Drive mount atlandı. Eğitim yerel kaydetme ile yapılacak.')}")
+            else:
+                print(f"{get_text('drive_already_mounted', default='✅ Google Drive zaten mount edilmiş!')}")
+                
+    except ImportError:
+        pass  # Drive manager mevcut değilse sessizce devam et
+    except Exception as e:
+        print(f"⚠️ Drive kontrol hatası: {e}")
+    
     print("\n" + "="*70)
     print(get_text('main_title'))
     print(get_text('main_subtitle'))
