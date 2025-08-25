@@ -754,7 +754,10 @@ def setup_drive_integration() -> Optional[DriveManager]:
         
         # Credentials dosyası kontrolü
         if not os.path.exists("credentials.json"):
-            print("❌ credentials.json dosyası bulunamadı!")
+            if drive_manager.is_colab:
+                print("ℹ️ Colab'de credentials.json dosyasına ihtiyaç yoktur.")
+                return drive_manager
+            print("❌ credentials.json dosyası bulunamadı! (Colab'de credentials.json dosyasına ihtiyaç yoktur)")
             print("\n📋 Kurulum Adımları:")
             print("1. Google Cloud Console'a gidin (https://console.cloud.google.com/)")
             print("2. Yeni proje oluşturun veya mevcut projeyi seçin")
