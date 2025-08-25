@@ -447,12 +447,12 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
                     except Exception as e:
                         print(f"❌ best.pt güncellenirken hata: {e}")
                 
-                # Belirtilen aralıklarda last.pt'yi kaydet
-                if trainer.epoch % self.save_interval == 0 or trainer.epoch == 1:
+                # Sadece belirtilen aralıklarda kaydet (her epoch değil)
+                if trainer.epoch % self.save_interval == 0:
                     # last.pt dosyasını Google Drive'a kaydet
                     if last_pt_path.exists():
                         try:
-                            print(f"\n💾 last.pt dosyası Google Drive'a kopyalanıyor (epoch {trainer.epoch})...")
+                            print(f"\n💾 Belirlenen aralık geldi - last.pt dosyası Google Drive'a kopyalanıyor (epoch {trainer.epoch})...")
                             # Epoch bazlı kopya
                             self.drive_manager.upload_model(
                                 str(last_pt_path), 
@@ -466,9 +466,10 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
                             print("✅ last.pt başarıyla Google Drive'a kopyalandı")
                         except Exception as e:
                             print(f"❌ last.pt kaydedilirken hata oluştu: {e}")
-                else:
-                    next_save_epoch = ((trainer.epoch // self.save_interval) * self.save_interval) + self.save_interval
-                    print(f"\nℹ️ Kayıt aralığı {self.save_interval} epoch - Sonraki kayıt: epoch {next_save_epoch}")
+                # Her epoch'ta bilgi verme - sadece kayıt yapılan epoch'larda
+                elif trainer.epoch % 10 == 0:  # Her 10 epoch'ta bir bilgi ver
+                    next_save_epoch = ((trainer.epoch // self.save_interval) + 1) * self.save_interval
+                    print(f"\nℹ️ Epoch {trainer.epoch} - Sonraki Drive kaydı: epoch {next_save_epoch}")
             
             except Exception as e:
                 print(f"❌ Epoch sonu işlemlerinde beklenmeyen hata: {e}")
@@ -488,45 +489,20 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
                 print(f"Callback devre dışı bırakma hatası: {cb_err}")
 
         # -------------------------------
-        # Callback'i modele ekle
+        # Drive kaydetme ayarları (sadece kullanıcı belirlediği aralıkta)
         # -------------------------------
-        drive_save_callback = SaveToDriveCallback(
-            drive_manager=drive_manager,
-            project_dir=project_dir,
-            experiment_name=experiment_name,
-            save_interval=save_interval_epochs
-        )
-        
-        try:
-            if hasattr(model, 'add_callback'):
-                model.add_callback('on_train_epoch_end', drive_save_callback)
-                print("✅ Drive kaydetme callback'i eklendi (her epoch'ta bir)")
-            else:
-                print("⚠️ Model callback desteği yok, manuel kaydetme kullanılacak")
-        except Exception as e:
-            print(f"❌ Callback ekleme hatası: {e}")
+        print(f"💾 Drive kaydetme aralığı: Her {save_interval_epochs} epoch'ta bir")
+        print("ℹ️  Her epoch'ta kaydetme devre dışı - sadece belirlenen aralıkta kaydetme yapılacak")
             
         # Model eğitimini başlat
         results = model.train(**train_args)
         
-        # Periyodik olarak manuel kaydet (ultralytics callback'ini kullanamıyorsak)
-        if results is not None:
-            try:
-                save_dir = os.path.join(project_dir, experiment_name)
-                best_path = os.path.join(save_dir, "weights", "best.pt")
-                if os.path.exists(best_path):
-                    # Periyodik olarak en iyi modeli kopyala
-                    for i in range(save_interval_epochs, int(train_args['epochs']), save_interval_epochs):
-                        save_path = os.path.join(save_dir, "weights", f"epoch_{i}.pt")
-                        if not os.path.exists(save_path) and os.path.exists(best_path):
-                            shutil.copy(best_path, save_path)
-                            print(f"\n--- Model saved for epoch {i}: {save_path} ---")
-            except Exception as save_e:
-                print(f"Error saving periodic model snapshots: {save_e}")
+        # Eğitim tamamlandıktan sonra final kaydetme işlemleri
+        print(f"\n🎯 Eğitim tamamlandı! Belirlenen aralık: {save_interval_epochs} epoch")
         
         # Eğitim sonunda final model kaydetme (Drive API ve dosya sistemi)
         if results is not None:
-            print("\n🎯 Eğitim tamamlandı! Final modeller kaydediliyor...")
+            print("\n🎯 Final modeller kaydediliyor...")
 
             save_dir = os.path.join(project_dir, experiment_name)
             best_path = os.path.join(save_dir, "weights", "best.pt")

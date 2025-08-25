@@ -230,7 +230,7 @@ def download_models_menu():
     print(get_text('all_detection'))
     print(get_text('all_models'))
     
-    choice = input(f"\n{get_text('your_choice')}")
+    choice = input(f"\n{get_text('your_choice')}") or "2"
     
     if choice == "1":
         print(f"\n{get_text('select_model_type')}")
@@ -727,7 +727,7 @@ def main():
     print(get_text('option_test'))
     print(get_text('option_exit'))
     
-    choice = input(f"\n{get_text('select_option')}")
+    choice = input(f"\n{get_text('select_option')}") or "1"
     
     if choice == "1":
         download_models_menu()
