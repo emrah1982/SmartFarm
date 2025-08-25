@@ -361,8 +361,12 @@ class MineralDeficiencyAugmentation:
                     pre = self.preprocess(image=image, bboxes=bboxes_valid, class_labels=class_labels_valid)
                     pre_image, pre_bboxes, pre_labels = pre['image'], pre['bboxes'], pre['class_labels']
                     # Preprocess sonrası boyut doğrulaması
-                    if pre_image is None or pre_image.shape[:2] != (self.target_size, self.target_size):
-                        self.log_missing_data(img_file.name, mineral_type, f"Preprocess boyutu hatalı: {None if pre_image is None else pre_image.shape}")
+                    if pre_image is None:
+                        self.log_missing_data(img_file.name, mineral_type, "Preprocess sonrası görüntü None")
+                        continue
+                    if pre_image.shape[:2] != (self.target_size, self.target_size):
+                        self.logger.warning(f"Preprocess boyut hatası: {img_file.name} - Beklenen: {(self.target_size, self.target_size)}, Gerçek: {pre_image.shape[:2]}")
+                        self.log_missing_data(img_file.name, mineral_type, f"Preprocess boyutu: beklenen {self.target_size}x{self.target_size}, gerçek {pre_image.shape[:2]}")
                         continue
 
                     transformed = transform(image=pre_image, bboxes=pre_bboxes, class_labels=pre_labels)
@@ -371,8 +375,12 @@ class MineralDeficiencyAugmentation:
                     augmented_class_labels = transformed['class_labels']
                     # Transform sonrası bbox doğrulaması ve boyut kontrolü
                     augmented_bboxes, augmented_class_labels = self._clip_and_filter_bboxes(augmented_bboxes, augmented_class_labels)
-                    if augmented_image is None or augmented_image.shape[:2] != (self.target_size, self.target_size):
-                        self.log_missing_data(img_file.name, mineral_type, f"Çıkış boyutu hatalı: {None if augmented_image is None else augmented_image.shape}")
+                    if augmented_image is None:
+                        self.log_missing_data(img_file.name, mineral_type, "Transform sonrası görüntü None")
+                        continue
+                    if augmented_image.shape[:2] != (self.target_size, self.target_size):
+                        self.logger.warning(f"Transform boyut hatası: {img_file.name} - Beklenen: {(self.target_size, self.target_size)}, Gerçek: {augmented_image.shape[:2]}")
+                        self.log_missing_data(img_file.name, mineral_type, f"Transform boyutu: beklenen {self.target_size}x{self.target_size}, gerçek {augmented_image.shape[:2]}")
                         continue
                     if not augmented_bboxes:
                         self.log_missing_data(img_file.name, mineral_type, "Geçerli bbox bulunamadı (çıkış)")

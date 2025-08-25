@@ -538,10 +538,16 @@ class TomatoDiseaseAugmentation:
                         pre_labels = pre['class_labels']
 
                         # Boyut doğrulama (preprocess sonrası mutlaka 512x512 olmalı)
+                        if pre_image is None:
+                            self.logger.warning(f"Preprocess sonrası görüntü None: {image_path}")
+                            self.log_to_csv(csv_path, disease_type, image_path, 'ERROR', 'Preprocess sonrası görüntü None')
+                            self.stats['errors'] += 1
+                            continue
                         if not self._is_valid_size(pre_image, self.target_size):
-                            self.logger.warning(f"Preprocess sonrası beklenmeyen boyut, atlandı: {image_path}")
-                            self.log_to_csv(csv_path, disease_type, image_path, 'SKIPPED', 'Invalid size after preprocess')
-                            self.stats['skipped_images'] += 1
+                            actual_size = pre_image.shape[:2] if pre_image is not None else "None"
+                            self.logger.warning(f"Preprocess boyut hatası: {image_path} - Beklenen: {self.target_size}x{self.target_size}, Gerçek: {actual_size}")
+                            self.log_to_csv(csv_path, disease_type, image_path, 'ERROR', f'Preprocess boyutu: beklenen {self.target_size}x{self.target_size}, gerçek {actual_size}')
+                            self.stats['errors'] += 1
                             continue
 
                         # BBox kırpma/filtreleme (preprocess sonrası)
@@ -564,10 +570,16 @@ class TomatoDiseaseAugmentation:
                             augmented_labels = []
 
                         # Boyut doğrulama (transform sonrası)
+                        if augmented_image is None:
+                            self.logger.warning(f"Transform sonrası görüntü None: {image_path}")
+                            self.log_to_csv(csv_path, disease_type, image_path, 'ERROR', 'Transform sonrası görüntü None')
+                            self.stats['errors'] += 1
+                            continue
                         if not self._is_valid_size(augmented_image, self.target_size):
-                            self.logger.warning(f"Transform sonrası beklenmeyen boyut, atlandı: {image_path}")
-                            self.log_to_csv(csv_path, disease_type, image_path, 'SKIPPED', 'Invalid size after transform')
-                            self.stats['skipped_images'] += 1
+                            actual_size = augmented_image.shape[:2] if augmented_image is not None else "None"
+                            self.logger.warning(f"Transform boyut hatası: {image_path} - Beklenen: {self.target_size}x{self.target_size}, Gerçek: {actual_size}")
+                            self.log_to_csv(csv_path, disease_type, image_path, 'ERROR', f'Transform boyutu: beklenen {self.target_size}x{self.target_size}, gerçek {actual_size}')
+                            self.stats['errors'] += 1
                             continue
 
                         # BBox kırpma/filtreleme (transform sonrası)

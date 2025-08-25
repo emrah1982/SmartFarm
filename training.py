@@ -204,7 +204,7 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
     use_drive = use_drive.startswith('e')
     
     drive_manager = None
-    save_interval = 50  # Varsayılan kaydetme aralığı
+    save_interval = drive_save_interval  # Fonksiyon parametresini kullan
     
     if use_drive:
         # Drive kaydetme aralığını da burada sor
@@ -214,7 +214,8 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
         if not drive_manager:
             print("⚠️ Drive entegrasyonu kurulamadı, sadece yerel kaydetme yapılacak.")
             use_drive = False
-            save_interval = 50  # Yerel kaydetme için varsayılan
+            # Drive başarısız olursa kullanıcının seçtiği değeri koru
+            print(f"ℹ️ Yerel kaydetme aralığı: {save_interval} epoch")
 
     # --- Eğitim Modu Seçimi ---
     mode = input("\nEğitim modunu seçin:\n1. Yeni Eğitim Başlat\n2. Kaldığı Yerden Devam Et (Resume)\n3. Fine-tune (Önceki Ağırlıklarla Başla)\nSeçim (1/2/3): ").strip()

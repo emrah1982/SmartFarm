@@ -928,8 +928,12 @@ class TomatoPestAugmentation:
                         pre = self.preprocess(image=image, bboxes=bboxes_valid, class_labels=labels_valid)
                         pre_image, pre_bboxes, pre_labels = pre['image'], pre['bboxes'], pre['class_labels']
                         # Preprocess sonrası boyut doğrulaması
-                        if pre_image is None or pre_image.shape[:2] != (self.target_size, self.target_size):
-                            self.log_to_csv(pest_type, image_path, "ERROR", f"Preprocess boyutu hatalı: {None if pre_image is None else pre_image.shape}")
+                        if pre_image is None:
+                            self.log_to_csv(pest_type, image_path, "ERROR", "Preprocess sonrası görüntü None")
+                            continue
+                        if pre_image.shape[:2] != (self.target_size, self.target_size):
+                            self.logger.warning(f"Preprocess boyut hatası: {image_path} - Beklenen: {(self.target_size, self.target_size)}, Gerçek: {pre_image.shape[:2]}")
+                            self.log_to_csv(pest_type, image_path, "ERROR", f"Preprocess boyutu: beklenen {self.target_size}x{self.target_size}, gerçek {pre_image.shape[:2]}")
                             continue
 
                         # Transform uygula
@@ -941,8 +945,12 @@ class TomatoPestAugmentation:
                         # Çıkış doğrulama
                         out_img = transformed['image']
                         out_bboxes, out_labels = self._clip_and_filter_bboxes(transformed['bboxes'], transformed['class_labels'])
-                        if out_img is None or out_img.shape[:2] != (self.target_size, self.target_size):
-                            self.log_to_csv(pest_type, image_path, "ERROR", f"Çıkış boyutu hatalı: {None if out_img is None else out_img.shape}")
+                        if out_img is None:
+                            self.log_to_csv(pest_type, image_path, "ERROR", "Transform sonrası görüntü None")
+                            continue
+                        if out_img.shape[:2] != (self.target_size, self.target_size):
+                            self.logger.warning(f"Transform boyut hatası: {image_path} - Beklenen: {(self.target_size, self.target_size)}, Gerçek: {out_img.shape[:2]}")
+                            self.log_to_csv(pest_type, image_path, "ERROR", f"Transform boyutu: beklenen {self.target_size}x{self.target_size}, gerçek {out_img.shape[:2]}")
                             continue
                         if not out_bboxes:
                             self.log_to_csv(pest_type, image_path, "SKIPPED", "Geçerli bbox bulunamadı (çıkış)")
