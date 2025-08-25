@@ -662,6 +662,20 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
         
         def periodic_save_thread():
             """Arka planda periyodik kaydetme (dosya izleme ile gerçek epoch)"""
+            # Tek satırda güncellenen durum yazıcısı
+            def _make_status_printer(prefix=""):
+                last_len = 0
+                def _printer(msg: str):
+                    nonlocal last_len
+                    line = f"{prefix}{msg}"
+                    pad = max(0, last_len - len(line))
+                    sys.stdout.write("\r" + line + (" " * pad))
+                    sys.stdout.flush()
+                    last_len = len(line)
+                return _printer
+
+            status_print = _make_status_printer()
+
             seen_epochs = set()
             last_report = 0
             while True:
@@ -687,16 +701,22 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
                         if ep % int(save_interval_epochs) == 0:
                             save_models_periodically(project_dir, experiment_name, drive_manager, int(save_interval_epochs), ep)
 
-                    # Bilgi mesajı (çok sık değil)
+                    # Bilgi mesajını tek satırda güncelle
                     import time as _t
                     now = _t.time()
-                    if now - last_report > 60:
+                    if now - last_report > 5:  # 5 sn'de bir satırı güncelle
                         last_seen = max(seen_epochs) if seen_epochs else 0
-                        print(f"📡 Dosya izleme aktif - son görülen epoch: {last_seen}")
+                        status_print(f"📡 Dosya izleme aktif - son görülen epoch: {last_seen}")
                         last_report = now
                 except Exception as e:
+                    # Yeni satıra geç ve hatayı yaz
+                    sys.stdout.write("\n")
+                    sys.stdout.flush()
                     print(f"⚠️ Periyodik kaydetme thread hatası: {e}")
                     break
+            # Thread biterken yeni satıra geç
+            sys.stdout.write("\n")
+            sys.stdout.flush()
         
         # Thread'i başlat (daemon olarak)
         if use_drive and drive_manager:
