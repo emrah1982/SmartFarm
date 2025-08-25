@@ -634,7 +634,7 @@ def interactive_training_setup():
         'batch': batch_size,
         'imgsz': img_size,
         'device': device,
-        'workers': 2,
+        'workers': None,
         'data': dataset_config['data_yaml'],
         'project': 'runs/train',
         'name': 'exp',

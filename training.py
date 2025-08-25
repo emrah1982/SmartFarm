@@ -425,6 +425,14 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
         else:
             cache_mode = "disk"
 
+    # İsteğe bağlı: DataLoader workers sayısını kullanıcıdan al (boş bırakırsanız otomatik)
+    try:
+        user_workers_in = input("\nDataLoader workers sayısı (boş bırak: otomatik): ").strip()
+        if user_workers_in:
+            options['workers'] = int(user_workers_in)
+    except Exception:
+        pass
+
     # Hardware auto-profile: set batch/imgsz defaults if not provided
     auto_profile_training(options, speed_mode_flag)
 
@@ -436,9 +444,12 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
     except Exception:
         workers_value = None
     if speed_mode_flag:
-        # Hız modunda: CPU'ya göre en az 8 worker kullanmaya çalış
-        workers_value = max(8, (cpu_cnt - 1) if cpu_cnt > 1 else 0)
-        print(f"⚡ Hız modu: DataLoader workers -> {workers_value} (cpu={cpu_cnt})")
+        # Hız modunda: kullanıcı bir değer verdiyse onu koru, aksi halde otomatik yüksek değer seç
+        if workers_value is None:
+            workers_value = max(8, (cpu_cnt - 1) if cpu_cnt > 1 else 0)
+            print(f"⚡ Hız modu (otomatik): DataLoader workers -> {workers_value} (cpu={cpu_cnt})")
+        else:
+            print(f"⚡ Hız modu: Kullanıcı tanımlı workers değeri korunuyor -> {workers_value}")
         print("ℹ️ Ultralytics düşük hafıza tespit ederse bu değeri runtime'da düşürebilir.")
     else:
         if workers_value is None:
