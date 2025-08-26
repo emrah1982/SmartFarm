@@ -813,8 +813,46 @@ def main():
             print("\n" + "="*50)
             print(f"🔄 Eğitime devam ediliyor: {options['checkpoint_path']}")
             print("="*50)
-            
-            # Skip dataset processing when resuming
+
+            # Resume'da veri YAML doğrulaması: yoksa Drive'daki checkpoint klasöründen kullan
+            try:
+                yaml_path = options.get('data', 'merged_dataset.yaml')
+                if not os.path.isabs(yaml_path):
+                    local_yaml = os.path.join(os.getcwd(), yaml_path)
+                else:
+                    local_yaml = yaml_path
+
+                if not os.path.exists(local_yaml):
+                    ckpt_dir = os.path.dirname(options['checkpoint_path'])
+                    drive_yaml = os.path.join(ckpt_dir, os.path.basename(yaml_path))
+                    if os.path.exists(drive_yaml):
+                        options['data'] = drive_yaml
+                        print(f"ℹ️ Yerelde '{yaml_path}' bulunamadı. Drive'dan kullanılacak: {drive_yaml}")
+                    else:
+                        print(f"❗ Gerekli data YAML bulunamadı: '{yaml_path}'.")
+                        print("   - Yerelde yok.")
+                        print(f"   - Drive klasöründe de yok: {drive_yaml}")
+                        # Kullanıcıya hızlı çözüm: dataset işlemi çalıştırılsın mı?
+                        do_process = (input("YAML'ı üretmek için veri işleme adımını çalıştıralım mı? (e/h, varsayılan: e): ") or "e").lower()
+                        if do_process.startswith('e'):
+                            dc = options['dataset_config']
+                            if dc['type'] == 'hierarchical_multi':
+                                if not process_hierarchical_datasets(dc['setup']):
+                                    print('❌ Veri seti işleme başarısız. Çıkılıyor...')
+                                    return
+                                # Başarılıysa yeniden yerel YAML'ı kullan
+                                if os.path.exists(local_yaml):
+                                    options['data'] = local_yaml
+                                    print(f"✅ YAML üretildi ve kullanılacak: {local_yaml}")
+                            else:
+                                print("⚠️ Bu modda otomatik YAML üretimi desteklenmiyor. Lütfen 'dataset.yaml' yolunu doğru girin.")
+                        else:
+                            print("❌ YAML olmadan eğitime devam edilemez. Çıkılıyor...")
+                            return
+            except Exception as yaml_check_err:
+                print(f"⚠️ Resume öncesi YAML kontrolünde hata: {yaml_check_err}")
+
+            # Skip dataset processing when resuming (YAML doğrulaması yapıldı)
             results = train_model(options, hyp=None, epochs=options['epochs'])
         else:
             # Process dataset(s) for new training
