@@ -13,6 +13,11 @@ from setup_utils import check_gpu, install_required_packages
 from hyperparameters import create_hyperparameters_file, load_hyperparameters
 from memory_utils import show_memory_usage, clean_memory
 from training import train_model, save_to_drive
+try:
+    from drive_manager import DriveManager
+    _DRIVE_AVAILABLE = True
+except Exception:
+    _DRIVE_AVAILABLE = False
 from model_downloader import download_yolo11_models, download_specific_model_type
 from language_manager import get_text, select_language
 
@@ -647,7 +652,36 @@ def interactive_training_setup():
         'drive_save_path': drive_save_path,
         'speed_mode': speed_mode
     }
-    
+    # --- Veri indirme başlamadan ÖNCE: Otomatik checkpoint araması ve kullanıcıya bilgi vererek seçim alma ---
+    try:
+        if is_colab() and _DRIVE_AVAILABLE:
+            dm = DriveManager()
+            if dm.authenticate():
+                # Konfigürasyon varsa yükle, yoksa yine de arama yap (projeyi bilmeden de base dizinde arıyor)
+                dm.load_drive_config()
+                print("\n🔍 Drive'da mevcut checkpoint aranıyor (en yeni timestamp'tan geriye doğru)...")
+                ckpt_path, ckpt_name = dm.find_latest_checkpoint()
+                if ckpt_path:
+                    print(f"✅ Bulundu: {ckpt_name}\n📄 Yol: {ckpt_path}")
+                    ask = (input("Kaldığı yerden devam edilsin mi? (e/h, varsayılan: e): ") or "e").lower()
+                    if ask.startswith('e'):
+                        options['resume'] = True
+                        options['checkpoint_path'] = ckpt_path
+                        print("🔄 Eğitim, veri indirme adımı atlanarak checkpoint'ten devam edecek.")
+                    else:
+                        print("ℹ️ Resume iptal edildi. Yeni eğitim kurulumu ile devam edilecek.")
+                else:
+                    print("ℹ️ Drive'da kullanılabilir checkpoint bulunamadı. Yeni eğitim kurulumu ile devam edilecek.")
+            else:
+                print("⚠️ Drive mount/kimlik doğrulama başarısız. Resume araması yapılamadı.")
+        else:
+            if not is_colab():
+                print("ℹ️ Colab ortamı değil. Drive tabanlı otomatik resume araması atlandı.")
+            elif not _DRIVE_AVAILABLE:
+                print("⚠️ drive_manager içe aktarılamadı. Drive tabanlı otomatik resume araması yapılamadı.")
+    except Exception as pre_resume_err:
+        print(f"⚠️ Otomatik resume kontrolü sırasında hata: {pre_resume_err}")
+
     
     # Display selected parameters
     print("\n===== Seçilen Eğitim Parametreleri =====")
