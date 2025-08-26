@@ -762,54 +762,95 @@ class DriveManager:
         return None, None
     
     def _search_checkpoint_in_dir(self, search_dir):
-        """Belirli bir klasörde checkpoint ara - en son checkpoint'i bul"""
+        """Belirli bir (timestamp) klasörde checkpoint ara - iç alt klasörleri de kapsa."""
         print(f"📁 Aranıyor: {search_dir}")
-        
-        # Doğrudan timestamp klasöründe checkpoint dosyalarını ara
+
         try:
-            files = os.listdir(search_dir)
-            pt_files = [f for f in files if f.endswith('.pt')]
-            
-            if pt_files:
-                print(f"📋 Bulunan .pt dosyaları: {pt_files}")
-            
-            # Checkpoint dosyalarını öncelik sırasına göre ara
-            checkpoint_files = ['last.pt', 'best.pt']
-            
-            # Önce last.pt ve best.pt kontrol et
-            for filename in checkpoint_files:
-                if filename in pt_files:
-                    checkpoint_path = os.path.join(search_dir, filename)
-                    
-                    # Dosya tarihini kontrol et (en son değişiklik)
-                    file_mtime = os.path.getmtime(checkpoint_path)
-                    file_size = os.path.getsize(checkpoint_path) / (1024*1024)
-                    
-                    from datetime import datetime
-                    file_date = datetime.fromtimestamp(file_mtime).strftime("%Y-%m-%d %H:%M:%S")
-                    
-                    print(f"✅ Checkpoint bulundu: {checkpoint_path}")
-                    print(f"📊 Boyut: {file_size:.1f} MB | 📅 Tarih: {file_date}")
-                    return checkpoint_path, filename
-            
-            # Eğer last.pt ve best.pt yoksa, epoch dosyalarını ara
-            epoch_files = [f for f in pt_files if f.startswith('epoch_') and f.endswith('.pt')]
-            if epoch_files:
-                # En yüksek epoch numaralı dosyayı bul
+            # 1) Önce bilinen alt yolları kontrol et
+            candidate_dirs = [
+                search_dir,
+                os.path.join(search_dir, 'models'),
+                os.path.join(search_dir, 'checkpoints'),
+                os.path.join(search_dir, 'checkpoints', 'weights'),
+            ]
+
+            def try_in_dir(d):
+                if not os.path.isdir(d):
+                    return None
                 try:
-                    latest_epoch = max(epoch_files, key=lambda f: int(f.split('_')[1].split('.')[0]))
-                    checkpoint_path = os.path.join(search_dir, latest_epoch)
-                    file_size = os.path.getsize(checkpoint_path) / (1024*1024)
-                    print(f"✅ Epoch checkpoint bulundu: {checkpoint_path} ({file_size:.1f} MB)")
-                    return checkpoint_path, latest_epoch
-                except:
-                    pass
-            
-            print(f"⚠️ {search_dir} klasöründe uygun checkpoint bulunamadı")
-            
+                    files = os.listdir(d)
+                except Exception:
+                    return None
+                pt_files = [f for f in files if f.endswith('.pt')]
+                # Öncelik: last.pt, sonra best.pt
+                for name in ['last.pt', 'best.pt']:
+                    if name in pt_files:
+                        p = os.path.join(d, name)
+                        try:
+                            mtime = os.path.getmtime(p)
+                            size_mb = os.path.getsize(p) / (1024*1024)
+                            from datetime import datetime as _dt
+                            date = _dt.fromtimestamp(mtime).strftime('%Y-%m-%d %H:%M:%S')
+                            print(f"✅ Checkpoint bulundu: {p}")
+                            print(f"📊 Boyut: {size_mb:.1f} MB | 📅 Tarih: {date}")
+                        except Exception:
+                            pass
+                        return p, name
+                # Epoch dosyaları
+                epoch_files = [f for f in pt_files if f.startswith('epoch_') and f.endswith('.pt')]
+                if epoch_files:
+                    try:
+                        latest = max(epoch_files, key=lambda f: int(f.split('_')[1].split('.')[0]))
+                        p = os.path.join(d, latest)
+                        size_mb = os.path.getsize(p) / (1024*1024)
+                        print(f"✅ Epoch checkpoint bulundu: {p} ({size_mb:.1f} MB)")
+                        return p, latest
+                    except Exception:
+                        return None
+                return None
+
+            # Bilinen alt yolları sırayla dene
+            for d in candidate_dirs:
+                res = try_in_dir(d)
+                if res:
+                    return res
+
+            # 2) Fallback: rekürsif tara ve last/best/epoch_*.pt bul
+            latest_epoch_path = None
+            latest_epoch_num = -1
+            found_last = None
+            found_best = None
+            for root, _, files in os.walk(search_dir):
+                for f in files:
+                    if not f.endswith('.pt'):
+                        continue
+                    full = os.path.join(root, f)
+                    if f == 'last.pt' and found_last is None:
+                        found_last = full
+                    elif f == 'best.pt' and found_best is None:
+                        found_best = full
+                    elif f.startswith('epoch_'):
+                        try:
+                            num = int(f.split('_')[1].split('.')[0])
+                            if num > latest_epoch_num:
+                                latest_epoch_num = num
+                                latest_epoch_path = full
+                        except Exception:
+                            pass
+
+            if found_last:
+                print(f"✅ Rekürsif aramada last.pt bulundu: {found_last}")
+                return found_last, 'last.pt'
+            if found_best:
+                print(f"✅ Rekürsif aramada best.pt bulundu: {found_best}")
+                return found_best, 'best.pt'
+            if latest_epoch_path:
+                print(f"✅ Rekürsif aramada en yüksek epoch bulundu: {latest_epoch_path}")
+                return latest_epoch_path, os.path.basename(latest_epoch_path)
+
+            print(f"⚠️ {search_dir} içinde uygun checkpoint bulunamadı")
         except Exception as e:
             print(f"⚠️ {search_dir} arama hatası: {e}")
-        
         return None, None
     
     def _find_checkpoint_api(self) -> Tuple[Optional[str], Optional[str]]:
