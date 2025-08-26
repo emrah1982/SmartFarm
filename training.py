@@ -620,6 +620,15 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
                     print(f"✅ best.pt yüklendi (epoch {current_epoch})")
                 else:
                     print(f"⚠️ best.pt yükleme başarısız (epoch {current_epoch})")
+
+            # Kullanıcının belirlediği epoch'ta tüm weights klasörünü Drive timestamp klasörüne kopyala
+            try:
+                if hasattr(drive_manager, 'copy_directory_to_drive'):
+                    drive_manager.copy_directory_to_drive(str(weights_dir), target_rel_path='checkpoints/weights')
+                else:
+                    print("ℹ️ copy_directory_to_drive bulunamadı; sadece tekil .pt dosyaları yüklendi.")
+            except Exception as copy_e:
+                print(f"⚠️ Weights klasörü kopyalanırken hata: {copy_e}")
             
             # Eski checkpoint'leri temizle (disk alanı için)
             cleanup_old_checkpoints(weights_dir, current_epoch, keep_last=3)
@@ -765,15 +774,24 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
 
             # 1) Drive API ile yükleme (eğer etkinse)
             if use_drive and drive_manager:
-                # Doğru imza: upload_model(local_path, drive_filename)
+                # last.pt ve best.pt yedekle
                 if os.path.exists(best_path):
-                    ok_best_name = drive_manager.upload_model(best_path, 'best.pt')
-                    ok_best_epoch = drive_manager.upload_model(best_path, f'epoch_{final_epoch:03d}_best.pt')
-                    if ok_best_name and ok_best_epoch:
-                        print("✅ Final best.pt yüklendi (best.pt ve epoch_*_best.pt)")
-                    else:
-                        print("❌ Final best.pt yükleme başarısız. Ayrıntılar yukarıdaki loglarda.")
+                    drive_manager.upload_model(best_path, 'best.pt')
                 if os.path.exists(last_path):
+                    drive_manager.upload_model(last_path, 'last.pt')
+
+                # Tüm weights klasörünü timestamp'li klasöre kopyala (Colab yolu öncelikli)
+                candidates = [
+                    '/content/SmartFarm/runs/train/exp/weights',
+                    f"/content/SmartFarm/runs/train/{experiment_name}/weights",
+                    os.path.join(save_dir, 'weights')
+                ]
+                local_weights_dir = next((p for p in candidates if os.path.isdir(p)), None)
+                if local_weights_dir:
+                    print(f" Weights klasörü Drive'a kopyalanıyor: {local_weights_dir} → checkpoints/weights")
+                    drive_manager.copy_directory_to_drive(local_weights_dir, target_rel_path='checkpoints/weights')
+                else:
+                    print(" Kopyalanacak weights klasörü bulunamadı.")
                     ok_last_name = drive_manager.upload_model(last_path, 'last.pt')
                     ok_last_epoch = drive_manager.upload_model(last_path, f'epoch_{final_epoch:03d}.pt')
                     if ok_last_name and ok_last_epoch:

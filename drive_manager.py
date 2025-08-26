@@ -630,6 +630,55 @@ class DriveManager:
         with open(log_file, 'w', encoding='utf-8') as f:
             json.dump(uploads, f, indent=2, ensure_ascii=False)
     
+    def copy_directory_to_drive(self, local_dir: str, target_rel_path: str = 'checkpoints/weights') -> bool:
+        """Yerel bir klasörü Drive'daki timestamp'li proje klasörünün içine kopyala.
+
+        - Colab modunda: dosya sistemi üstünden doğrudan kopyalar (hızlı ve güvenilir).
+        - Hedef: self.project_folder/target_rel_path
+        - Mevcut dosyalarda boyut aynıysa kopyalamayı atlar.
+        """
+        try:
+            if not self.is_colab:
+                print("⚠️ copy_directory_to_drive şu an Colab dışı modda uygulanmadı.")
+                return False
+            if not self.is_mounted or not self.project_folder:
+                print("❌ Drive bağlı değil veya proje klasörü ayarlanmamış!")
+                return False
+            if not os.path.isdir(local_dir):
+                print(f"❌ Yerel klasör bulunamadı: {local_dir}")
+                return False
+
+            dst_root = os.path.join(self.project_folder, target_rel_path)
+            os.makedirs(dst_root, exist_ok=True)
+
+            copied, skipped, total_size = 0, 0, 0
+            t0 = time.time()
+            for root, dirs, files in os.walk(local_dir):
+                rel = os.path.relpath(root, local_dir)
+                dst_dir = os.path.join(dst_root, rel) if rel != '.' else dst_root
+                os.makedirs(dst_dir, exist_ok=True)
+                for fname in files:
+                    src = os.path.join(root, fname)
+                    dst = os.path.join(dst_dir, fname)
+                    try:
+                        src_sz = os.path.getsize(src)
+                        if os.path.exists(dst) and os.path.getsize(dst) == src_sz:
+                            skipped += 1
+                            continue
+                        shutil.copy2(src, dst)
+                        total_size += src_sz
+                        copied += 1
+                    except Exception as e:
+                        print(f"⚠️ Kopyalama hatası: {src} -> {dst}: {e}")
+
+            dt = time.time() - t0
+            mb = total_size / (1024*1024)
+            print(f"✅ Klasör kopyalandı → {dst_root} | 📄 {copied} kopyalandı, ⏭️ {skipped} atlandı | 📦 {mb:.1f} MB | ⏱️ {dt:.2f}s")
+            return True
+        except Exception as e:
+            print(f"❌ Klasör kopyalama hatası: {e}")
+            return False
+    
     def _log_upload(self, filename: str, epoch: int, file_id: str, is_best: bool):
         """API için yükleme kaydını tut (orijinal kod)"""
         log_entry = {
