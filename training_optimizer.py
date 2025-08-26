@@ -492,6 +492,51 @@ if __name__ == "__main__":
         return output_path
 
 
+# Yardımcı: main_multi_dataset.py tarafından verilen options sözlüğünü normalize et
+def prepare_training_options(options: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Eğitimle ilgili parametreleri merkezi olarak normalize eder.
+    - main_multi_dataset.py içindeki kullanıcı seçimlerini korur
+    - Eksikse dataset önerilerinden (varsa) batch/imgsz gibi değerleri tamamlar
+    - Anahtarların varlığını garanti eder
+    """
+    opts = dict(options) if isinstance(options, dict) else {}
+
+    # Varsayılan anahtarlar ve güvenli değerler
+    defaults = {
+        'project': 'runs/train',
+        'name': 'exp',
+        'exist_ok': True,
+        'use_hyp': True,
+        'speed_mode': False,
+        'workers': None,
+    }
+    for k, v in defaults.items():
+        opts.setdefault(k, v)
+
+    # Dataset önerilerinden batch/imgsz çek (varsa ve kullanıcı belirtmediyse)
+    try:
+        ds_cfg = opts.get('dataset_config') or {}
+        if ds_cfg.get('type') == 'hierarchical_multi':
+            rec = (ds_cfg.get('setup') or {}).get('recommendations') or {}
+            if 'batch' not in opts or opts.get('batch') in (None, 0):
+                if isinstance(rec.get('batch_size'), int) and rec['batch_size'] > 0:
+                    opts['batch'] = rec['batch_size']
+            if 'imgsz' not in opts or opts.get('imgsz') in (None, 0):
+                if isinstance(rec.get('image_size'), int) and rec['image_size'] > 0:
+                    opts['imgsz'] = rec['image_size']
+    except Exception:
+        pass
+
+    # Zorunlu alanlar kontrolü (model, data, epochs)
+    required = ['model', 'data', 'epochs']
+    missing = [k for k in required if k not in opts]
+    if missing:
+        print(f"⚠️ prepare_training_options: Eksik alanlar: {missing}. Lütfen interaktif kurulum adımlarını tamamlayın.")
+
+    return opts
+
+
 # Kullanım örneği ve rehber
 def print_epoch_recommendations():
     """Epoch sayısı rehberi yazdır"""
@@ -536,8 +581,8 @@ KISA CEVAP: Genellikle HAYIR!
 
 🎯 Sonuç: Early stopping ile başlayın, 2000 epoch'u hedef değil limit olarak görün!
     """)
-
-
+ 
+ 
 if __name__ == "__main__":
     # Epoch rehberini yazdır
     print_epoch_recommendations()

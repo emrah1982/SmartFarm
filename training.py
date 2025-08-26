@@ -9,6 +9,7 @@ from pathlib import Path
 import gc
 import psutil
 import humanize
+import time
 from typing import List, Tuple, Optional
 import torchvision
 
@@ -560,6 +561,19 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
     # Manuel olarak memory clean up yapan callback oluştur
     project_dir = train_args.get('project', 'runs/train')
     experiment_name = train_args.get('name', 'exp')
+    
+    # Resume modunda Ultralytics mevcut run klasöründe devam eder; gerçek klasörü checkpoint'ten türet
+    try:
+        if resume_training and isinstance(model_path, str):
+            # model_path = /.../runs/train/expX/weights/last.pt
+            chk_path = Path(model_path)
+            if chk_path.name in ("last.pt", "best.pt") and chk_path.parent.name == "weights":
+                run_dir = chk_path.parent.parent  # expX
+                project_dir = str(run_dir.parent)  # runs/train
+                experiment_name = run_dir.name     # expX
+                print(f"🧭 Resume: İzlenecek run klasörü ayarlandı → {run_dir}")
+    except Exception as _rd_err:
+        print(f"⚠️ Resume run klasörü ayarlanamadı: {_rd_err}")
     # Kullanıcıdan alınan değerle eşitle (önceki hatalı kullanım: drive_save_interval)
     save_interval_epochs = save_interval
     drive_save_dir = options.get('drive_save_path')
@@ -581,6 +595,10 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
         weights_dir = Path(project_dir) / experiment_name / 'weights'
         last_pt_path = weights_dir / 'last.pt'
         best_pt_path = weights_dir / 'best.pt'
+        # Gerçek epoch dosyasını saptamaya çalış (hem 'epoch_XXX.pt' hem 'epochXXX.pt')
+        epoch_file1 = weights_dir / f"epoch_{current_epoch:03d}.pt"
+        epoch_file2 = weights_dir / f"epoch{current_epoch:03d}.pt"
+        epoch_file = epoch_file1 if epoch_file1.exists() else (epoch_file2 if epoch_file2.exists() else None)
         
         print(f"\n💾 Colab Kapanma Koruması - Epoch {current_epoch} yedekleme başlıyor...")
         
@@ -600,9 +618,17 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
                 import json
                 json.dump(training_state, f, indent=2)
             
-            # last.pt kaydet (en önemli - devam etmek için gerekli)
-            if last_pt_path.exists():
+            # Epoch dosyasını kaydet (varsa), yoksa last.pt'yi o isimle yükle
+            ok1 = True
+            if epoch_file and epoch_file.exists():
+                ok1 = drive_manager.upload_model(str(epoch_file), epoch_file.name)
+            elif last_pt_path.exists():
+                # Fallback: last.pt'yi epoch adıyla yükle
                 ok1 = drive_manager.upload_model(str(last_pt_path), f'epoch_{current_epoch:03d}.pt')
+
+            # last.pt kaydet (en önemli - devam etmek için gerekli)
+            ok2 = True
+            if last_pt_path.exists():
                 ok2 = drive_manager.upload_model(str(last_pt_path), 'last.pt')
                 
                 # Eğitim durumu da kaydet
@@ -697,22 +723,51 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
                     weights_dir = Path(project_dir) / experiment_name / 'weights'
                     if not weights_dir.exists():
                         continue
+                    # DriveManager lazy init (başta kurulamadıysa yeniden dene)
+                    nonlocal drive_manager
+                    if drive_manager is None and use_drive:
+                        try:
+                            from drive_manager import setup_drive_integration as _setup_dm
+                            drive_manager = _setup_dm()
+                            if drive_manager:
+                                print("✅ Drive entegrasyonu thread içinde kuruldu.")
+                        except Exception as _lazy_dm_err:
+                            pass
 
-                    # epoch_*.pt dosyalarını tara
-                    epoch_files = list(weights_dir.glob('epoch_*.pt'))
+                    # epoch dosyalarını tara (hem 'epoch_XXX.pt' hem 'epochXXX.pt' destekle)
+                    epoch_files = list(weights_dir.glob('epoch_*.pt')) + list(weights_dir.glob('epoch*.pt'))
                     for p in epoch_files:
                         try:
-                            stem = p.stem  # epoch_XXX
-                            ep = int(stem.split('_')[1])
+                            stem = p.stem  # 'epoch_XXX' veya 'epochXXX'
+                            num_part = stem.replace('epoch_', '').replace('epoch', '')
+                            ep = int(num_part)
                         except Exception:
                             continue
 
-                        if ep in seen_epochs:
-                            continue
+                        if ep not in seen_epochs:
+                            seen_epochs.add(ep)
+                            if ep % int(save_interval_epochs) == 0:
+                                save_models_periodically(project_dir, experiment_name, drive_manager, int(save_interval_epochs), ep)
 
-                        seen_epochs.add(ep)
-                        if ep % int(save_interval_epochs) == 0:
-                            save_models_periodically(project_dir, experiment_name, drive_manager, int(save_interval_epochs), ep)
+                    # Fallback: results.csv'den son epoch'u oku
+                    try:
+                        results_csv = Path(project_dir) / experiment_name / 'results.csv'
+                        if results_csv.exists():
+                            import csv
+                            with open(results_csv, 'r') as f:
+                                reader = list(csv.reader(f))
+                            if len(reader) > 1:
+                                header = reader[0]
+                                epoch_idx = header.index('epoch') if 'epoch' in header else None
+                                if epoch_idx is not None:
+                                    last_row = reader[-1]
+                                    ep = int(last_row[epoch_idx])
+                                    if ep not in seen_epochs:
+                                        seen_epochs.add(ep)
+                                        if ep % int(save_interval_epochs) == 0:
+                                            save_models_periodically(project_dir, experiment_name, drive_manager, int(save_interval_epochs), ep)
+                    except Exception:
+                        pass
 
                     # Bilgi mesajını tek satırda güncelle
                     import time as _t
@@ -732,10 +787,11 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
             sys.stdout.flush()
         
         # Thread'i başlat (daemon olarak)
-        if use_drive and drive_manager:
+        # Not: DriveManager thread içinde lazy init edildiği için drive_manager None olsa da başlatılır
+        if use_drive:
             save_thread = threading.Thread(target=periodic_save_thread, daemon=True)
             save_thread.start()
-            print("🔄 Periyodik kaydetme thread'i başlatıldı")
+            print("🔄 Periyodik kaydetme thread'i başlatıldı (lazy Drive init)")
             
         # Resume modunda: tespit edilen checkpoint'in klasöründeki last.pt/best.pt dosyalarını
         # yeni deneyin weights klasörüne kopyalayarak başlangıç dosyalarını hazırla

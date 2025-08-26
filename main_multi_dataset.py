@@ -13,6 +13,7 @@ from setup_utils import check_gpu, install_required_packages
 from hyperparameters import create_hyperparameters_file, load_hyperparameters
 from memory_utils import show_memory_usage, clean_memory
 from training import train_model, save_to_drive
+from training_optimizer import prepare_training_options
 try:
     from drive_manager import DriveManager
     _DRIVE_AVAILABLE = True
@@ -808,6 +809,9 @@ def main():
         if options is None:
             return
         
+        # Eğitim parametrelerini merkezi olarak normalize et
+        options = prepare_training_options(options)
+        
         # Check if we're resuming from a checkpoint
         if options.get('resume'):
             print("\n" + "="*50)
@@ -882,6 +886,7 @@ def main():
             
             # Start new training
             print(f"\n🚀 Yeni model eğitimi başlatılıyor...")
+            # Normalize edilmiş options zaten mevcut; train_model'e aktar
             results = train_model(options, hyp=hyperparameters, 
                                epochs=options['epochs'], 
                                drive_save_interval=options.get('save_interval', 10))
