@@ -1,9 +1,19 @@
 #!/usr/bin/env python3
-# main_multi_dataset.py - YOLO11 Hierarchical Multi-Dataset Training Framework
+# main_multi_dataset.py - Hiyerarşik çoklu dataset yönetimi ve eğitim
 
 import os
 import sys
+import yaml
 from pathlib import Path
+
+# Roboflow API yönetimi için import
+try:
+    from roboflow_api_helper import get_roboflow_menu_choice, handle_roboflow_action, get_api_key_from_config
+except ImportError:
+    print("⚠️ roboflow_api_helper.py bulunamadı")
+    def get_roboflow_menu_choice(): return {}
+    def handle_roboflow_action(choice, **kwargs): return False
+    def get_api_key_from_config(): return None
 import shutil
 from datetime import datetime
 import json
@@ -464,15 +474,20 @@ def interactive_training_setup():
             'data_yaml': 'merged_dataset.yaml'
         }
     else:
-        # Single dataset (legacy)
+        # Single dataset (legacy) - Roboflow API yönetimi ile
         roboflow_url = input("\nRoboflow URL (varsayılan: boş): ").strip() or ""
         if not roboflow_url:
             print("❌ URL sağlanmadı")
             return None
         
+        # Roboflow API key yönetimi
+        api_result = handle_roboflow_api_management(roboflow_url)
+        
         dataset_config = {
             'type': 'single',
             'url': roboflow_url,
+            'api_key': api_result['api_key'],
+            'split_config': api_result['split_config'],
             'data_yaml': 'dataset.yaml'
         }
     
@@ -730,6 +745,107 @@ def interactive_training_setup():
     
     return options
 
+def get_dataset_split_config(api_key):
+    """API key varsa train/test/val değerlerini al"""
+    if not api_key:
+        return None
+    
+    print("\n📊 Dataset Bölümleme Ayarları")
+    print("=" * 40)
+    print("API key mevcut - dataset bölümleme ayarlarını yapılandırabilirsiniz")
+    
+    use_custom_split = input("\nÖzel train/test/val oranı kullanmak istiyor musunuz? (e/h, varsayılan: h): ").lower() or "h"
+    
+    if not use_custom_split.startswith('e'):
+        print("✅ Varsayılan bölümleme kullanılacak")
+        return None
+    
+    print("\n📋 Bölümleme Oranı Girişi:")
+    print("Not: Toplam 100 olmalı (train + test + val = 100)")
+    
+    while True:
+        try:
+            train_pct = int(input("Train oranı (varsayılan: 70): ") or "70")
+            test_pct = int(input("Test oranı (varsayılan: 20): ") or "20")
+            val_pct = int(input("Validation oranı (varsayılan: 10): ") or "10")
+            
+            total = train_pct + test_pct + val_pct
+            if total != 100:
+                print(f"❌ Toplam {total}%. Lütfen toplamı 100 yapacak şekilde girin.")
+                continue
+            
+            if train_pct < 50:
+                print("⚠️ Train oranı %50'den az. Devam etmek istiyor musunuz? (e/h): ", end="")
+                if not input().lower().startswith('e'):
+                    continue
+            
+            split_config = {
+                'train': train_pct,
+                'test': test_pct, 
+                'val': val_pct
+            }
+            
+            print(f"\n✅ Bölümleme ayarları: Train %{train_pct}, Test %{test_pct}, Val %{val_pct}")
+            return split_config
+            
+        except ValueError:
+            print("❌ Lütfen geçerli sayılar girin")
+            continue
+
+def handle_roboflow_api_management(url):
+    """Roboflow API key yönetimini handle et"""
+    print("\n🔑 Roboflow API Yönetimi")
+    print("=" * 40)
+    
+    # Mevcut API key kontrol et
+    existing_key = get_api_key_from_config()
+    if existing_key:
+        print(f"✅ Mevcut API key bulundu: {existing_key[:10]}...")
+        use_existing = input("Mevcut API key'i kullanmak istiyor musunuz? (e/h, varsayılan: e): ").lower() or "e"
+        if use_existing.startswith('e'):
+            # API key varsa split config al
+            split_config = get_dataset_split_config(existing_key)
+            return {'api_key': existing_key, 'split_config': split_config}
+    
+    print("\n📋 Seçenekler:")
+    print("1) API Key gir (train/test/val ayarları ile)")
+    print("2) API Key olmadan devam et (public dataset)")
+    
+    while True:
+        choice = input("\nSeçenek [1-2] (varsayılan: 2): ").strip() or "2"
+        
+        if choice == "2":
+            print("✅ API key olmadan devam ediliyor (public dataset olarak)")
+            return {'api_key': None, 'split_config': None}
+        
+        elif choice == "1":
+            print("\n📋 API Key alma adımları:")
+            print("1. https://roboflow.com adresine gidin")
+            print("2. Hesabınıza giriş yapın")
+            print("3. Settings > API sayfasına gidin")
+            print("4. Private API Key'inizi kopyalayın")
+            
+            api_key = input("\n🔑 API Key'inizi girin (boş bırakabilirsiniz): ").strip()
+            
+            if api_key:
+                # API key'i kaydet
+                result = handle_roboflow_action('1', api_key=api_key)
+                if result:
+                    print("✅ API key başarıyla kaydedildi!")
+                    # Split config al
+                    split_config = get_dataset_split_config(api_key)
+                    return {'api_key': api_key, 'split_config': split_config}
+                else:
+                    print("❌ API key kaydedilemedi, boş olarak devam ediliyor")
+                    return {'api_key': None, 'split_config': None}
+            else:
+                print("✅ API key boş bırakıldı, public dataset olarak devam ediliyor")
+                return {'api_key': None, 'split_config': None}
+        
+        else:
+            print("❌ Geçersiz seçenek")
+            continue
+
 def main():
     """Main function - Hierarchical Multi-Dataset Training Framework"""
     # Language selection at startup
@@ -863,10 +979,13 @@ def main():
             dataset_config = options['dataset_config']
             
             if dataset_config['type'] == 'single':
-                # Single dataset processing (legacy)
+                # Single dataset processing (legacy) - API key ve split config ile
                 from dataset_utils import download_dataset
                 
-                if not download_dataset(dataset_config['url']):
+                api_key = dataset_config.get('api_key')
+                split_config = dataset_config.get('split_config')
+                
+                if not download_dataset(dataset_config['url'], api_key=api_key, split_config=split_config):
                     print('❌ Veri seti indirme başarısız. Çıkılıyor...')
                     return
                     

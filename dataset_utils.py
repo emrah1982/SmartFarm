@@ -10,45 +10,36 @@ from pathlib import Path
 
 # dataset_utils.py dosyasındaki download_dataset fonksiyonunu bu şekilde değiştirin:
 
-def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None):
+def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None, split_config=None):
     """Download YOLO formatted dataset from Roboflow with improved error handling and API key support"""
     print(f'📥 Dataset indiriliyor: {url}')
 
     # Create target directory
     os.makedirs(dataset_dir, exist_ok=True)
 
-    # API key kontrolü ve uyarı
-    if not api_key and "universe.roboflow.com" in url:
-        print("⚠️  API anahtarı belirtilmedi. Public dataset'ler için sorun olmayabilir.")
-        print("💡 Private dataset'ler için API key gerekli: download_dataset(url, api_key='your_key')")
-    
-    # Public dataset için direkt URL kullanımı (browser'da çalışıyorsa)
-    if "universe.roboflow.com" in url and not api_key:
-        # Public dataset - direkt URL'yi dene
-        if url.endswith('.zip'):
-            download_url = url  # Zaten ZIP formatında
-        else:
-            # Format parametresi ekle
-            if "?" in url:
-                if "format=" not in url:
-                    download_url = f"{url}&format=yolov5"
-                else:
-                    download_url = url
+    # Prepare download URL based on API key availability and split config
+    if "universe.roboflow.com" in url:
+        base_url = url.split('?')[0]  # Remove existing parameters
+        params = ["format=yolov5"]
+        
+        if api_key:
+            params.append(f"key={api_key}")
+            print(f"🔑 API key kullanılıyor: {api_key[:10]}...")
+            
+            # Split config varsa ekle
+            if split_config:
+                params.append(f"split={split_config['train']}-{split_config['test']}-{split_config['val']}")
+                print(f"📊 Özel bölümleme: Train %{split_config['train']}, Test %{split_config['test']}, Val %{split_config['val']}")
             else:
-                download_url = f"{url}?format=yolov5"
-    elif "universe.roboflow.com" in url and api_key:
-        # Private dataset - API key ile
-        if "?" in url:
-            if "format=" not in url:
-                download_url = f"{url}&format=yolov5&key={api_key}"
-            else:
-                download_url = f"{url}&key={api_key}"
+                print("📊 Varsayılan bölümleme kullanılıyor")
         else:
-            download_url = f"{url}?format=yolov5&key={api_key}"
+            print("🌐 Public dataset olarak indiriliyor (API key yok)")
+        
+        download_url = f"{base_url}?{'&'.join(params)}"
     else:
-        # Diğer formatlar
-        base_url = f"{url}&format=yolov5" if "?" in url else f"{url}?format=yolov5"
-        download_url = f"{base_url}&key={api_key}" if api_key else base_url
+        # Direct download URL
+        download_url = url
+        print("🔗 Direkt URL kullanılıyor")
     
     zip_path = os.path.join(dataset_dir, 'dataset.zip')
 
