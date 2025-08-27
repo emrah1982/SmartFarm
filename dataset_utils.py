@@ -190,7 +190,7 @@ def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None,
                 'Cache-Control': 'max-age=0'
             }
             
-            print(f"🔗 İndirme URL'si: {download_url[:100]}...")
+            print(f"🔗 İndirme URL'si: {download_url}")
             
             # Session kullanarak cookie ve redirect yönetimi
             session = requests.Session()
@@ -201,8 +201,22 @@ def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None,
             except Exception:
                 pass
             
+            print(f"🌐 Request headers: User-Agent={session.headers.get('User-Agent', 'None')[:50]}...")
+            print(f"🌐 Referer: {session.headers.get('Referer', 'None')}")
+            
             response = session.get(download_url, timeout=300, stream=True, allow_redirects=True)
             print(f"🔎 HTTP durum: {response.status_code}")
+            print(f"🔎 Content-Type: {response.headers.get('content-type', 'Unknown')}")
+            print(f"🔎 Content-Length: {response.headers.get('content-length', 'Unknown')}")
+            print(f"🔎 Final URL: {response.url}")
+            
+            # Response body'nin ilk 500 karakterini kontrol et
+            if response.status_code != 200:
+                try:
+                    body_preview = response.text[:500]
+                    print(f"🔎 Response preview: {body_preview}")
+                except:
+                    print(f"🔎 Response body okunamadı")
             
             # Detaylı hata kontrolü
             if response.status_code == 403:
