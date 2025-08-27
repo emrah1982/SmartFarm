@@ -579,17 +579,17 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
     drive_save_dir = options.get('drive_save_path')
 
     # Ultralytics yerel periyodik kaydetme (weights/epoch_XXX.pt) için native parametre
-    try:
-        train_args['save_period'] = int(save_interval_epochs)
-    except Exception:
-        train_args['save_period'] = save_interval_epochs
+    # save_period her epoch'ta kaydetme yapar, bizim aralığımızla uyumlu değil
+    # Bu yüzden 1 yapıp kendi mantığımızla kontrol edeceğiz
+    train_args['save_period'] = 1  # Her epoch'ta kaydet, sonra kendi aralığımızla filtrele
 
     # -------------------------------
     # Gelişmiş Drive Kaydetme Fonksiyonu - Colab Kapanma Korumalı
     # -------------------------------
     def save_models_periodically(project_dir, experiment_name, drive_manager, save_interval_epochs, current_epoch):
         """Belirlenen aralıklarda modelleri Drive'a kaydet - Colab kapanma korumalı"""
-        if current_epoch % save_interval_epochs != 0:
+        # Epoch 0'da kaydetme yapma, sadece pozitif epoch'larda ve aralığa uygun olanlarda kaydet
+        if current_epoch <= 0 or current_epoch % save_interval_epochs != 0:
             return  # Kaydetme zamanı değil
         
         weights_dir = Path(project_dir) / experiment_name / 'weights'
@@ -684,7 +684,6 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
         except Exception:
             pass  # Temizlik hatası kritik değil
 
-    try:
         # Manage model training with periodic memory cleanup
         print("\n--- Training Model ---")
         
@@ -701,174 +700,203 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
         
         def periodic_save_thread():
             """Arka planda periyodik kaydetme (dosya izleme ile gerçek epoch)"""
-            # Tek satırda güncellenen durum yazıcısı
-            def _make_status_printer(prefix=""):
-                last_len = 0
-                def _printer(msg: str):
-                    nonlocal last_len
-                    line = f"{prefix}{msg}"
-                    pad = max(0, last_len - len(line))
-                    sys.stdout.write("\r" + line + (" " * pad))
-                    sys.stdout.flush()
-                    last_len = len(line)
-                return _printer
-
-            status_print = _make_status_printer()
-
+            import sys
             seen_epochs = set()
             last_report = 0
+            
+            def status_print(msg):
+                """Tek satırda güncellenen status mesajı"""
+                sys.stdout.write(f"\r{msg}")
+                sys.stdout.flush()
+            
             while True:
-                time.sleep(10)  # 10 sn'de bir kontrol
                 try:
-                    weights_dir = Path(project_dir) / experiment_name / 'weights'
-                    if not weights_dir.exists():
-                        continue
-                    # DriveManager lazy init (başta kurulamadıysa yeniden dene)
+                    time.sleep(3)  # 3 saniyede bir kontrol et
+                    
+                    # Drive manager lazy loading
                     nonlocal drive_manager
                     if drive_manager is None and use_drive:
                         try:
                             from drive_manager import setup_drive_integration as _setup_dm
                             drive_manager = _setup_dm()
                             if drive_manager:
-                                print("✅ Drive entegrasyonu thread içinde kuruldu.")
-                        except Exception as _lazy_dm_err:
+                                print("\n✅ Drive entegrasyonu thread içinde kuruldu.")
+                        except Exception:
                             pass
 
-                    # epoch dosyalarını tara (hem 'epoch_XXX.pt' hem 'epochXXX.pt' destekle)
-                    epoch_files = list(weights_dir.glob('epoch_*.pt')) + list(weights_dir.glob('epoch*.pt'))
-                    for p in epoch_files:
+                    # Weights klasöründeki epoch dosyalarını kontrol et
+                    weights_dir = Path(project_dir) / experiment_name / 'weights'
+                    current_epochs = set()
+                    
+                    if weights_dir.exists():
+                        # Hem epoch_XXX.pt hem de epochXXX.pt formatlarını kontrol et
+                        epoch_files = list(weights_dir.glob('epoch*.pt'))
+                        
+                        for p in epoch_files:
+                            try:
+                                stem = p.stem  # 'epoch_XXX' veya 'epochXXX'
+                                # Daha güvenli parsing
+                                if stem.startswith('epoch_'):
+                                    num_part = stem[6:]  # 'epoch_' kısmını çıkar
+                                elif stem.startswith('epoch'):
+                                    num_part = stem[5:]  # 'epoch' kısmını çıkar
+                                else:
+                                    continue
+                                    
+                                ep = int(num_part)
+                                current_epochs.add(ep)
+                                
+                                # Yeni epoch tespit edildi ve kaydetme aralığına uygun
+                                if ep not in seen_epochs and ep > 0 and ep % int(save_interval_epochs) == 0:
+                                    seen_epochs.add(ep)
+                                    print(f"\n🎯 Epoch {ep} tespit edildi! Kaydetme aralığı: {save_interval_epochs} - Kaydetme başlatılıyor...")
+                                    save_models_periodically(project_dir, experiment_name, drive_manager, int(save_interval_epochs), ep)
+                                elif ep not in seen_epochs:
+                                    seen_epochs.add(ep)  # Görülen epoch'ları kaydet
+                                    
+                            except (ValueError, IndexError):
+                                continue
+                        
+                        # results.csv'den de kontrol et (epoch dosyası yoksa veya eksikse)
                         try:
-                            stem = p.stem  # 'epoch_XXX' veya 'epochXXX'
-                            num_part = stem.replace('epoch_', '').replace('epoch', '')
-                            ep = int(num_part)
+                            results_csv = Path(project_dir) / experiment_name / 'results.csv'
+                            if results_csv.exists():
+                                import csv
+                                with open(results_csv, 'r') as f:
+                                    reader = list(csv.reader(f))
+                                if len(reader) > 1:
+                                    header = reader[0]
+                                    epoch_idx = header.index('epoch') if 'epoch' in header else None
+                                    if epoch_idx is not None:
+                                        # Son birkaç satırı kontrol et (sadece son değil)
+                                        for row in reader[-3:]:  # Son 3 satırı kontrol et
+                                            try:
+                                                ep = int(float(row[epoch_idx]))  # Float'tan int'e çevir
+                                                current_epochs.add(ep)
+                                                
+                                                if ep not in seen_epochs and ep > 0 and ep % int(save_interval_epochs) == 0:
+                                                    seen_epochs.add(ep)
+                                                    print(f"\n📊 Results.csv'den epoch {ep} tespit edildi! Kaydetme başlatılıyor...")
+                                                    save_models_periodically(project_dir, experiment_name, drive_manager, int(save_interval_epochs), ep)
+                                                elif ep not in seen_epochs:
+                                                    seen_epochs.add(ep)
+                                            except (ValueError, IndexError):
+                                                continue
                         except Exception:
-                            continue
-
-                        if ep not in seen_epochs:
-                            seen_epochs.add(ep)
-                            if ep % int(save_interval_epochs) == 0:
-                                save_models_periodically(project_dir, experiment_name, drive_manager, int(save_interval_epochs), ep)
-
-                    # Fallback: results.csv'den son epoch'u oku
-                    try:
-                        results_csv = Path(project_dir) / experiment_name / 'results.csv'
-                        if results_csv.exists():
-                            import csv
-                            with open(results_csv, 'r') as f:
-                                reader = list(csv.reader(f))
-                            if len(reader) > 1:
-                                header = reader[0]
-                                epoch_idx = header.index('epoch') if 'epoch' in header else None
-                                if epoch_idx is not None:
-                                    last_row = reader[-1]
-                                    ep = int(last_row[epoch_idx])
-                                    if ep not in seen_epochs:
-                                        seen_epochs.add(ep)
-                                        if ep % int(save_interval_epochs) == 0:
-                                            save_models_periodically(project_dir, experiment_name, drive_manager, int(save_interval_epochs), ep)
-                    except Exception:
-                        pass
+                            pass  # CSV okuma hatası sessizce geç
 
                     # Bilgi mesajını tek satırda güncelle
                     import time as _t
                     now = _t.time()
-                    if now - last_report > 5:  # 5 sn'de bir satırı güncelle
+                    if now - last_report > 10:  # 10 sn'de bir satırı güncelle
                         last_seen = max(seen_epochs) if seen_epochs else 0
-                        status_print(f"📡 Dosya izleme aktif - son görülen epoch: {last_seen}")
+                        current_max = max(current_epochs) if current_epochs else 0
+                        status_print(f"📡 Epoch izleme aktif - Son: {current_max}, Kaydedilen: {last_seen}, Aralık: {save_interval_epochs}")
                         last_report = now
+                        
                 except Exception as e:
                     # Yeni satıra geç ve hatayı yaz
                     sys.stdout.write("\n")
                     sys.stdout.flush()
                     print(f"⚠️ Periyodik kaydetme thread hatası: {e}")
-                    break
+                    time.sleep(5)  # Hata durumunda 5 saniye bekle
+                    
             # Thread biterken yeni satıra geç
             sys.stdout.write("\n")
             sys.stdout.flush()
+    
+    # Thread'i başlat (daemon olarak)
+    if use_drive:
+        save_thread = threading.Thread(target=periodic_save_thread, daemon=True)
+        save_thread.start()
+        print(" Periyodik kaydetme thread'i başlatıldı (lazy Drive init)")
         
-        # Thread'i başlat (daemon olarak)
-        # Not: DriveManager thread içinde lazy init edildiği için drive_manager None olsa da başlatılır
-        if use_drive:
-            save_thread = threading.Thread(target=periodic_save_thread, daemon=True)
-            save_thread.start()
-            print("🔄 Periyodik kaydetme thread'i başlatıldı (lazy Drive init)")
-            
-        # Resume modunda: tespit edilen checkpoint'in klasöründeki last.pt/best.pt dosyalarını
-        # yeni deneyin weights klasörüne kopyalayarak başlangıç dosyalarını hazırla
-        try:
-            if resume_training and isinstance(model_path, str):
-                src_dir = Path(model_path).parent
-                dst_weights = Path(project_dir) / experiment_name / 'weights'
-                dst_weights.mkdir(parents=True, exist_ok=True)
-                copied_any = False
-                for fname in ['last.pt', 'best.pt']:
-                    src = src_dir / fname
-                    if src.exists():
-                        import shutil as _shutil
-                        _shutil.copy2(src, dst_weights / fname)
-                        print(f"📄 Başlangıç dosyası kopyalandı → {dst_weights / fname}")
-                        copied_any = True
-                if not copied_any:
-                    print("ℹ️ Resume için kopyalanacak last.pt/best.pt bulunamadı (devam ediliyor).")
-        except Exception as prep_e:
-            print(f"⚠️ Resume başlangıç dosyaları kopyalanırken hata: {prep_e}")
+    # Resume modunda: tespit edilen checkpoint'in klasöründeki last.pt/best.pt dosyalarını
+    # yeni deneyin weights klasörüne kopyalayarak başlangıç dosyalarını hazırla
+    try:
+        if resume_training and isinstance(model_path, str):
+            src_dir = Path(model_path).parent
+            dst_weights = Path(project_dir) / experiment_name / 'weights'
+            dst_weights.mkdir(parents=True, exist_ok=True)
+            copied_any = False
+            for fname in ['last.pt', 'best.pt']:
+                src = src_dir / fname
+                if src.exists():
+                    import shutil as _shutil
+                    _shutil.copy2(src, dst_weights / fname)
+                    print(f" Başlangıç dosyası kopyalandı → {dst_weights / fname}")
+                    copied_any = True
+            if not copied_any:
+                print(" Resume için kopyalanacak last.pt/best.pt bulunamadı (devam ediliyor).")
+    except Exception as prep_e:
+        print(f"⚠️ Resume başlangıç dosyaları kopyalanırken hata: {prep_e}")
 
+    try:
         # Model eğitimini başlat
         results = model.train(**train_args)
         
-        # Eğitim tamamlandıktan sonra final kaydetme işlemleri
-        print(f"\n🎯 Eğitim tamamlandı! Belirlenen aralık: {save_interval_epochs} epoch")
-        
-        # Eğitim sonunda final model kaydetme (Drive API ve dosya sistemi)
+    except Exception as training_error:
+        print(f"❌ Eğitim hatası: {training_error}")
+        results = None
+    
+    # Eğitim tamamlandıktan sonra final kaydetme işlemleri
+    try:
         if results is not None:
-            print("\n🎯 Final modeller kaydediliyor...")
+            print(f"\n🎯 Eğitim tamamlandı! Belirlenen aralık: {save_interval_epochs} epoch")
+        else:
+            print(f"\n⚠️ Eğitim tamamlanamadı veya kesildi. Mevcut modeller kaydediliyor...")
+            
+        # Eğitim sonunda final model kaydetme (Drive API ve dosya sistemi)
+        print("\n🎯 Final modeller kaydediliyor...")
 
-            save_dir = os.path.join(project_dir, experiment_name)
-            best_path = os.path.join(save_dir, "weights", "best.pt")
-            last_path = os.path.join(save_dir, "weights", "last.pt")
-            final_epoch = train_args.get('epochs', 100)
+        save_dir = os.path.join(project_dir, experiment_name)
+        best_path = os.path.join(save_dir, "weights", "best.pt")
+        last_path = os.path.join(save_dir, "weights", "last.pt")
+        final_epoch = train_args.get('epochs', 100)
 
-            # 1) Drive API ile yükleme (eğer etkinse)
-            if use_drive and drive_manager:
-                # last.pt ve best.pt yedekle
-                if os.path.exists(best_path):
-                    drive_manager.upload_model(best_path, 'best.pt')
+        # 1) Drive API ile yükleme (eğer etkinse)
+        if use_drive and drive_manager:
+            # last.pt ve best.pt yedekle
+            if os.path.exists(best_path):
+                drive_manager.upload_model(best_path, 'best.pt')
+            if os.path.exists(last_path):
+                drive_manager.upload_model(last_path, 'last.pt')
+
+            # Tüm weights klasörünü timestamp'li klasöre kopyala (Colab yolu öncelikli)
+            candidates = [
+                '/content/SmartFarm/runs/train/exp/weights',
+                f"/content/SmartFarm/runs/train/{experiment_name}/weights",
+                os.path.join(save_dir, 'weights')
+            ]
+            local_weights_dir = next((p for p in candidates if os.path.isdir(p)), None)
+            if local_weights_dir:
+                print(f"📁 Weights klasörü Drive'a kopyalanıyor: {local_weights_dir} → checkpoints/weights")
+                drive_manager.copy_directory_to_drive(local_weights_dir, target_rel_path='checkpoints/weights')
+            else:
+                print("📁 Kopyalanacak weights klasörü bulunamadı.")
                 if os.path.exists(last_path):
-                    drive_manager.upload_model(last_path, 'last.pt')
-
-                # Tüm weights klasörünü timestamp'li klasöre kopyala (Colab yolu öncelikli)
-                candidates = [
-                    '/content/SmartFarm/runs/train/exp/weights',
-                    f"/content/SmartFarm/runs/train/{experiment_name}/weights",
-                    os.path.join(save_dir, 'weights')
-                ]
-                local_weights_dir = next((p for p in candidates if os.path.isdir(p)), None)
-                if local_weights_dir:
-                    print(f" Weights klasörü Drive'a kopyalanıyor: {local_weights_dir} → checkpoints/weights")
-                    drive_manager.copy_directory_to_drive(local_weights_dir, target_rel_path='checkpoints/weights')
-                else:
-                    print(" Kopyalanacak weights klasörü bulunamadı.")
                     ok_last_name = drive_manager.upload_model(last_path, 'last.pt')
                     ok_last_epoch = drive_manager.upload_model(last_path, f'epoch_{final_epoch:03d}.pt')
                     if ok_last_name and ok_last_epoch:
                         print("✅ Final last.pt yüklendi (last.pt ve epoch_*.pt)")
                     else:
                         print("❌ Final last.pt yükleme başarısız. Ayrıntılar yukarıdaki loglarda.")
-                print("\n📋 Drive'daki tüm modeller:")
-                drive_manager.list_drive_models()
+            print("\n📋 Drive'daki tüm modeller:")
+            drive_manager.list_drive_models()
 
-            # 2) Dosya sistemine kopyalama (Drive mount edilen dizine)
-            if drive_save_dir:
-                try:
-                    os.makedirs(drive_save_dir, exist_ok=True)
-                    if os.path.exists(best_path):
-                        shutil.copy(best_path, os.path.join(drive_save_dir, "best.pt"))
-                        print(f"💾 Final best.pt kopyalandı → {os.path.join(drive_save_dir, 'best.pt')}")
-                    if os.path.exists(last_path):
-                        shutil.copy(last_path, os.path.join(drive_save_dir, "last.pt"))
-                        print(f"💾 Final last.pt kopyalandı → {os.path.join(drive_save_dir, 'last.pt')}")
-                except Exception as copy_e:
-                    print(f"Final kopyalama hatası: {copy_e}")
+        # 2) Dosya sistemine kopyalama (Drive mount edilen dizine)
+        if drive_save_dir:
+            try:
+                import shutil
+                os.makedirs(drive_save_dir, exist_ok=True)
+                if os.path.exists(best_path):
+                    shutil.copy(best_path, os.path.join(drive_save_dir, "best.pt"))
+                    print(f"💾 Final best.pt kopyalandı → {os.path.join(drive_save_dir, 'best.pt')}")
+                if os.path.exists(last_path):
+                    shutil.copy(last_path, os.path.join(drive_save_dir, "last.pt"))
+                    print(f"💾 Final last.pt kopyalandı → {os.path.join(drive_save_dir, 'last.pt')}")
+            except Exception as copy_e:
+                print(f"❌ Final kopyalama hatası: {copy_e}")
         
         # Show memory status after training
         show_memory_usage("After Training")
@@ -889,8 +917,9 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
                 pass
         
         return results
-    except Exception as e:
-        print(f"Error during training: {e}")
+        
+    except Exception as final_error:
+        print(f"❌ Final kaydetme hatası: {final_error}")
         import traceback
         traceback.print_exc()
         
@@ -900,7 +929,7 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
             
-        return None
+        return results if 'results' in locals() else None
 
 def save_to_drive(options, results=None):
     """Save trained model to Google Drive (for Colab)"""
