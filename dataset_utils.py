@@ -144,18 +144,20 @@ def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None,
     # Build robust download URL
     download_url = build_roboflow_download_url(url, api_key, split_config)
     # ÖNLEYİCİ DÖNÜŞÜM: Universe kısa bağlantıları (/ds/<hash>) çoğunlukla HTML döndürür.
-    # ZIP'i garantiye almak için mümkünse API endpoint URL'sine dönüştürelim.
+    # Ancak API key varsa API endpoint'e çevirelim; yoksa orijinal DS linkini koru (public için).
     try:
         parsed0 = urlparse(download_url)
         if "universe.roboflow.com" in parsed0.netloc and parsed0.path.startswith("/ds/"):
             q0 = parse_qs(parsed0.query)
             effective_key = api_key or (q0.get("key", [None])[0])
-            if effective_key:
+            if effective_key and api_key:  # Sadece kullanıcı API key'i varsa dönüştür
                 ws, prj, ver = _resolve_universe_ds_to_canonical(url)
                 if ws and prj and ver:
                     api_like = _build_api_endpoint_url(ws, prj, ver, effective_key, split_config)
                     print(f"🔁 DS link API endpoint'e dönüştürüldü: {api_like[:100]}...")
                     download_url = api_like
+            elif not api_key:
+                print(f"ℹ️ API key yok, DS link public dataset için olduğu gibi kullanılacak")
     except Exception:
         pass
     if api_key:
@@ -252,6 +254,18 @@ def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None,
                         print(f"🔁 403 sonrası API endpoint ile denenecek: {api_url}")
                         download_url = api_url
                         continue
+                else:
+                    # API key yoksa, public dataset için orijinal URL'yi farklı yöntemlerle dene
+                    print(f"ℹ️ API key yok, public dataset için alternatif yöntemler denenecek")
+                    # Orijinal URL'yi session ile tekrar dene (cookie/redirect için)
+                    try:
+                        original_response = session.get(url, timeout=60, allow_redirects=True)
+                        if original_response.url != url and original_response.url.endswith('.zip'):
+                            print(f"🔁 Orijinal URL redirect ile ZIP bulundu: {original_response.url}")
+                            download_url = original_response.url
+                            continue
+                    except Exception:
+                        pass
                 raise requests.exceptions.HTTPError(f"403 Forbidden - API key gerekli olabilir")
             elif response.status_code == 404:
                 print(f"❌ 404 Not Found - Dataset bulunamadı")
