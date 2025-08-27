@@ -7,8 +7,93 @@ import urllib.request
 import zipfile
 import shutil
 from pathlib import Path
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 # dataset_utils.py dosyasındaki download_dataset fonksiyonunu bu şekilde değiştirin:
+
+def build_roboflow_download_url(src_url: str, api_key: str | None, split_config: dict | None) -> str:
+    """Build a robust Roboflow download URL for both Universe and API endpoints.
+
+    Supported patterns:
+    - Universe DS link: https://universe.roboflow.com/ds/<hash> (use key=, optional split)
+    - Universe download link: https://universe.roboflow.com/<ws>/<project>/download/<version>/<format>
+      (ensure format in path; append key= and optional split)
+    - API endpoint: https://api.roboflow.com/... (use api_key= and format=yolov8)
+    """
+    parsed = urlparse(src_url)
+    host = parsed.netloc.lower()
+
+    # Helper: build split string
+    split_str = None
+    if split_config and all(k in split_config for k in ("train", "test", "val")):
+        split_str = f"{split_config['train']}-{split_config['test']}-{split_config['val']}"
+
+    # Case 1: Universe
+    if "universe.roboflow.com" in host:
+        path = parsed.path.rstrip('/')
+        existing_q = parse_qs(parsed.query)
+
+        # a) DS short link: /ds/<hash>
+        if path.startswith("/ds/"):
+            # Keep path as-is, merge query params
+            params = dict((k, v[:]) for k, v in existing_q.items())
+            if api_key:
+                params["key"] = [api_key]
+            if split_str:
+                params["split"] = [split_str]
+            new_query = urlencode({k: v[0] for k, v in params.items()}, doseq=True)
+            new_url = urlunparse((parsed.scheme, parsed.netloc, path, "", new_query, ""))
+            return new_url
+
+        # b) Download link: /<ws>/<project>/download/<version>[/<format>]
+        if "/download/" in path:
+            parts = path.split('/')
+            # Ensure last part is a known format; default to yolov8
+            known_formats = {"yolov5", "yolov7", "yolov8", "yolo", "voc", "coco"}
+            if parts[-1] not in known_formats:
+                parts.append("yolov8")
+                path = "/".join(filter(None, parts))
+
+            params = dict((k, v[:]) for k, v in existing_q.items())
+            if api_key:
+                params["key"] = [api_key]
+            if split_str:
+                params["split"] = [split_str]
+            new_query = urlencode({k: v[0] for k, v in params.items()}, doseq=True)
+            new_url = urlunparse((parsed.scheme, parsed.netloc, path, "", new_query, ""))
+            return new_url
+
+        # Fallback for other universe links: pass through with key/split
+        params = dict((k, v[:]) for k, v in existing_q.items())
+        if api_key:
+            params["key"] = [api_key]
+        if split_str:
+            params["split"] = [split_str]
+        new_query = urlencode({k: v[0] for k, v in params.items()}, doseq=True)
+        return urlunparse((parsed.scheme, parsed.netloc, path, "", new_query, ""))
+
+    # Case 2: API endpoint
+    if "api.roboflow.com" in host:
+        path = parsed.path
+        q = parse_qs(parsed.query)
+        q["format"] = ["yolov8"]  # Use YOLOv8 by default
+        if api_key:
+            q["api_key"] = [api_key]
+        if split_str:
+            q["split"] = [split_str]
+        new_query = urlencode({k: v[0] for k, v in q.items()}, doseq=True)
+        return urlunparse((parsed.scheme, parsed.netloc, path, "", new_query, ""))
+
+    # Case 3: Unknown host – keep as-is, optionally append api_key/split
+    q = parse_qs(parsed.query)
+    if api_key and "api_key" not in q and "key" not in q:
+        # Prefer 'api_key' for non-universe unknowns
+        q["api_key"] = [api_key]
+    if split_str:
+        q["split"] = [split_str]
+    new_query = urlencode({k: v[0] for k, v in q.items()}, doseq=True)
+    return urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", new_query, ""))
+
 
 def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None, split_config=None):
     """Download YOLO formatted dataset from Roboflow with improved error handling and API key support"""
@@ -17,29 +102,12 @@ def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None,
     # Create target directory
     os.makedirs(dataset_dir, exist_ok=True)
 
-    # Prepare download URL based on API key availability and split config
-    if "universe.roboflow.com" in url:
-        base_url = url.split('?')[0]  # Remove existing parameters
-        params = ["format=yolov5"]
-        
-        if api_key:
-            params.append(f"key={api_key}")
-            print(f"🔑 API key kullanılıyor: {api_key[:10]}...")
-            
-            # Split config varsa ekle
-            if split_config:
-                params.append(f"split={split_config['train']}-{split_config['test']}-{split_config['val']}")
-                print(f"📊 Özel bölümleme: Train %{split_config['train']}, Test %{split_config['test']}, Val %{split_config['val']}")
-            else:
-                print("📊 Varsayılan bölümleme kullanılıyor")
-        else:
-            print("🌐 Public dataset olarak indiriliyor (API key yok)")
-        
-        download_url = f"{base_url}?{'&'.join(params)}"
-    else:
-        # Direct download URL
-        download_url = url
-        print("🔗 Direkt URL kullanılıyor")
+    # Build robust download URL
+    download_url = build_roboflow_download_url(url, api_key, split_config)
+    if api_key:
+        print(f"🔑 API key aktif (ilk 10): {api_key[:10]}...")
+    if split_config:
+        print(f"📊 Bölümleme: train={split_config.get('train')} test={split_config.get('test')} val={split_config.get('val')}")
     
     zip_path = os.path.join(dataset_dir, 'dataset.zip')
 
@@ -73,6 +141,7 @@ def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None,
             session.headers.update(headers)
             
             response = session.get(download_url, timeout=300, stream=True, allow_redirects=True)
+            print(f"🔎 HTTP durum: {response.status_code}")
             
             # Detaylı hata kontrolü
             if response.status_code == 403:
