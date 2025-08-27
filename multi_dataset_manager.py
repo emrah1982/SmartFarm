@@ -72,9 +72,9 @@ class YAMLBasedMultiDatasetManager:
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s',
             handlers=[
-                logging.FileHandler('multi_dataset_manager.log'),
                 logging.StreamHandler()
-            ]
+            ],
+            force=True # Override any existing configuration
         )
         self.logger = logging.getLogger(__name__)
     

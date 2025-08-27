@@ -3,14 +3,18 @@
 
 import os
 import yaml
-import urllib.request
+import requests
+from tqdm import tqdm
 import zipfile
-import shutil
+import time
+import re
+import traceback
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 import requests
 
 # dataset_utils.py dosyasındaki download_dataset fonksiyonunu bu şekilde değiştirin:
+
 
 def build_roboflow_download_url(src_url: str, api_key: str | None, split_config: dict | None) -> str:
     """Build a robust Roboflow download URL for both Universe and API endpoints.
@@ -23,6 +27,18 @@ def build_roboflow_download_url(src_url: str, api_key: str | None, split_config:
     """
     parsed = urlparse(src_url)
     host = parsed.netloc.lower()
+
+    # Early return: if this looks like a direct ZIP or a signed URL, do NOT modify
+    path_lower = parsed.path.lower()
+    if path_lower.endswith('.zip'):
+        return src_url
+    q_early = parse_qs(parsed.query)
+    signed_keys = {
+        'x-amz-signature', 'x-amz-credential', 'x-amz-algorithm', 'x-amz-date',
+        'x-amz-signedheaders', 'x-amz-expires', 'expires', 'signature', 'token', 'sig'
+    }
+    if any(k.lower() in {key.lower() for key in q_early.keys()} for k in signed_keys):
+        return src_url
 
     # Helper: build split string
     split_str = None
@@ -51,6 +67,9 @@ def build_roboflow_download_url(src_url: str, api_key: str | None, split_config:
             parts = path.split('/')
             # Ensure last part is a known format; default to yolov8
             known_formats = {"yolov5", "yolov7", "yolov8", "yolo", "voc", "coco"}
+            # If URL already has signature/token parameters, return as-is to avoid breaking signed links
+            if any(k.lower() in {key.lower() for key in existing_q.keys()} for k in ['token', 'signature', 'sig', 'x-amz-signature', 'expires']):
+                return src_url
             if parts[-1] not in known_formats:
                 parts.append("yolov8")
                 path = "/".join(filter(None, parts))
@@ -135,6 +154,7 @@ def _build_api_endpoint_url(workspace: str, project: str, version: str, api_key:
     return f"https://api.roboflow.com{path}?{urlencode(q)}"
 
 def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None, split_config=None):
+    print(f"[DEBUG] download_dataset called for URL: {url}")
     """Download YOLO formatted dataset from Roboflow with improved error handling and API key support"""
     print(f'📥 Dataset indiriliyor: {url}')
 
@@ -169,6 +189,7 @@ def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None,
 
     # Try multiple download methods
     for attempt in range(3):
+        print(f"[DEBUG] Attempt {attempt + 1}")
         try:
             print(f"Download attempt {attempt + 1}/3")
             
@@ -295,6 +316,17 @@ def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None,
             content_type = response.headers.get('content-type', '')
             if 'zip' not in content_type and 'octet-stream' not in content_type:
                 print(f"⚠️ Beklenmeyen content-type: {content_type}")
+                
+                # Cloudflare "Just a moment" kontrolü
+                if "Just a moment" in response.text or "challenge" in response.text.lower():
+                    print(f"🛡️ Cloudflare bot koruması tespit edildi!")
+                    print(f"💡 Bu DS linki programatik erişime kapalı. Alternatif çözümler:")
+                    print(f"   1. Roboflow hesabınızdan gerçek API key alın")
+                    print(f"   2. Dataset'i manuel indirip klasöre koyun")
+                    print(f"   3. Public dataset linkini Roboflow'dan yeniden alın")
+                    # Bu durumda devam etmeye gerek yok
+                    break
+                
                 # HTML dönerse içerisinden .zip linki çekmeyi dene
                 try:
                     text_snippet = response.text[:2000]
@@ -401,12 +433,18 @@ def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None,
             return True
             
         except requests.exceptions.HTTPError as e:
+            print("--- TRACEBACK START ---")
+            traceback.print_exc()
+            print("--- TRACEBACK END ---")
             print(f"❌ HTTP Hatası (Deneme {attempt + 1}/3): {e}")
             if "403" in str(e):
-                print(f"🔑 API anahtarı sorunu tespit edildi")
+                print(f"🔑 API anahtarı sorunu tespit edildi. Bu genellikle Roboflow URL'sindeki `?key=` parametresinin geçersiz veya süresinin dolmuş olmasından kaynaklanır.")
+                print(f"💡 Çözüm Önerileri:")
+                print(f"   1. `config_datasets.yaml` dosyasındaki ilgili veri seti URL'sini güncel bir Roboflow 'public' linki ile değiştirin.")
+                print(f"   2. Roboflow hesabınızdan kişisel bir API anahtarı alıp `roboflow_api_helper.py` üzerinden sisteme tanıtın.")
                 if attempt == 2:
-                    print(f"💡 Son çözüm önerisi: Roboflow hesabınızdan yeni API key alın")
-                    return False
+                    print(f"   3. Tüm denemeler başarısız oldu. Lütfen URL'leri kontrol edin.")
+                    return False # Stop after the last attempt
             elif "404" in str(e):
                 print(f"📂 Dataset bulunamadı - URL'yi kontrol edin")
                 return False
@@ -421,6 +459,8 @@ def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None,
             print(f'❌ Bozuk ZIP dosyası (Deneme {attempt + 1}/3)')
         except Exception as e:
             print(f"❌ Genel hata (Deneme {attempt + 1}/3): {e}")
+        finally:
+            print(f"[DEBUG] End of attempt {attempt + 1}")
             
         if attempt == 2:  # Last attempt
             print("❌ Tüm indirme denemeleri başarısız")

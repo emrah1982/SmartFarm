@@ -83,6 +83,9 @@ def setup_colab_environment():
         # YOLO ve ML kütüphaneleri
         "ultralytics>=8.2.0",
         
+        # Roboflow inference kütüphanesi
+        "inference",
+        
         # Görüntü işleme (opencv-python yerine headless versiyon)
         "opencv-python-headless>=4.7.0",
         
@@ -153,6 +156,7 @@ def verify_installation():
     
     test_imports = [
         ('ultralytics', 'YOLO'),
+        ('inference', 'Roboflow Inference'),
         ('cv2', 'OpenCV'),
         ('albumentations', 'Albumentations'),
         ('google.auth', 'Google Auth'),

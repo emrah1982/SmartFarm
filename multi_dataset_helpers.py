@@ -50,32 +50,56 @@ class DatasetAnalyzer:
         for i, dataset in enumerate(self.manager.datasets):
             print(f"\n[{i+1}/{len(self.manager.datasets)}] Downloading: {dataset['name']}")
             print(f"📝 {dataset.get('description', 'No description')}")
-            print(f"🔗 URL: {dataset['url']}")
+
+            # Choose URL strategy per dataset
+            chosen_url = dataset.get('url')
+            strategy = 'base_url'
+
+            # 1) If a signed direct URL is provided, prefer it (no API key required)
+            if dataset.get('url_signed'):
+                chosen_url = dataset['url_signed']
+                strategy = 'signed_url'
+            else:
+                # 2) If api_key exists and canonical is provided, build API endpoint URL
+                canonical = dataset.get('roboflow_canonical')  # expected: "workspace/project/version"
+                if api_key and canonical and canonical.count('/') == 2:
+                    try:
+                        ws, prj, ver = canonical.split('/')
+                        # Build API URL directly to avoid Cloudflare
+                        split_suffix = ''
+                        if split_config and all(k in split_config for k in ('train', 'test', 'val')):
+                            split_suffix = f"&split={split_config['train']}-{split_config['test']}-{split_config['val']}"
+                        chosen_url = (
+                            f"https://api.roboflow.com/dataset/{ws}/{prj}/{ver}?api_key={api_key}"
+                            f"&format=yolov8{split_suffix}"
+                        )
+                        strategy = 'api_endpoint_from_canonical'
+                    except Exception:
+                        chosen_url = dataset.get('url')
+                        strategy = 'base_url'
+
+            print(f"🔗 URL Strategy: {strategy}")
+            print(f"🔗 Using URL: {chosen_url}")
             
-            try:
-                success = download_dataset(dataset['url'], dataset['local_path'], api_key=api_key, split_config=split_config)
-                if not success:
-                    print(f"❌ ERROR: {dataset['name']} could not be downloaded!")
-                    failed_downloads.append(dataset['name'])
-                    continue
-                
-                successful_downloads += 1
-                
-                # Read class information
-                data_yaml = os.path.join(dataset['local_path'], 'data.yaml')
-                if os.path.exists(data_yaml):
-                    with open(data_yaml, 'r') as f:
-                        data = yaml.safe_load(f)
-                        dataset['classes'] = data.get('names', [])
-                        print(f"✅ Classes found: {dataset['classes']}")
-                
-                # Analyze dataset distribution
-                stats = self._analyze_dataset_distribution(dataset)
-                download_stats[dataset['name']] = stats
-                
-            except Exception as e:
-                print(f"❌ Exception during download of {dataset['name']}: {e}")
+            success = download_dataset(chosen_url, dataset['local_path'], api_key=api_key, split_config=split_config)
+            if not success:
+                print(f"❌ ERROR: {dataset['name']} could not be downloaded!")
                 failed_downloads.append(dataset['name'])
+                continue
+            
+            successful_downloads += 1
+            
+            # Read class information
+            data_yaml = os.path.join(dataset['local_path'], 'data.yaml')
+            if os.path.exists(data_yaml):
+                with open(data_yaml, 'r') as f:
+                    data = yaml.safe_load(f)
+                    dataset['classes'] = data.get('names', [])
+                    print(f"✅ Classes found: {dataset['classes']}")
+            
+            # Analyze dataset distribution
+            stats = self._analyze_dataset_distribution(dataset)
+            download_stats[dataset['name']] = stats
         
         # Summary
         print(f"\n📊 Download Summary:")
