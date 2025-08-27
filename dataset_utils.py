@@ -170,6 +170,9 @@ def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None,
                     current_format = q.get("format", ["yolov8"])[0]
                     alt_format = "yolov5" if current_format != "yolov5" else "yolov8"
                     q["format"] = [alt_format]
+                    # Ayrıca split parametresini kaldırıp deneyelim
+                    if "split" in q:
+                        del q["split"]
                     new_query = urlencode({k: v[0] for k, v in q.items()}, doseq=True)
                     download_url = urlunparse((parsed_dl.scheme, parsed_dl.netloc, parsed_dl.path, "", new_query, ""))
                     print(f"🔁 403 sonrası alternatif format ile yeniden denenecek: format={alt_format}")
@@ -189,7 +192,32 @@ def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None,
             # Check if response is actually a ZIP file
             content_type = response.headers.get('content-type', '')
             if 'zip' not in content_type and 'octet-stream' not in content_type:
-                print(f"Warning: Unexpected content type: {content_type}")
+                print(f"⚠️ Beklenmeyen content-type: {content_type}")
+                # HTML dönerse içerisinden .zip linki çekmeyi dene
+                try:
+                    text_snippet = response.text[:2000]
+                    import re
+                    zip_links = re.findall(r'href=["\']([^"\']+\.zip)["\']', text_snippet, flags=re.IGNORECASE)
+                    if zip_links:
+                        candidate = zip_links[0]
+                        # Mutlak URL değilse ana host ile birleştir
+                        from urllib.parse import urljoin
+                        candidate_url = urljoin(download_url, candidate)
+                        print(f"🔁 HTML içinden zip bulundu, yeniden denenecek: {candidate_url}")
+                        download_url = candidate_url
+                        # Bir sonraki denemeye geç
+                        continue
+                    else:
+                        # Orijinal URL'yi dene ve redirect son URL'yi kullan
+                        print("🔁 HTML döndü, orijinal URL üzerinden redirect takip edilecek")
+                        head = session.get(url, timeout=60, allow_redirects=True)
+                        final_url = head.url
+                        if final_url.endswith('.zip'):
+                            print(f"🔁 Redirect ile zip bulundu: {final_url}")
+                            download_url = final_url
+                            continue
+                except Exception as _:
+                    pass
             
             # Download with progress
             total_size = int(response.headers.get('content-length', 0))
