@@ -8,6 +8,7 @@ import zipfile
 import shutil
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+import requests
 
 # dataset_utils.py dosyasındaki download_dataset fonksiyonunu bu şekilde değiştirin:
 
@@ -98,6 +99,44 @@ def build_roboflow_download_url(src_url: str, api_key: str | None, split_config:
     return urlunparse((parsed.scheme, parsed.netloc, parsed.path, "", new_query, ""))
 
 
+def _resolve_universe_ds_to_canonical(ds_url: str, session: requests.Session | None = None) -> tuple[str | None, str | None, str | None]:
+    """Try to resolve a universe short link /ds/<hash> to (workspace, project, version) by reading the HTML.
+    Returns (workspace, project, version) or (None, None, None) if it cannot be resolved.
+    """
+    try:
+        sess = session or requests.Session()
+        resp = sess.get(ds_url, timeout=60, allow_redirects=True)
+        if resp.status_code != 200:
+            return (None, None, None)
+        html = resp.text
+        import re
+        # Look for canonical download link pattern: /<ws>/<project>/download/<version>
+        m = re.search(r"https?://universe\.roboflow\.com/([\w-]+)/([\w-]+)/download/(\d+)", html)
+        if not m:
+            # Also try dataset page form: /<ws>/<project>/dataset/(\d+)
+            m2 = re.search(r"https?://universe\.roboflow\.com/([\w-]+)/([\w-]+)/dataset/(\d+)", html)
+            if not m2:
+                return (None, None, None)
+            return (m2.group(1), m2.group(2), m2.group(3))
+        return (m.group(1), m.group(2), m.group(3))
+    except Exception:
+        return (None, None, None)
+
+
+def _build_api_endpoint_url(workspace: str, project: str, version: str, api_key: str, split_config: dict | None) -> str:
+    """Build Roboflow API download endpoint using workspace/project/version and api_key."""
+    from urllib.parse import urlencode
+    q = {
+        "api_key": api_key,
+        "format": "yolov8",
+    }
+    if split_config and all(k in split_config for k in ("train", "test", "val")):
+        q["split"] = f"{split_config['train']}-{split_config['test']}-{split_config['val']}"
+    # API path: https://api.roboflow.com/dataset/{workspace}/{project}/{version}
+    # Some docs show dataset identifier as {workspace}/{project}
+    path = f"/dataset/{workspace}/{project}/{version}"
+    return f"https://api.roboflow.com{path}?{urlencode(q)}"
+
 def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None, split_config=None):
     """Download YOLO formatted dataset from Roboflow with improved error handling and API key support"""
     print(f'📥 Dataset indiriliyor: {url}')
@@ -178,6 +217,18 @@ def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None,
                     print(f"🔁 403 sonrası alternatif format ile yeniden denenecek: format={alt_format}")
                     # Bir sonraki döngü denemesine geç
                     continue
+                # Eğer API key varsa, universe ds linklerini API endpoint'e çözümlemeyi dene
+                if api_key:
+                    ws, prj, ver = (None, None, None)
+                    try:
+                        ws, prj, ver = _resolve_universe_ds_to_canonical(url, session)
+                    except Exception:
+                        pass
+                    if ws and prj and ver:
+                        api_url = _build_api_endpoint_url(ws, prj, ver, api_key, split_config)
+                        print(f"🔁 403 sonrası API endpoint ile denenecek: {api_url}")
+                        download_url = api_url
+                        continue
                 raise requests.exceptions.HTTPError(f"403 Forbidden - API key gerekli olabilir")
             elif response.status_code == 404:
                 print(f"❌ 404 Not Found - Dataset bulunamadı")

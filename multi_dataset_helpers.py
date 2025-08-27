@@ -11,6 +11,11 @@ import json
 import random
 from datetime import datetime
 from augmentation_utils import YOLOAugmentationPipeline
+try:
+    from roboflow_api_helper import get_api_key_from_config
+except Exception:
+    def get_api_key_from_config():
+        return None
 
 class DatasetAnalyzer:
     """Dataset analysis and download operations"""
@@ -27,6 +32,14 @@ class DatasetAnalyzer:
         download_stats = {}
         
         from dataset_utils import download_dataset
+        # Try to get a Roboflow API key (optional). If present, use for all downloads.
+        api_key = None
+        try:
+            api_key = get_api_key_from_config()
+            if api_key:
+                print(f"🔑 Roboflow API key bulundu (ilk 10): {api_key[:10]}...")
+        except Exception:
+            api_key = None
         
         for i, dataset in enumerate(self.manager.datasets):
             print(f"\n[{i+1}/{len(self.manager.datasets)}] Downloading: {dataset['name']}")
@@ -34,7 +47,7 @@ class DatasetAnalyzer:
             print(f"🔗 URL: {dataset['url']}")
             
             try:
-                success = download_dataset(dataset['url'], dataset['local_path'])
+                success = download_dataset(dataset['url'], dataset['local_path'], api_key=api_key)
                 if not success:
                     print(f"❌ ERROR: {dataset['name']} could not be downloaded!")
                     failed_downloads.append(dataset['name'])
