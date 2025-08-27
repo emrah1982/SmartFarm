@@ -37,6 +37,9 @@ def build_roboflow_download_url(src_url: str, api_key: str | None, split_config:
         if path.startswith("/ds/"):
             # Keep path as-is, merge query params
             params = dict((k, v[:]) for k, v in existing_q.items())
+            # Ensure format is present (yolov8 default)
+            if "format" not in params:
+                params["format"] = ["yolov8"]
             if api_key:
                 params["key"] = [api_key]
             if split_str:
@@ -139,6 +142,11 @@ def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None,
             # Session kullanarak cookie ve redirect yönetimi
             session = requests.Session()
             session.headers.update(headers)
+            # Bazı Roboflow yönlendirmeleri Referer bekleyebilir
+            try:
+                session.headers["Referer"] = url
+            except Exception:
+                pass
             
             response = session.get(download_url, timeout=300, stream=True, allow_redirects=True)
             print(f"🔎 HTTP durum: {response.status_code}")
@@ -154,6 +162,19 @@ def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None,
                 print(f"   • API key ekleyin: download_dataset(url, api_key='your_key')")
                 print(f"   • Dataset'in public olduğundan emin olun")
                 print(f"   • Birkaç dakika bekleyip tekrar deneyin")
+                # 403 için format fallback denemesi (universe + ds/download linkleri)
+                from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+                parsed_dl = urlparse(download_url)
+                if "universe.roboflow.com" in parsed_dl.netloc:
+                    q = parse_qs(parsed_dl.query)
+                    current_format = q.get("format", ["yolov8"])[0]
+                    alt_format = "yolov5" if current_format != "yolov5" else "yolov8"
+                    q["format"] = [alt_format]
+                    new_query = urlencode({k: v[0] for k, v in q.items()}, doseq=True)
+                    download_url = urlunparse((parsed_dl.scheme, parsed_dl.netloc, parsed_dl.path, "", new_query, ""))
+                    print(f"🔁 403 sonrası alternatif format ile yeniden denenecek: format={alt_format}")
+                    # Bir sonraki döngü denemesine geç
+                    continue
                 raise requests.exceptions.HTTPError(f"403 Forbidden - API key gerekli olabilir")
             elif response.status_code == 404:
                 print(f"❌ 404 Not Found - Dataset bulunamadı")
