@@ -146,6 +146,21 @@ def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None,
 
     # Build robust download URL
     download_url = build_roboflow_download_url(url, api_key, split_config)
+    # ÖNLEYİCİ DÖNÜŞÜM: Universe kısa bağlantıları (/ds/<hash>) çoğunlukla HTML döndürür.
+    # ZIP'i garantiye almak için mümkünse API endpoint URL'sine dönüştürelim.
+    try:
+        parsed0 = urlparse(download_url)
+        if "universe.roboflow.com" in parsed0.netloc and parsed0.path.startswith("/ds/"):
+            q0 = parse_qs(parsed0.query)
+            effective_key = api_key or (q0.get("key", [None])[0])
+            if effective_key:
+                ws, prj, ver = _resolve_universe_ds_to_canonical(url)
+                if ws and prj and ver:
+                    api_like = _build_api_endpoint_url(ws, prj, ver, effective_key, split_config)
+                    print(f"🔁 DS link API endpoint'e dönüştürüldü: {api_like[:100]}...")
+                    download_url = api_like
+    except Exception:
+        pass
     if api_key:
         print(f"🔑 API key aktif (ilk 10): {api_key[:10]}...")
     if split_config:
@@ -309,6 +324,37 @@ def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None,
 
             # Remove ZIP file
             os.remove(zip_path)
+
+            # If extracted content is a single top-level directory, flatten it
+            try:
+                entries = [e for e in os.listdir(dataset_dir) if e not in ['.DS_Store']]
+                if len(entries) == 1:
+                    only_entry = os.path.join(dataset_dir, entries[0])
+                    if os.path.isdir(only_entry):
+                        print(f"🧹 Tek üst klasör tespit edildi: {entries[0]} -> düzleştiriliyor...")
+                        for item in os.listdir(only_entry):
+                            src = os.path.join(only_entry, item)
+                            dst = os.path.join(dataset_dir, item)
+                            if os.path.exists(dst):
+                                # Merge: if directory, move contents; if file, overwrite
+                                if os.path.isdir(src) and os.path.isdir(dst):
+                                    for sub in os.listdir(src):
+                                        shutil.move(os.path.join(src, sub), os.path.join(dst, sub))
+                                else:
+                                    try:
+                                        os.remove(dst)
+                                    except Exception:
+                                        pass
+                                    shutil.move(src, dst)
+                            else:
+                                shutil.move(src, dst)
+                        # Remove the now-empty top-level directory
+                        try:
+                            os.rmdir(only_entry)
+                        except Exception:
+                            pass
+            except Exception as _:
+                pass
 
             # Fix directory structure
             fix_directory_structure(dataset_dir)
