@@ -10,25 +10,45 @@ from pathlib import Path
 
 # dataset_utils.py dosyasındaki download_dataset fonksiyonunu bu şekilde değiştirin:
 
-def download_dataset(url, dataset_dir='datasets/roboflow_dataset'):
-    """Download YOLO formatted dataset from Roboflow with improved error handling"""
-    print(f'Downloading dataset: {url}')
+def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None):
+    """Download YOLO formatted dataset from Roboflow with improved error handling and API key support"""
+    print(f'📥 Dataset indiriliyor: {url}')
 
     # Create target directory
     os.makedirs(dataset_dir, exist_ok=True)
 
-    # Prepare download URL with better format handling
-    if "universe.roboflow.com" in url:
-        # Universe format
+    # API key kontrolü ve uyarı
+    if not api_key and "universe.roboflow.com" in url:
+        print("⚠️  API anahtarı belirtilmedi. Public dataset'ler için sorun olmayabilir.")
+        print("💡 Private dataset'ler için API key gerekli: download_dataset(url, api_key='your_key')")
+    
+    # Public dataset için direkt URL kullanımı (browser'da çalışıyorsa)
+    if "universe.roboflow.com" in url and not api_key:
+        # Public dataset - direkt URL'yi dene
+        if url.endswith('.zip'):
+            download_url = url  # Zaten ZIP formatında
+        else:
+            # Format parametresi ekle
+            if "?" in url:
+                if "format=" not in url:
+                    download_url = f"{url}&format=yolov5"
+                else:
+                    download_url = url
+            else:
+                download_url = f"{url}?format=yolov5"
+    elif "universe.roboflow.com" in url and api_key:
+        # Private dataset - API key ile
         if "?" in url:
             if "format=" not in url:
-                download_url = f"{url}&format=yolov5"
+                download_url = f"{url}&format=yolov5&key={api_key}"
             else:
-                download_url = url
+                download_url = f"{url}&key={api_key}"
         else:
-            download_url = f"{url}?format=yolov5"
+            download_url = f"{url}?format=yolov5&key={api_key}"
     else:
-        download_url = f"{url}&format=yolov5" if "?" in url else f"{url}?format=yolov5"
+        # Diğer formatlar
+        base_url = f"{url}&format=yolov5" if "?" in url else f"{url}?format=yolov5"
+        download_url = f"{base_url}&key={api_key}" if api_key else base_url
     
     zip_path = os.path.join(dataset_dir, 'dataset.zip')
 
@@ -39,11 +59,50 @@ def download_dataset(url, dataset_dir='datasets/roboflow_dataset'):
             
             # Method 1: requests library (more reliable)
             import requests
+            # Browser benzeri headers (public dataset için)
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1',
+                'Cache-Control': 'max-age=0'
             }
             
-            response = requests.get(download_url, headers=headers, timeout=300, stream=True)
+            print(f"🔗 İndirme URL'si: {download_url[:100]}...")
+            
+            # Session kullanarak cookie ve redirect yönetimi
+            session = requests.Session()
+            session.headers.update(headers)
+            
+            response = session.get(download_url, timeout=300, stream=True, allow_redirects=True)
+            
+            # Detaylı hata kontrolü
+            if response.status_code == 403:
+                print(f"❌ 403 Forbidden Hatası!")
+                print(f"🔑 Muhtemel nedenler:")
+                print(f"   • API anahtarı eksik veya geçersiz")
+                print(f"   • Dataset private ve erişim izni yok")
+                print(f"   • Rate limit aşıldı")
+                print(f"💡 Çözüm önerileri:")
+                print(f"   • API key ekleyin: download_dataset(url, api_key='your_key')")
+                print(f"   • Dataset'in public olduğundan emin olun")
+                print(f"   • Birkaç dakika bekleyip tekrar deneyin")
+                raise requests.exceptions.HTTPError(f"403 Forbidden - API key gerekli olabilir")
+            elif response.status_code == 404:
+                print(f"❌ 404 Not Found - Dataset bulunamadı")
+                raise requests.exceptions.HTTPError(f"Dataset bulunamadı: {url}")
+            elif response.status_code == 429:
+                print(f"❌ 429 Too Many Requests - Rate limit aşıldı")
+                print(f"⏳ 60 saniye bekleyip tekrar deneyin")
+                raise requests.exceptions.HTTPError(f"Rate limit aşıldı")
+            
             response.raise_for_status()
             
             # Check if response is actually a ZIP file
@@ -99,18 +158,34 @@ def download_dataset(url, dataset_dir='datasets/roboflow_dataset'):
 
             return True
             
+        except requests.exceptions.HTTPError as e:
+            print(f"❌ HTTP Hatası (Deneme {attempt + 1}/3): {e}")
+            if "403" in str(e):
+                print(f"🔑 API anahtarı sorunu tespit edildi")
+                if attempt == 2:
+                    print(f"💡 Son çözüm önerisi: Roboflow hesabınızdan yeni API key alın")
+                    return False
+            elif "404" in str(e):
+                print(f"📂 Dataset bulunamadı - URL'yi kontrol edin")
+                return False
+            elif "429" in str(e):
+                print(f"⏳ Rate limit - 60 saniye bekleniyor...")
+                import time
+                time.sleep(60)
+                continue
         except requests.exceptions.RequestException as e:
-            print(f'Requests error on attempt {attempt + 1}: {e}')
+            print(f'❌ Requests hatası (Deneme {attempt + 1}/3): {e}')
         except zipfile.BadZipFile:
-            print(f'Bad ZIP file on attempt {attempt + 1}')
+            print(f'❌ Bozuk ZIP dosyası (Deneme {attempt + 1}/3)')
         except Exception as e:
-            print(f'Error on attempt {attempt + 1}: {e}')
-        
-        # Wait before retry
-        if attempt < 2:
-            print("Waiting 5 seconds before retry...")
-            import time
-            time.sleep(5)
+            print(f"❌ Genel hata (Deneme {attempt + 1}/3): {e}")
+            
+        if attempt == 2:  # Last attempt
+            print("❌ Tüm indirme denemeleri başarısız")
+            return False
+        print("⏳ 5 saniye bekleyip tekrar deneniyor...")
+        import time
+        time.sleep(5)
 
     print(f'❌ All download attempts failed for {url}')
     return False
