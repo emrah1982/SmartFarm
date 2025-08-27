@@ -35,6 +35,7 @@ datasets:
       
     plant_diseases_comprehensive:
       url: "https://universe.roboflow.com/ds/0UULi7Pnno?key=PU2zi8AslM"
+      roboflow_canonical: "plant-diseases-detection-and-classification/plant-diseases-detection-and-classification/1"
       description: "Comprehensive plant diseases dataset with leaf disease detection"
       resize_info: "Stretch to 416x416"
       expected_classes: [
@@ -51,6 +52,7 @@ datasets:
       
     fruit_ripeness:
       url: "https://universe.roboflow.com/ds/KXxiCfvas4?key=LQed1EPrBo"
+      roboflow_canonical: "fruit-ripeness-detection/fruit-ripeness-detection/1"
       description: "Fruit ripeness classification dataset"
       resize_info: "Stretch to 416x416"
       expected_classes: ["ripe", "unripe"]
@@ -67,6 +69,7 @@ datasets:
   pest_datasets:
     agricultural_pests:
       url: "https://universe.roboflow.com/ds/bmPZ3Nx4Y1?key=VLcZsok71Q"
+      roboflow_canonical: "agricultural-pests/agricultural-pests/1"
       description: "Agricultural pest detection dataset"
       resize_info: "Stretch to 640x640"
       expected_classes: [
@@ -82,6 +85,7 @@ datasets:
       
     pest_detection_advanced:
       url: "https://universe.roboflow.com/ds/8Bu55Gh4Cf?key=Jbj1JwHkxv"
+      roboflow_canonical: "pest-detection-advanced/pest-detection-advanced/1"
       description: "Advanced pest detection with specific insect types"
       resize_info: "Stretch to 640x640"
       expected_classes: [
@@ -102,6 +106,7 @@ datasets:
   specialized_datasets:
     nutrient_deficiency:
       url: "https://universe.roboflow.com/ds/vi801fQJoV?key=NC8Ksts5aY"
+      roboflow_canonical: "nutrient-deficiency/nutrient-deficiency/1"
       description: "Plant nutrient deficiency detection"
       resize_info: "Stretch to 640x640"
       expected_classes: [
@@ -116,6 +121,7 @@ datasets:
       
     weeds_detection:
       url: "https://universe.roboflow.com/ds/9OIPfBTeDO?key=iwPIAahIko"
+      roboflow_canonical: "weeds-detection/weeds-detection/1"
       description: "Weed detection and classification"
       resize_info: "Not specified"
       expected_classes: ["Weeds"]
