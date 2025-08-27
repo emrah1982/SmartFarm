@@ -34,12 +34,18 @@ class DatasetAnalyzer:
         from dataset_utils import download_dataset
         # Try to get a Roboflow API key (optional). If present, use for all downloads.
         api_key = None
+        split_config = None
         try:
             api_key = get_api_key_from_config()
             if api_key:
                 print(f"🔑 Roboflow API key bulundu (ilk 10): {api_key[:10]}...")
         except Exception:
             api_key = None
+        # Manager üzerinde interaktif girilmiş değer varsa önceliklidir
+        if hasattr(self.manager, 'api_key') and self.manager.api_key:
+            api_key = self.manager.api_key
+        if hasattr(self.manager, 'split_config') and self.manager.split_config:
+            split_config = self.manager.split_config
         
         for i, dataset in enumerate(self.manager.datasets):
             print(f"\n[{i+1}/{len(self.manager.datasets)}] Downloading: {dataset['name']}")
@@ -47,7 +53,7 @@ class DatasetAnalyzer:
             print(f"🔗 URL: {dataset['url']}")
             
             try:
-                success = download_dataset(dataset['url'], dataset['local_path'], api_key=api_key)
+                success = download_dataset(dataset['url'], dataset['local_path'], api_key=api_key, split_config=split_config)
                 if not success:
                     print(f"❌ ERROR: {dataset['name']} could not be downloaded!")
                     failed_downloads.append(dataset['name'])

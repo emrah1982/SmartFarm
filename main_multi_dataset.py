@@ -316,6 +316,24 @@ def hierarchical_dataset_setup():
     
     manager = YAMLBasedMultiDatasetManager(config_file=config_file)
     
+    # Opsiyonel: Roboflow API key girişi (boş bırakılabilir)
+    try:
+        print("\n🔑 Roboflow API (opsiyonel)")
+        entered_key = input("API key girin (boş geçebilirsiniz): ").strip()
+        if entered_key:
+            manager.api_key = entered_key
+            # API key girildiyse, kullanıcıya split ayarını da soralım
+            split_cfg = get_dataset_split_config(entered_key)
+            if split_cfg:
+                manager.split_config = split_cfg
+        else:
+            # Boşsa, varsa config'den otomatik kullanılacak (indirme sırasında fallback var)
+            manager.api_key = None
+            manager.split_config = None
+    except Exception:
+        # Sessiz geç
+        pass
+
     # Show system information
     print(f"\n📊 Sistem Bilgileri:")
     print(f"✅ Konfigürasyon yüklendi: {config_file}")
