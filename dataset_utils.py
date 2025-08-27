@@ -36,12 +36,9 @@ def build_roboflow_download_url(src_url: str, api_key: str | None, split_config:
 
         # a) DS short link: /ds/<hash>
         if path.startswith("/ds/"):
-            # Keep path as-is, merge query params
+            # Keep path and existing params as-is; DO NOT force format here
             params = dict((k, v[:]) for k, v in existing_q.items())
-            # Ensure format is present (yolov8 default)
-            if "format" not in params:
-                params["format"] = ["yolov8"]
-            if api_key:
+            if api_key and "key" not in params:
                 params["key"] = [api_key]
             if split_str:
                 params["split"] = [split_str]
@@ -221,17 +218,28 @@ def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None,
                 parsed_dl = urlparse(download_url)
                 if "universe.roboflow.com" in parsed_dl.netloc:
                     q = parse_qs(parsed_dl.query)
-                    current_format = q.get("format", ["yolov8"])[0]
-                    alt_format = "yolov5" if current_format != "yolov5" else "yolov8"
-                    q["format"] = [alt_format]
-                    # Ayrıca split parametresini kaldırıp deneyelim
-                    if "split" in q:
-                        del q["split"]
-                    new_query = urlencode({k: v[0] for k, v in q.items()}, doseq=True)
-                    download_url = urlunparse((parsed_dl.scheme, parsed_dl.netloc, parsed_dl.path, "", new_query, ""))
-                    print(f"🔁 403 sonrası alternatif format ile yeniden denenecek: format={alt_format}")
-                    # Bir sonraki döngü denemesine geç
-                    continue
+                    path_is_ds = parsed_dl.path.startswith("/ds/")
+                    if path_is_ds:
+                        # DS kısa linkte format/split varsa kaldırarak tekrar dene
+                        if "format" in q:
+                            del q["format"]
+                        if "split" in q:
+                            del q["split"]
+                        new_query = urlencode({k: v[0] for k, v in q.items()}, doseq=True)
+                        download_url = urlunparse((parsed_dl.scheme, parsed_dl.netloc, parsed_dl.path, "", new_query, ""))
+                        print(f"🔁 403 sonrası DS linkte format/split kaldırıldı, yeniden denenecek")
+                        continue
+                    else:
+                        # Download path ise format değiştirme denemesi
+                        current_format = q.get("format", ["yolov8"])[0]
+                        alt_format = "yolov5" if current_format != "yolov5" else "yolov8"
+                        q["format"] = [alt_format]
+                        if "split" in q:
+                            del q["split"]
+                        new_query = urlencode({k: v[0] for k, v in q.items()}, doseq=True)
+                        download_url = urlunparse((parsed_dl.scheme, parsed_dl.netloc, parsed_dl.path, "", new_query, ""))
+                        print(f"🔁 403 sonrası alternatif format ile yeniden denenecek: format={alt_format}")
+                        continue
                 # Eğer API key varsa, universe ds linklerini API endpoint'e çözümlemeyi dene
                 if api_key:
                     ws, prj, ver = (None, None, None)
