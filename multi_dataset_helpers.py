@@ -77,13 +77,37 @@ class DatasetAnalyzer:
             
             successful_downloads += 1
             
-            # Read class information
-            data_yaml = os.path.join(dataset['local_path'], 'data.yaml')
-            if os.path.exists(data_yaml):
-                with open(data_yaml, 'r') as f:
-                    data = yaml.safe_load(f)
-                    dataset['classes'] = data.get('names', [])
-                    print(f"✅ Classes found: {dataset['classes']}")
+            # Normalize SDK folder structure: find extracted root containing data.yaml
+            def _find_data_yaml(base_dir):
+                dy = os.path.join(base_dir, 'data.yaml')
+                if os.path.exists(dy):
+                    return dy
+                # search one level deep
+                try:
+                    for entry in os.listdir(base_dir):
+                        p = os.path.join(base_dir, entry)
+                        if os.path.isdir(p):
+                            dy2 = os.path.join(p, 'data.yaml')
+                            if os.path.exists(dy2):
+                                return dy2
+                except Exception:
+                    pass
+                return None
+
+            data_yaml = _find_data_yaml(dataset['local_path'])
+            if data_yaml is None:
+                print(f"⚠️  data.yaml bulunamadı: {dataset['local_path']}")
+            else:
+                # Update local_path to the directory that holds data.yaml
+                dataset['local_path'] = os.path.dirname(data_yaml)
+                try:
+                    with open(data_yaml, 'r') as f:
+                        data = yaml.safe_load(f) or {}
+                        dataset['classes'] = data.get('names', []) or data.get('class_names', []) or []
+                        if dataset['classes']:
+                            print(f"✅ Classes found: {dataset['classes']}")
+                except Exception as e:
+                    print(f"⚠️  data.yaml okunamadı: {e}")
             
             # Analyze dataset distribution
             stats = self._analyze_dataset_distribution(dataset)
@@ -101,7 +125,32 @@ class DatasetAnalyzer:
         """Analyze the class distribution of a dataset"""
         print(f"\n--- {dataset['name']} Class Analysis ---")
         
-        train_labels_dir = os.path.join(dataset['local_path'], 'labels', 'train')
+        # Resolve labels/train directory using data.yaml if available (YOLOv11 layout)
+        train_labels_dir = None
+        data_yaml_path = os.path.join(dataset['local_path'], 'data.yaml')
+        if os.path.exists(data_yaml_path):
+            try:
+                with open(data_yaml_path, 'r') as f:
+                    data_cfg = yaml.safe_load(f) or {}
+                # Typical fields: path, train, val. We derive labels path by replacing 'images' with 'labels'.
+                root_path = data_cfg.get('path') or '.'
+                train_entry = data_cfg.get('train') or 'train/images'
+                # Join respecting relative vs absolute
+                def _join(root_dir, p):
+                    return p if os.path.isabs(p) else os.path.normpath(os.path.join(root_dir, p))
+                images_train_dir = _join(dataset['local_path'], _join(root_path if root_path != '.' else '', train_entry))
+                # Replace last occurrence of 'images' with 'labels'
+                if 'images' in os.path.basename(images_train_dir):
+                    train_labels_dir = os.path.join(os.path.dirname(images_train_dir), 'labels')
+                else:
+                    # Fallback heuristic
+                    train_labels_dir = images_train_dir.replace(os.sep + 'images', os.sep + 'labels')
+            except Exception as e:
+                print(f"⚠️  data.yaml analizi hatası: {e}")
+                train_labels_dir = None
+        if not train_labels_dir:
+            # Legacy fallback
+            train_labels_dir = os.path.join(dataset['local_path'], 'labels', 'train')
         if not os.path.exists(train_labels_dir):
             print(f"❌ Label directory not found: {train_labels_dir}")
             return {}
