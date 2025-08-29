@@ -10,6 +10,7 @@ import time
 import re
 import traceback
 from pathlib import Path
+import shutil
 from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 import requests
 

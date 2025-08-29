@@ -171,6 +171,234 @@ def handle_roboflow_action(choice, **kwargs):
     
     return False
 
+def download_fieldplant_v11_yolov11(api_key: str = "vzhHWH8uT44rO0V25x5n",
+                                     workspace: str = "plant-disease-detection",
+                                     project: str = "fieldplant",
+                                     version_number: int = 11,
+                                     format_name: str = "yolov11"):
+    """Roboflow SDK kullanarak dataset indirir.
+
+    Varsayılan değerler, talep ettiğiniz örnekle birebir uyumludur:
+    - api_key: "vzhHWH8uT44rO0V25x5n"
+    - workspace: "plant-disease-detection"
+    - project: "fieldplant"
+    - version: 11
+    - format: "yolov11"
+
+    Not: Jupyter dışındaki ortamlarda "!pip install roboflow" yerine
+    eksikse paket otomatik kurulmaya çalışılır.
+    """
+    import sys
+    import subprocess
+
+    try:
+        from roboflow import Roboflow  # type: ignore
+    except ImportError:
+        print("📦 Roboflow paketi bulunamadı. Kurulum deneniyor: pip install roboflow")
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "roboflow"])  # nosec
+            from roboflow import Roboflow  # type: ignore
+        except Exception as e:
+            print(f"❌ Roboflow kurulumu başarısız: {e}")
+            return False
+
+    try:
+        rf = Roboflow(api_key=api_key)
+        proj = rf.workspace(workspace).project(project)
+        ver = proj.version(version_number)
+        print(f"⬇️ İndirme başlıyor: {workspace}/{project} v{version_number} ({format_name})")
+        dataset = ver.download(format_name)
+        # SDK genellikle indirilen klasörü stdout'a yazar. Burada sadece başarı bilgisini dönüyoruz.
+        print("✅ İndirme tamamlandı.")
+        return True
+    except Exception as e:
+        print(f"❌ İndirme sırasında hata: {e}")
+        return False
+
+def _ensure_package(import_name: str, install_name: str = None):
+    """Gerekli paketi import etmeyi dener, yoksa pip ile kurmaya çalışır.
+
+    import_name: Python'da import edilen modül adı (örn. 'yaml')
+    install_name: pip paket adı (örn. 'pyyaml'). Boş ise import_name kullanılır.
+    """
+    import importlib
+    import sys
+    import subprocess
+
+    # Bilinen farklı isim eşleştirmeleri
+    if install_name is None:
+        mapping = {
+            'yaml': 'pyyaml',
+        }
+        install_name = mapping.get(import_name, import_name)
+
+    try:
+        return importlib.import_module(import_name)
+    except ImportError:
+        print(f"📦 '{import_name}' modülü bulunamadı. Kurulum deneniyor: pip install {install_name}")
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", install_name])  # nosec
+            return importlib.import_module(import_name)
+        except Exception as e:
+            print(f"❌ {install_name} kurulumu başarısız: {e}")
+            return None
+
+def _parse_roboflow_canonical(canonical: str):
+    """'workspace/project/version' formatını (ws, proj, ver) olarak döndürür."""
+    try:
+        parts = [p for p in canonical.strip().split('/') if p]
+        if len(parts) != 3:
+            raise ValueError(f"Beklenen format 'workspace/project/version', gelen: {canonical}")
+        ws, proj, ver_str = parts
+        ver = int(ver_str)
+        return ws, proj, ver
+    except Exception as e:
+        print(f"❌ roboflow_canonical parse hatası: {e}")
+        return None
+
+def download_from_config_entry(entry: dict,
+                               dataset_dir: str = 'datasets/roboflow_dataset',
+                               api_key: str = None,
+                               format_name: str = 'yolov11'):
+    """config_datasets.yaml içindeki tek dataset kaydını SADECE Roboflow SDK ile indirir.
+
+    - Yalnızca `roboflow_canonical` ("workspace/project/version") alanını kabul eder.
+    - API key zorunludur (parametre veya `config/roboflow.json`).
+    - İndirme dizini `dataset_dir` olur; SDK çağrısı sırasında çalışma dizini buraya alınır.
+    """
+    # Debug: hangi alanlar var?
+    try:
+        print(f"🧾 YAML entry anahtarları: {sorted(list(entry.keys()))}")
+    except Exception:
+        pass
+
+    # roboflow_canonical + API (SDK-only)
+    canonical = entry.get('roboflow_canonical')
+    if canonical:
+        print("🧭 roboflow_canonical bulundu. SDK ile indirme denenecek...")
+        parsed = _parse_roboflow_canonical(canonical)
+        if not parsed:
+            return False
+        ws, proj, ver = parsed
+        # API key temini: parametre > config
+        use_key = api_key or get_api_key_from_config()
+        if not use_key:
+            print("🔒 API key bulunamadı. SDK ile indirme atlandı.")
+        else:
+            # Roboflow SDK'yı garanti altına al
+            rf_mod = _ensure_package('roboflow')
+            if rf_mod is None:
+                return False
+            try:
+                from roboflow import Roboflow  # type: ignore
+                rf = Roboflow(api_key=use_key)
+                ver_obj = rf.workspace(ws).project(proj).version(ver)
+                print(f"⬇️ İndirme başlıyor: {ws}/{proj} v{ver} ({format_name})")
+                import os
+                os.makedirs(dataset_dir, exist_ok=True)
+                cwd_backup = os.getcwd()
+                try:
+                    os.chdir(dataset_dir)
+                    print(f"📂 Çalışma dizini: {os.getcwd()}")
+                    # Roboflow SDK indirmeyi mevcut çalışma dizinine yapar
+                    out = ver_obj.download(format_name)
+                    # İndirme sonrası kalan zip'leri otomatik çıkar
+                    try:
+                        import pathlib, zipfile
+                        # Roboflow SDK çoğu zaman bir Dataset objesi döndürür; yol için `.location` kullan
+                        p = None
+                        if out is None:
+                            p = pathlib.Path(os.getcwd())
+                        else:
+                            # Dataset objesi ise .location olabilir
+                            loc = getattr(out, 'location', None)
+                            if isinstance(loc, (str, bytes, os.PathLike)):
+                                p = pathlib.Path(loc)
+                            else:
+                                # out bir string veya Path olabilir
+                                try:
+                                    p = pathlib.Path(out)
+                                except Exception:
+                                    p = pathlib.Path(os.getcwd())
+                        p = p.resolve()
+                        print(f"📦 İndirilen yol: {p}")
+                        # roboflow.zip veya diğer zipler
+                        zips = list(p.rglob('*.zip'))
+                        if zips:
+                            for z in zips:
+                                try:
+                                    target_dir = z.with_suffix('')
+                                    target_dir.mkdir(parents=True, exist_ok=True)
+                                    print(f"🗜️  Zip çıkarılıyor: {z} -> {target_dir}")
+                                    with zipfile.ZipFile(z, 'r') as zf:
+                                        zf.extractall(target_dir)
+                                except Exception as ez:
+                                    print(f"⚠️ Zip çıkarma hatası ({z}): {ez}")
+                        # İçerik önizleme
+                        if p.exists():
+                            entries = list(p.glob('*'))[:10]
+                            print("🗂 İçerik örnekleri:", [e.name for e in entries])
+                    except Exception as ep:
+                        print(f"⚠️ İndirme sonrası kontrol/çıkarma sırasında hata: {ep}")
+                finally:
+                    os.chdir(cwd_backup)
+                print("✅ İndirme tamamlandı (SDK)")
+                return True
+            except Exception as e:
+                print(f"❌ SDK ile indirme hatası: {e}")
+                return False
+    print("❌ 'roboflow_canonical' alanı zorunludur ve bulunamadı. SDK-only modda indirme yapılamaz.")
+    return False
+
+def _find_dataset_entry_in_yaml(dataset_name: str, yaml_path: str = 'config_datasets.yaml'):
+    """YAML içinde verilen dataset adını arar ve kaydını döndürür.
+
+    Aranan path: root['datasets'][<group_name>][dataset_name]
+    group_name örnekleri: base_datasets, pest_datasets, specialized_datasets, experimental_datasets
+    """
+    yaml_mod = _ensure_package('yaml')
+    if yaml_mod is None:
+        return None
+    try:
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            cfg = yaml_mod.safe_load(f)
+    except Exception as e:
+        print(f"❌ YAML okuma hatası: {e}")
+        return None
+
+    datasets_root = (cfg or {}).get('datasets') or {}
+    if not isinstance(datasets_root, dict):
+        return None
+
+    for group_name, group in datasets_root.items():
+        if not isinstance(group, dict):
+            continue
+        if dataset_name in group:
+            print(f"🔍 Bulunan grup: {group_name} -> dataset: {dataset_name}")
+            entry = group.get(dataset_name)
+            if isinstance(entry, dict):
+                try:
+                    print(f"🧾 Entry anahtarları: {sorted(list(entry.keys()))}")
+                except Exception:
+                    pass
+                return entry
+    print(f"❌ YAML içinde '{dataset_name}' bulunamadı.")
+    return None
+
+def download_from_config_yaml(dataset_name: str,
+                              yaml_path: str = 'config_datasets.yaml',
+                              dataset_dir: str = 'datasets/roboflow_dataset',
+                              api_key: str = None,
+                              format_name: str = 'yolov11'):
+    """config_datasets.yaml dosyasında adı verilen dataset'i indirir (SDK-only).
+
+    - Yalnızca `roboflow_canonical` + API key ile indirme desteklenir.
+    """
+    entry = _find_dataset_entry_in_yaml(dataset_name, yaml_path=yaml_path)
+    if not entry:
+        return False
+    return download_from_config_entry(entry, dataset_dir=dataset_dir, api_key=api_key, format_name=format_name)
+
 if __name__ == "__main__":
     print("🤖 Roboflow API Helper")
     print("Bu modül Roboflow dataset indirme sorunlarını çözer")

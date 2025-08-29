@@ -1,664 +1,837 @@
-# config_datasets.yaml - Final Hierarchical Agricultural AI Configuration
-# YOLO11 Multi-Dataset Training Framework
-# Version: 3.1 - Fixed Plant Village Issue + Complete File
-# Last Updated: 2025-01-22
-
-version: "3.1"
-last_updated: "2025-01-22"
-description: "Complete Hierarchical Agricultural AI - Universal Detection System"
-author: "YOLO11 Hierarchical Framework"
-
-# ============================================================================
-# DATASET DEFINITIONS - Real-world agricultural datasets
-# ============================================================================
+version: '3.1'
+last_updated: '2025-01-22'
+description: Complete Hierarchical Agricultural AI - Universal Detection System
+author: YOLO11 Hierarchical Framework
 datasets:
   default_target_count_per_class: 4200
   default_image_size: 640
   auto_class_mapping: true
-
-  # ============================================================================
-  # PRIMARY DATASETS - Core agricultural datasets (Priority 1)
-  # ============================================================================
   base_datasets:
-    # TEMPORARILY DISABLED - Download issues
     plant_village:
-       url: "https://universe.roboflow.com/ds/RxUSqZ4p8K?key=mZz5zk0FvR"
-       description: "Plant Village Dataset - Comprehensive plant disease collection"
-       resize_info: "Stretch to 640x640"
-       expected_classes: ["damaged", "healthy", "ripe", "unripe"]
-       class_count: 4
-       priority: 1
-       category: "diseases"
-       dataset_type: "mixed"
-       added_date: "2024-01-01"
-       notes: "DISABLED - Download problems"
-      
-    plant_diseases_comprehensive:
-      url: "https://universe.roboflow.com/ds/0UULi7Pnno?key=PU2zi8AslM"
-      roboflow_canonical: "plant-diseases-detection-and-classification/plant-diseases-detection-and-classification/1"
-      description: "Comprehensive plant diseases dataset with leaf disease detection"
-      resize_info: "Stretch to 416x416"
-      expected_classes: [
-        "Apple leaf", "Blueberry leaf", "Cherry leaf", "Peach leaf", 
-        "Raspberry leaf", "Soyabean leaf", "Strawberry leaf", 
-        "Tomato leaf", "grape leaf"
-      ]
-      class_count: 9
+      roboflow_canonical: zkamlasi-kamlasi-hj4wj/plantvillage-dataset/1
+      description: PlantVillage Dataset (zkamlasi workspace) - Object detection labels
+      resize_info: Stretch to 640x640
+      url: https://universe.roboflow.com/zkamlasi-kamlasi-hj4wj/plantvillage-dataset
+      expected_classes:
+      - PepperBellHealthy
+      - PepperBellSpot
+      - PotatoEarlyBlight
+      - PotatoHealthy
+      - PotatoLateBlight
+      - TomatoBacterialSpot
+      - TomatoEarlyBlight
+      - TomatoHealthy
+      - TomatoLateBlight
+      - TomatoLeafMold
+      - TomatoMosaicVirus
+      - TomatoSeptoriaLeafSpot
+      - TomatoSpiderMitesTwoSpottedSpiderMite
+      - TomatoTargetSpot
+      - TomatoYellowLeafCurlVirus
+      class_count: 15
       priority: 1
-      category: "diseases"
-      dataset_type: "diseases"
-      added_date: "2024-01-01"
-      notes: "Most comprehensive disease dataset with 30 different plant diseases"
-      
+      category: diseases
+      dataset_type: diseases
+      added_date: '2025-08-28'
+      notes: Enabled - Use roboflow_canonical with API key
+      last_download_status: OK
+      last_download_time: '2025-08-28 14:51:36'
+    plant_village_telkom:
+      roboflow_canonical: telkom-university-mfinb/plant-village-dataset-nyrhs/2
+      description: PlantVillage Dataset (Telkom University) - Object detection labels
+      resize_info: Stretch to 640x640
+      url: https://universe.roboflow.com/telkom-university-mfinb/plant-village-dataset-nyrhs
+      expected_classes:
+      - PepperBellHealthy
+      - PepperBellSpot
+      - PotatoEarlyBlight
+      - PotatoHealthy
+      - PotatoLateBlight
+      - TomatoBacterialSpot
+      - TomatoEarlyBlight
+      - TomatoHealthy
+      - TomatoLateBlight
+      - TomatoLeafMold
+      - TomatoMosaicVirus
+      - TomatoSeptoriaLeafSpot
+      - TomatoSpiderMitesTwoSpottedSpiderMite
+      - TomatoTargetSpot
+      - TomatoYellowLeafCurlVirus
+      class_count: 15
+      priority: 1
+      category: diseases
+      dataset_type: diseases
+      added_date: '2025-08-28'
+      notes: Enabled - Use roboflow_canonical with API key
+      last_download_status: OK
+      last_download_time: '2025-08-28 14:51:36'
     fruit_ripeness:
-      url: "https://universe.roboflow.com/ds/KXxiCfvas4?key=LQed1EPrBo"
-      roboflow_canonical: "fruit-ripeness-detection/fruit-ripeness-detection/1"
-      description: "Fruit ripeness classification dataset"
-      resize_info: "Stretch to 416x416"
-      expected_classes: ["ripe", "unripe"]
-      class_count: 2
+      url: https://universe.roboflow.com/fruit-detection-pd/tomato-ripening-stages
+      roboflow_canonical: fruit-detection-pd/tomato-ripening-stages/5
+      description: Tomato Ripening Stages (S1-S6) - Object Detection
+      resize_info: Stretch to 640x640
+      expected_classes:
+      - Tomato - S1
+      - Tomato - S2
+      - Tomato - S3
+      - Tomato - S4
+      - Tomato - S5
+      - Tomato - S6
+      class_count: 6
       priority: 1
-      category: "fruit_quality"
-      dataset_type: "quality_assessment"
-      added_date: "2024-01-01"
-      notes: "Essential for harvest timing optimization"
-
-  # ============================================================================
-  # PEST CONTROL DATASETS - Pest and insect detection (Priority 2)
-  # ============================================================================
+      category: fruit_quality
+      dataset_type: quality_assessment
+      added_date: '2024-01-01'
+      notes: Essential for harvest timing optimization
+      last_download_status: OK
+      last_download_time: '2025-08-28 14:51:36'
   pest_datasets:
-    agricultural_pests:
-      url: "https://universe.roboflow.com/ds/bmPZ3Nx4Y1?key=VLcZsok71Q"
-      roboflow_canonical: "agricultural-pests/agricultural-pests/1"
-      description: "Agricultural pest detection dataset"
-      resize_info: "Stretch to 640x640"
-      expected_classes: [
-        "Aphid", "Leafhopper", "Spider Mite", "Spodoptera Larva", 
-        "Spodoptera moth", "Stinkbug", "Thrips"
-      ]
-      class_count: 7
+    pest_varshine:
+      roboflow_canonical: varshine/pest-dataset-l3ph3/2
+      url: https://universe.roboflow.com/varshine/pest-dataset-l3ph3
+      description: Pest detection dataset (Varshine workspace)
+      resize_info: Stretch to 640x640
+      expected_classes:
+      - army worm
+      - black cutworm
+      - grub
+      - mole cricket
+      - peach borer
+      - red spider
+      class_count: 6
       priority: 2
-      category: "pest_control"
-      dataset_type: "pest_detection"
-      added_date: "2024-01-01"
-      notes: "Primary pest detection dataset"
-      
-    pest_detection_advanced:
-      url: "https://universe.roboflow.com/ds/8Bu55Gh4Cf?key=Jbj1JwHkxv"
-      roboflow_canonical: "pest-detection-advanced/pest-detection-advanced/1"
-      description: "Advanced pest detection with specific insect types"
-      resize_info: "Stretch to 640x640"
-      expected_classes: [
-        "Beet armyworm", "Cotton bollworm", "Green peach aphid", 
-        "Silverleaf whitefly", "Tobacco cutworm", "melon fly", 
-        "melon thrips", "spider mite"
-      ]
-      class_count: 8
+      category: pest_control
+      dataset_type: pest_detection
+      added_date: '2025-08-28'
+      notes: Use roboflow_canonical with API key; update classes when available
+      last_download_status: OK
+      last_download_time: '2025-08-28 14:51:36'
+    pest_sams_sgift:
+      roboflow_canonical: sams-sgift/pest-detection-qbalv/5
+      url: https://universe.roboflow.com/sams-sgift/pest-detection-qbalv
+      description: Pest detection dataset (sams-sgift workspace)
+      resize_info: Stretch to 640x640
+      expected_classes:
+      - Ant
+      - Aphid
+      - Bee
+      - Beetle
+      - Bird
+      - Caterpillar
+      - Cockroach
+      - Earthworms
+      - Earwig
+      - Fruit Flies
+      - Grasshopper
+      - Moth
+      - Pests
+      - Scorpion
+      - Slug
+      - Snail
+      - Spider
+      - Wasp
+      - Weevil
+      class_count: 19
       priority: 2
-      category: "pest_control"
-      dataset_type: "pest_detection"
-      added_date: "2024-01-01"
-      notes: "Specialized pest identification"
-
-  # ============================================================================
-  # SPECIALIZED DATASETS - Nutrient and weed detection (Priority 3)
-  # ============================================================================
+      category: pest_control
+      dataset_type: pest_detection
+      added_date: '2025-08-28'
+      notes: Use roboflow_canonical with API key; update classes when available
+      last_download_status: OK
+      last_download_time: '2025-08-28 14:51:36'
   specialized_datasets:
     nutrient_deficiency:
-      url: "https://universe.roboflow.com/ds/vi801fQJoV?key=NC8Ksts5aY"
-      roboflow_canonical: "nutrient-deficiency/nutrient-deficiency/1"
-      description: "Plant nutrient deficiency detection"
-      resize_info: "Stretch to 640x640"
-      expected_classes: [
-        "nitrogen-deficiency", "phosphorus-deficiency", "potassium-deficiency"
-      ]
+      url: https://universe.roboflow.com/ds/vi801fQJoV?key=NC8Ksts5aY
+      roboflow_canonical: nutrient-deficiency/nutrient-deficiency/1
+      description: Plant nutrient deficiency detection
+      resize_info: Stretch to 640x640
+      expected_classes:
+      - nitrogen-deficiency
+      - phosphorus-deficiency
+      - potassium-deficiency
       class_count: 3
       priority: 3
-      category: "nutrient_analysis"
-      dataset_type: "deficiency_detection"
-      added_date: "2024-01-01"
-      notes: "Critical for precision agriculture"
-      
+      category: nutrient_analysis
+      dataset_type: deficiency_detection
+      added_date: '2024-01-01'
+      notes: Critical for precision agriculture
+      last_download_status: FAIL
+      last_download_time: '2025-08-28 14:51:36'
     weeds_detection:
-      url: "https://universe.roboflow.com/ds/9OIPfBTeDO?key=iwPIAahIko"
-      roboflow_canonical: "weeds-detection/weeds-detection/1"
-      description: "Weed detection and classification"
-      resize_info: "Not specified"
-      expected_classes: ["Weeds"]
+      url: https://universe.roboflow.com/ds/9OIPfBTeDO?key=iwPIAahIko
+      roboflow_canonical: weeds-detection/weeds-detection/1
+      description: Weed detection and classification
+      resize_info: Not specified
+      expected_classes:
+      - Weeds
       class_count: 1
       priority: 3
-      category: "weed_control"
-      dataset_type: "weed_detection"
-      added_date: "2024-01-15"
-      notes: "Essential for weed management - yabanci ot tespiti"
-
-  # ============================================================================
-  # EXPERIMENTAL DATASETS - For research and testing (Priority 4)
-  # ============================================================================
+      category: weed_control
+      dataset_type: weed_detection
+      added_date: '2024-01-15'
+      notes: Essential for weed management - yabanci ot tespiti
+      last_download_status: FAIL
+      last_download_time: '2025-08-28 14:51:36'
+    tomato_leaf_nutrient_deficiency:
+      roboflow_canonical: tomato-nutrient-deficiency/tomato-leaf-3jffl/4
+      url: https://universe.roboflow.com/tomato-nutrient-deficiency/tomato-leaf-3jffl
+      description: Tomato leaf nutrient deficiencies (Healthy + 6 deficiencies)
+      resize_info: Stretch to 640x640
+      expected_classes:
+      - Healthy
+      - Iron Deficiency
+      - Magnesium Deficiency
+      - Manganese Deficiency
+      - Nitrogen Deficiency
+      - Phosphorus Deficiency
+      - Potassium Deficiency
+      class_count: 7
+      priority: 3
+      category: nutrient_analysis
+      dataset_type: deficiency_detection
+      added_date: '2025-08-28'
+      notes: Added via Roboflow SDK; include in groups if needed
+      last_download_status: OK
+      last_download_time: '2025-08-28 14:51:36'
+    tomato_leaf_deficiency_detection:
+      roboflow_canonical: shahriyar-guliyev/tomato-leaf-deficiency-detection/1
+      url: https://universe.roboflow.com/shahriyar-guliyev/tomato-leaf-deficiency-detection
+      description: Tomato Leaf Deficiency Detection (3 classes)
+      resize_info: Stretch to 640x640
+      expected_classes:
+      - nitrogen-deficiency
+      - phosphorus-deficiency
+      - potassium-deficiency
+      class_count: 3
+      priority: 3
+      category: nutrient_analysis
+      dataset_type: deficiency_detection
+      added_date: '2025-08-28'
+      notes: "Sınıflar Roboflow sayfasından doğrulandı (3): nitrogen-deficiency, phosphorus-deficiency, potassium-deficiency. Yolov11 format."
+      last_download_status: OK
+      last_download_time: '2025-08-28 22:40:52'
   experimental_datasets:
+    tomato_weed_chili_detecting:
+      roboflow_canonical: krishitbot/tomato-weed-chili-detecting/2
+      url: https://universe.roboflow.com/krishitbot/tomato-weed-chili-detecting
+      description: Tomato ripeness + weeds + chili detection (mixed classes)
+      resize_info: Stretch to 640x640
+      expected_classes:
+      - Weeds
+      - at risk
+      - chilli
+      - fresh
+      - rotten
+      - tomato_half_ripe
+      - tomato_overripe
+      - tomato_ripe
+      - tomato_rotten
+      - tomato_unripe
+      class_count: 10
+      priority: 4
+      category: mixed
+      dataset_type: supplementary
+      added_date: '2025-08-28'
+      notes: Experimental mixed dataset; relies on keyword mapping for hierarchy
+      last_download_status: OK
+      last_download_time: '2025-08-28 14:51:36'
     agricultural_dataset_4:
-      url: "https://universe.roboflow.com/ds/pjZS7tz383?key=h1q4H7wbJs"
-      description: "Additional agricultural dataset - classes to be determined"
-      resize_info: "Stretch to 416x416"
-      expected_classes: ["to_be_analyzed"]
-      class_count: "unknown"
+      url: https://universe.roboflow.com/ds/pjZS7tz383?key=h1q4H7wbJs
+      description: Additional agricultural dataset - classes to be determined
+      resize_info: Stretch to 416x416
+      expected_classes:
+      - to_be_analyzed
+      class_count: unknown
       priority: 4
-      category: "mixed"
-      dataset_type: "supplementary"
-      added_date: "2024-01-01"
-      notes: "Requires analysis to determine classes"
-      
+      category: mixed
+      dataset_type: supplementary
+      added_date: '2024-01-01'
+      notes: Requires analysis to determine classes
     agricultural_dataset_5:
-      url: "https://universe.roboflow.com/ds/nKPr1UgofJ?key=a2sSLftQC8"
-      description: "Agricultural dataset with unspecified resize parameters"
-      resize_info: "Not specified"
-      expected_classes: ["to_be_analyzed"]
-      class_count: "unknown"
+      url: https://universe.roboflow.com/ds/nKPr1UgofJ?key=a2sSLftQC8
+      description: Agricultural dataset with unspecified resize parameters
+      resize_info: Not specified
+      expected_classes:
+      - to_be_analyzed
+      class_count: unknown
       priority: 4
-      category: "mixed"
-      dataset_type: "supplementary"
-      added_date: "2024-01-01"
-      notes: "Resize parameters need verification"
-      
+      category: mixed
+      dataset_type: supplementary
+      added_date: '2024-01-01'
+      notes: Resize parameters need verification
     general_classes:
-      url: "https://universe.roboflow.com/ds/DTJ1sXKc7M?key=6dRQV0NFos"
-      description: "General classification dataset with 6 classes"
-      resize_info: "Stretch to 416x416"
-      expected_classes: ["class 1", "class 2", "class 3", "class 4", "class 5", "class 6"]
+      url: https://universe.roboflow.com/ds/DTJ1sXKc7M?key=6dRQV0NFos
+      description: General classification dataset with 6 classes
+      resize_info: Stretch to 416x416
+      expected_classes:
+      - class 1
+      - class 2
+      - class 3
+      - class 4
+      - class 5
+      - class 6
       class_count: 6
       priority: 4
-      category: "general"
-      dataset_type: "classification"
-      added_date: "2024-01-01"
-      notes: "Generic classes need proper naming"
-
-# ============================================================================
-# HIERARCHICAL CLASS MAPPING - Core of the detection system
-# ============================================================================
+      category: general
+      dataset_type: classification
+      added_date: '2024-01-01'
+      notes: Generic classes need proper naming
 class_mapping:
-  # SAĞLIKLI BİTKİLER - Healthy plants
   healthy:
-    sub_classes: ["Apple leaf", "Blueberry leaf", "Cherry leaf", "Peach leaf", 
-                 "Raspberry leaf", "Soyabean leaf", "Strawberry leaf", 
-                 "Tomato leaf", "grape leaf"]
-    keywords: ["healthy", "normal", "good", "leaf"]
-    color: "#2E8B57"  # Forest Green
-    bbox_color: [46, 139, 87]  # RGB for OpenCV
+    sub_classes:
+    - Apple leaf
+    - Blueberry leaf
+    - Cherry leaf
+    - Peach leaf
+    - Raspberry leaf
+    - Soyabean leaf
+    - Strawberry leaf
+    - Tomato leaf
+    - grape leaf
+    keywords:
+    - healthy
+    - normal
+    - good
+    - leaf
+    color: '#2E8B57'
+    bbox_color:
+    - 46
+    - 139
+    - 87
     priority: 1
-    description: "Healthy plant leaves and normal conditions"
-    detection_label: "SAĞLIKLI"
-    
-  # MANTAR HASTALIKLARI - Fungal diseases
+    description: Healthy plant leaves and normal conditions
+    detection_label: SAĞLIKLI
   fungal_disease:
-    sub_classes: ["Apple Scab Leaf", "Apple rust leaf", "Corn Gray leaf spot", 
-                 "Corn leaf blight", "Corn rust leaf", "Potato leaf early blight", 
-                 "Potato leaf late blight", "Squash Powdery mildew leaf", 
-                 "Tomato Early blight leaf", "Tomato Septoria leaf spot", 
-                 "Tomato leaf late blight", "Tomato mold leaf", "grape leaf black rot"]
-    keywords: ["scab", "rust", "blight", "mold", "rot", "powdery", "mildew", "spot"]
-    color: "#8B4513"  # Saddle Brown
-    bbox_color: [139, 69, 19]  # RGB for OpenCV
+    sub_classes:
+    - Apple Scab Leaf
+    - Apple rust leaf
+    - Corn Gray leaf spot
+    - Corn leaf blight
+    - Corn rust leaf
+    - Potato leaf early blight
+    - Potato leaf late blight
+    - Squash Powdery mildew leaf
+    - Tomato Early blight leaf
+    - Tomato Septoria leaf spot
+    - Tomato leaf late blight
+    - Tomato mold leaf
+    - grape leaf black rot
+    keywords:
+    - scab
+    - rust
+    - blight
+    - mold
+    - rot
+    - powdery
+    - mildew
+    - spot
+    color: '#8B4513'
+    bbox_color:
+    - 139
+    - 69
+    - 19
     priority: 2
-    description: "Fungal diseases affecting plants"
-    detection_label: "MANTAR HASTALIĞI"
-    specific_diseases: {
-      "Apple Scab Leaf": "Elma Karaleke",
-      "Apple rust leaf": "Elma Pası",
-      "Corn Gray leaf spot": "Mısır Gri Leke",
-      "Corn leaf blight": "Mısır Yaprak Yanıklığı",
-      "Corn rust leaf": "Mısır Pası",
-      "Potato leaf early blight": "Patates Erken Yanık",
-      "Potato leaf late blight": "Patates Geç Yanık",
-      "Squash Powdery mildew leaf": "Kabak Külleme",
-      "Tomato Early blight leaf": "Domates Erken Yanık",
-      "Tomato Septoria leaf spot": "Domates Septoria Leke",
-      "Tomato leaf late blight": "Domates Geç Yanık",
-      "Tomato mold leaf": "Domates Küf",
-      "grape leaf black rot": "Üzüm Siyah Çürüklük"
-    }
-    
-  # VİRÜS HASTALIKLARI - Viral diseases
+    description: Fungal diseases affecting plants
+    detection_label: MANTAR HASTALIĞI
+    specific_diseases:
+      Apple Scab Leaf: Elma Karaleke
+      Apple rust leaf: Elma Pası
+      Corn Gray leaf spot: Mısır Gri Leke
+      Corn leaf blight: Mısır Yaprak Yanıklığı
+      Corn rust leaf: Mısır Pası
+      Potato leaf early blight: Patates Erken Yanık
+      Potato leaf late blight: Patates Geç Yanık
+      Squash Powdery mildew leaf: Kabak Külleme
+      Tomato Early blight leaf: Domates Erken Yanık
+      Tomato Septoria leaf spot: Domates Septoria Leke
+      Tomato leaf late blight: Domates Geç Yanık
+      Tomato mold leaf: Domates Küf
+      grape leaf black rot: Üzüm Siyah Çürüklük
   viral_disease:
-    sub_classes: ["Tomato leaf mosaic virus", "Tomato leaf yellow virus"]
-    keywords: ["virus", "mosaic", "yellow"]
-    color: "#FF6347"  # Tomato Red
-    bbox_color: [255, 99, 71]  # RGB for OpenCV
+    sub_classes:
+    - Tomato leaf mosaic virus
+    - Tomato leaf yellow virus
+    keywords:
+    - virus
+    - mosaic
+    - yellow
+    color: '#FF6347'
+    bbox_color:
+    - 255
+    - 99
+    - 71
     priority: 2
-    description: "Viral infections in plants"
-    detection_label: "VİRÜS HASTALIĞI"
-    specific_diseases: {
-      "Tomato leaf mosaic virus": "Domates Mozaik Virüsü",
-      "Tomato leaf yellow virus": "Domates Sarı Virüsü"
-    }
-    
-  # BAKTERİ HASTALIKLARI - Bacterial diseases
+    description: Viral infections in plants
+    detection_label: VİRÜS HASTALIĞI
+    specific_diseases:
+      Tomato leaf mosaic virus: Domates Mozaik Virüsü
+      Tomato leaf yellow virus: Domates Sarı Virüsü
   bacterial_disease:
-    sub_classes: ["Tomato leaf bacterial spot", "Bell_pepper leaf spot"]
-    keywords: ["bacterial", "spot"]
-    color: "#DC143C"  # Crimson
-    bbox_color: [220, 20, 60]  # RGB for OpenCV
+    sub_classes:
+    - Tomato leaf bacterial spot
+    - Bell_pepper leaf spot
+    keywords:
+    - bacterial
+    - spot
+    color: '#DC143C'
+    bbox_color:
+    - 220
+    - 20
+    - 60
     priority: 2
-    description: "Bacterial infections in plants"
-    detection_label: "BAKTERİ HASTALIĞI"
-    specific_diseases: {
-      "Tomato leaf bacterial spot": "Domates Bakteriyel Leke",
-      "Bell_pepper leaf spot": "Biber Bakteriyel Leke"
-    }
-    
-  # ZARLI HASARI - Pest damage
+    description: Bacterial infections in plants
+    detection_label: BAKTERİ HASTALIĞI
+    specific_diseases:
+      Tomato leaf bacterial spot: Domates Bakteriyel Leke
+      Bell_pepper leaf spot: Biber Bakteriyel Leke
   pest_damage:
-    sub_classes: ["Aphid", "Leafhopper", "Spider Mite", "Spodoptera Larva", 
-                 "Spodoptera moth", "Stinkbug", "Thrips", "Beet armyworm", 
-                 "Cotton bollworm", "Green peach aphid", "Silverleaf whitefly", 
-                 "Tobacco cutworm", "melon fly", "melon thrips", "spider mite",
-                 "Tomato two spotted spider mites leaf"]
-    keywords: ["aphid", "mite", "thrips", "fly", "worm", "moth", "bug"]
-    color: "#FF4500"  # Orange Red
-    bbox_color: [255, 69, 0]  # RGB for OpenCV (Kırmızı)
+    sub_classes:
+    - Aphid
+    - Leafhopper
+    - Spider Mite
+    - Spodoptera Larva
+    - Spodoptera moth
+    - Stinkbug
+    - Thrips
+    - Beet armyworm
+    - Cotton bollworm
+    - Green peach aphid
+    - Silverleaf whitefly
+    - Tobacco cutworm
+    - melon fly
+    - melon thrips
+    - spider mite
+    - Tomato two spotted spider mites leaf
+    keywords:
+    - aphid
+    - mite
+    - thrips
+    - fly
+    - worm
+    - moth
+    - bug
+    color: '#FF4500'
+    bbox_color:
+    - 255
+    - 69
+    - 0
     priority: 2
-    description: "Damage caused by pests and insects"
-    detection_label: "ZARLI"
-    specific_pests: {
-      "Spider Mite": "Kırmızı Örümcek",
-      "spider mite": "Kırmızı Örümcek", 
-      "Tomato two spotted spider mites leaf": "İki Noktalı Kırmızı Örümcek",
-      "Aphid": "Yaprak Biti",
-      "Green peach aphid": "Yeşil Şeftali Biti",
-      "Thrips": "Trips",
-      "melon thrips": "Kavun Trips",
-      "Leafhopper": "Yaprak Zıplayıcısı",
-      "Stinkbug": "Koku Böceği",
-      "Beet armyworm": "Pancar Ordu Kurtları",
-      "Cotton bollworm": "Pamuk Kurtları",
-      "Silverleaf whitefly": "Gümüş Yaprak Beyazsineği",
-      "Tobacco cutworm": "Tütün Kırkayak Kurtları",
-      "melon fly": "Kavun Sineği",
-      "Spodoptera Larva": "Spodoptera Larvası",
-      "Spodoptera moth": "Spodoptera Kelebeği"
-    }
-    
-  # BESİN EKSİKLİĞİ - Nutrient deficiency
+    description: Damage caused by pests and insects
+    detection_label: ZARLI
+    specific_pests:
+      Spider Mite: Kırmızı Örümcek
+      spider mite: Kırmızı Örümcek
+      Tomato two spotted spider mites leaf: İki Noktalı Kırmızı Örümcek
+      Aphid: Yaprak Biti
+      Green peach aphid: Yeşil Şeftali Biti
+      Thrips: Trips
+      melon thrips: Kavun Trips
+      Leafhopper: Yaprak Zıplayıcısı
+      Stinkbug: Koku Böceği
+      Beet armyworm: Pancar Ordu Kurtları
+      Cotton bollworm: Pamuk Kurtları
+      Silverleaf whitefly: Gümüş Yaprak Beyazsineği
+      Tobacco cutworm: Tütün Kırkayak Kurtları
+      melon fly: Kavun Sineği
+      Spodoptera Larva: Spodoptera Larvası
+      Spodoptera moth: Spodoptera Kelebeği
   nutrient_deficiency:
-    sub_classes: ["nitrogen-deficiency", "phosphorus-deficiency", "potassium-deficiency"]
-    keywords: ["deficiency", "nitrogen", "phosphorus", "potassium"]
-    color: "#FFD700"  # Gold
-    bbox_color: [255, 215, 0]  # RGB for OpenCV
+    sub_classes:
+    - nitrogen-deficiency
+    - phosphorus-deficiency
+    - potassium-deficiency
+    keywords:
+    - deficiency
+    - nitrogen
+    - phosphorus
+    - potassium
+    - iron
+    - magnesium
+    - manganese
+    color: '#FFD700'
+    bbox_color:
+    - 255
+    - 215
+    - 0
     priority: 3
-    description: "Plant nutrient deficiency symptoms"
-    detection_label: "BESİN EKSİKLİĞİ"
-    specific_deficiencies: {
-      "nitrogen-deficiency": "Azot Eksikliği",
-      "phosphorus-deficiency": "Fosfor Eksikliği", 
-      "potassium-deficiency": "Potasyum Eksikliği"
-    }
-    
-  # YABANCI OT - Weeds
+    description: Plant nutrient deficiency symptoms
+    detection_label: BESİN EKSİKLİĞİ
+    specific_deficiencies:
+      nitrogen-deficiency: Azot Eksikliği
+      phosphorus-deficiency: Fosfor Eksikliği
+      potassium-deficiency: Potasyum Eksikliği
   weeds:
-    sub_classes: ["Weeds"]
-    keywords: ["weed", "weeds", "yabanci", "ot"]
-    color: "#8FBC8F"  # Dark Sea Green
-    bbox_color: [143, 188, 143]  # RGB for OpenCV
+    sub_classes:
+    - Weeds
+    keywords:
+    - weed
+    - weeds
+    - yabanci
+    - ot
+    color: '#8FBC8F'
+    bbox_color:
+    - 143
+    - 188
+    - 143
     priority: 3
-    description: "Unwanted plants and weeds"
-    detection_label: "YABANCI OT"
-    specific_weeds: {
-      "Weeds": "Yabani Ot"
-    }
-    
-  # OLGUN MEYVE - Ripe fruit
+    description: Unwanted plants and weeds
+    detection_label: YABANCI OT
+    specific_weeds:
+      Weeds: Yabani Ot
   fruit_ripe:
-    sub_classes: ["ripe"]
-    keywords: ["ripe", "olgun"]
-    color: "#32CD32"  # Lime Green
-    bbox_color: [50, 205, 50]  # RGB for OpenCV
+    sub_classes:
+    - ripe
+    keywords:
+    - ripe
+    - olgun
+    - fresh
+    color: '#32CD32'
+    bbox_color:
+    - 50
+    - 205
+    - 50
     priority: 1
-    description: "Ripe fruits ready for harvest"
-    detection_label: "OLGUN MEYVE"
-    
-  # OLMAMIŞ MEYVE - Unripe fruit
+    description: Ripe fruits ready for harvest
+    detection_label: OLGUN MEYVE
   fruit_unripe:
-    sub_classes: ["unripe"]
-    keywords: ["unripe", "ham"]
-    color: "#FFA500"  # Orange
-    bbox_color: [255, 165, 0]  # RGB for OpenCV
+    sub_classes:
+    - unripe
+    keywords:
+    - unripe
+    - ham
+    - half_ripe
+    - half-ripe
+    color: '#FFA500'
+    bbox_color:
+    - 255
+    - 165
+    - 0
     priority: 1
-    description: "Unripe fruits not ready for harvest"
-    detection_label: "OLMAMIŞ MEYVE"
-    
-  # HASARLI - Damaged
+    description: Unripe fruits not ready for harvest
+    detection_label: OLMAMIŞ MEYVE
   damaged:
-    sub_classes: ["damaged"]
-    keywords: ["damaged", "hasarli"]
-    color: "#B22222"  # Fire Brick Red
-    bbox_color: [178, 34, 34]  # RGB for OpenCV
+    sub_classes:
+    - damaged
+    keywords:
+    - damaged
+    - hasarli
+    - rotten
+    - overripe
+    - risk
+    color: '#B22222'
+    bbox_color:
+    - 178
+    - 34
+    - 34
     priority: 2
-    description: "Damaged or deteriorated plant parts"
-    detection_label: "HASARLI"
-    
-  # BİLİNMEYEN - Unknown (DISABLED - causes issues)
-  # unknown:
-  #   sub_classes: ["class 1", "class 2", "class 3", "class 4", "class 5", "class 6"]
-  #   keywords: ["class", "unknown", "bilinmeyen"]
-  #   color: "#808080"  # Gray
-  #   bbox_color: [128, 128, 128]  # RGB for OpenCV
-  #   priority: 4
-  #   description: "Unknown or unclassified items"
-  #   detection_label: "BİLİNMEYEN"
-
-# ============================================================================
-# DATASET GROUPS - Optimized for hierarchical detection
-# ============================================================================
+    description: Damaged or deteriorated plant parts
+    detection_label: HASARLI
 dataset_groups:
-  # ⭐ MAIN UNIFIED MODEL - Recommended for production (FIXED)
   unified_agricultural_model:
-    description: "🌟 Universal Agricultural AI - All-in-one hierarchical detection (NO PLANT_VILLAGE)"
-    datasets: [
-      # "plant_village",  # REMOVED - download issues
-      "plant_diseases_comprehensive", "fruit_ripeness",
-      "agricultural_pests", "pest_detection_advanced", "nutrient_deficiency", 
-      "weeds_detection"
-    ]
-    use_case: "Complete agricultural monitoring with hierarchical detection"
-    estimated_training_time: "4-8 hours"
-    recommended_model: "yolo11l.pt"
+    description: 🌟 Universal Agricultural AI - All-in-one hierarchical detection (NO
+      PLANT_VILLAGE)
+    datasets:
+    - plant_diseases_comprehensive
+    - fruit_ripeness
+    - pest_sams_sgift
+    - pest_varshine
+    - nutrient_deficiency
+    - weeds_detection
+    use_case: Complete agricultural monitoring with hierarchical detection
+    estimated_training_time: 4-8 hours
+    recommended_model: yolo11l.pt
     batch_size: 8
     image_size: 640
-    target_classes: ["healthy", "fungal_disease", "viral_disease", "bacterial_disease", 
-                    "pest_damage", "nutrient_deficiency", "weeds", "fruit_ripe", 
-                    "fruit_unripe", "damaged"]
-    model_capabilities: [
-      "Plant disease detection and classification",
-      "Pest and insect identification with Turkish names", 
-      "Fruit ripeness assessment",
-      "Nutrient deficiency analysis",
-      "Weed detection (yabanci ot)",
-      "General plant health monitoring"
-    ]
-    hierarchical_features: [
-      "Color-coded bounding boxes for each category",
-      "Turkish detection labels (ZARLI, MANTAR HASTALIĞI, etc.)",
-      "Specific type identification (Kırmızı Örümcek, Azot Eksikliği)",
-      "Confidence scoring for each detection"
-    ]
-    
-  # 🧪 RESEARCH MODEL - All datasets including experimental
+    target_classes:
+    - healthy
+    - fungal_disease
+    - viral_disease
+    - bacterial_disease
+    - pest_damage
+    - nutrient_deficiency
+    - weeds
+    - fruit_ripe
+    - fruit_unripe
+    - damaged
+    model_capabilities:
+    - Plant disease detection and classification
+    - Pest and insect identification with Turkish names
+    - Fruit ripeness assessment
+    - Nutrient deficiency analysis
+    - Weed detection (yabanci ot)
+    - General plant health monitoring
+    hierarchical_features:
+    - Color-coded bounding boxes for each category
+    - Turkish detection labels (ZARLI, MANTAR HASTALIĞI, etc.)
+    - Specific type identification (Kırmızı Örümcek, Azot Eksikliği)
+    - Confidence scoring for each detection
   research_complete:
-    description: "Complete research model with all available datasets"
-    datasets: [
-      # "plant_village",  # REMOVED
-      "plant_diseases_comprehensive", "fruit_ripeness", 
-      "agricultural_pests", "pest_detection_advanced", "nutrient_deficiency", 
-      "weeds_detection", "agricultural_dataset_4", "agricultural_dataset_5"
-    ]
-    use_case: "Research and experimental hierarchical model"
-    estimated_training_time: "6-12 hours"
-    recommended_model: "yolo11x.pt"
+    description: Complete research model with all available datasets
+    datasets:
+    - plant_diseases_comprehensive
+    - fruit_ripeness
+    - pest_sams_sgift
+    - pest_varshine
+    - nutrient_deficiency
+    - weeds_detection
+    - agricultural_dataset_4
+    - agricultural_dataset_5
+    use_case: Research and experimental hierarchical model
+    estimated_training_time: 6-12 hours
+    recommended_model: yolo11x.pt
     batch_size: 4
     image_size: 640
-    target_classes: ["healthy", "fungal_disease", "viral_disease", "bacterial_disease", 
-                    "pest_damage", "nutrient_deficiency", "weeds", "fruit_ripe", 
-                    "fruit_unripe", "damaged"]
-    
-  # ⚡ QUICK TEST - Fast testing subset (FIXED)
+    target_classes:
+    - healthy
+    - fungal_disease
+    - viral_disease
+    - bacterial_disease
+    - pest_damage
+    - nutrient_deficiency
+    - weeds
+    - fruit_ripe
+    - fruit_unripe
+    - damaged
   quick_unified_test:
-    description: "Quick test for hierarchical detection development (WORKING DATASETS)"
-    datasets: [
-      # "plant_village",  # REMOVED
-      "plant_diseases_comprehensive", "fruit_ripeness", "agricultural_pests", "nutrient_deficiency"
-    ]
-    use_case: "Fast validation of hierarchical detection system"
-    estimated_training_time: "1-3 hours"
-    recommended_model: "yolo11m.pt"
+    description: Quick test for hierarchical detection development (WORKING DATASETS)
+    datasets:
+    - plant_diseases_comprehensive
+    - fruit_ripeness
+    - pest_sams_sgift
+    - nutrient_deficiency
+    use_case: Fast validation of hierarchical detection system
+    estimated_training_time: 1-3 hours
+    recommended_model: yolo11m.pt
     batch_size: 16
     image_size: 640
-    target_classes: ["healthy", "fungal_disease", "pest_damage", "fruit_ripe", "fruit_unripe", "nutrient_deficiency"]
-    
-  # 🚀 PRODUCTION READY - Verified datasets only (FIXED)
+    target_classes:
+    - healthy
+    - fungal_disease
+    - pest_damage
+    - fruit_ripe
+    - fruit_unripe
+    - nutrient_deficiency
   production_unified:
-    description: "Production-ready hierarchical agricultural model (VERIFIED WORKING)"
-    datasets: [
-      # "plant_village",  # REMOVED - problematic
-      "plant_diseases_comprehensive", 
-      "fruit_ripeness",
-      "agricultural_pests", 
-      "pest_detection_advanced", 
-      "nutrient_deficiency"
-    ]
-    use_case: "Deployment-ready hierarchical agricultural AI"
-    estimated_training_time: "3-6 hours"
-    recommended_model: "yolo11l.pt"
+    description: Production-ready hierarchical agricultural model (VERIFIED WORKING)
+    datasets:
+    - plant_diseases_comprehensive
+    - fruit_ripeness
+    - pest_sams_sgift
+    - pest_varshine
+    - nutrient_deficiency
+    use_case: Deployment-ready hierarchical agricultural AI
+    estimated_training_time: 3-6 hours
+    recommended_model: yolo11l.pt
     batch_size: 8
     image_size: 640
-    target_classes: ["healthy", "fungal_disease", "viral_disease", "bacterial_disease", 
-                    "pest_damage", "nutrient_deficiency", "weeds", "fruit_ripe", 
-                    "fruit_unripe"]
-
-# ============================================================================
-# DETECTION VISUALIZATION SETTINGS
-# ============================================================================
+    target_classes:
+    - healthy
+    - fungal_disease
+    - viral_disease
+    - bacterial_disease
+    - pest_damage
+    - nutrient_deficiency
+    - weeds
+    - fruit_ripe
+    - fruit_unripe
 detection_settings:
-  # Bounding box styling
   bbox_thickness: 3
   text_thickness: 2
   text_scale: 0.8
-  text_color: [255, 255, 255]  # White text
+  text_color:
+  - 255
+  - 255
+  - 255
   text_background: true
   text_background_alpha: 0.7
-  
-  # Confidence settings  
   min_confidence: 0.5
   show_confidence: true
   confidence_decimals: 2
-  
-  # Hierarchical label format
-  label_format: "{detection_label}: {specific_name} ({confidence:.2f})"
-  # Example output: "ZARLI: Kırmızı Örümcek (0.85)"
-  
-  # Display options
+  label_format: '{detection_label}: {specific_name} ({confidence:.2f})'
   show_main_category: true
   show_specific_type: true
-  show_both: true  # Main category + specific type
-  
-  # Language settings
-  language: "tr"  # Turkish labels
-  fallback_language: "en"
-  
-  # Color scheme
+  show_both: true
+  language: tr
+  fallback_language: en
   use_category_colors: true
   high_contrast_mode: false
-
-# ============================================================================
-# GLOBAL SETTINGS - System-wide configurations
-# ============================================================================
 global_settings:
-  # Training parameters
   default_target_count_per_class: 2000
-  default_output_dir: "datasets/hierarchical_merged"
+  default_output_dir: datasets/hierarchical_merged
   default_image_size: 640
-  
-  # Download settings
-  download_timeout: 300  # seconds
+  download_timeout: 300
   retry_attempts: 3
   parallel_downloads: false
-  
-  # Processing settings
   auto_class_mapping: true
   manual_review_required: false
   create_backup: true
-  
-  # Quality settings
   min_class_samples: 50
   max_class_imbalance_ratio: 10
   image_quality_check: true
-  
-  # Augmentation defaults for hierarchical model
-  default_augmentation_level: "medium"  # Changed from heavy to medium
+  default_augmentation_level: medium
   preserve_original_data: true
-  augmentation_split_ratio: 0.8  # 80% train, 20% validation
-  
-  # Training optimization
+  augmentation_split_ratio: 0.8
   auto_batch_size: true
   memory_efficient: true
   cache_datasets: true
-  
-  # Hierarchical model specific
   hierarchical_mode: true
   turkish_labels: true
   color_coded_detection: true
-
-# ============================================================================
-# AUGMENTATION PROFILES - Optimized for agricultural hierarchical detection
-# ============================================================================
 augmentation_profiles:
   disease_detection:
-    severity: "medium"
-    techniques: ["brightness", "contrast", "hue_saturation", "rotation", "flip"]
+    severity: medium
+    techniques:
+    - brightness
+    - contrast
+    - hue_saturation
+    - rotation
+    - flip
     weather_simulation: true
-    focus_areas: ["color_variations", "lighting_conditions"]
-    
+    focus_areas:
+    - color_variations
+    - lighting_conditions
   pest_detection:
-    severity: "medium"  # Changed from heavy to medium
-    techniques: ["brightness", "contrast", "noise", "rotation", "flip", "scale"]
+    severity: medium
+    techniques:
+    - brightness
+    - contrast
+    - noise
+    - rotation
+    - flip
+    - scale
     weather_simulation: false
-    focus_areas: ["texture_variations", "size_variations"]
-    
+    focus_areas:
+    - texture_variations
+    - size_variations
   fruit_quality:
-    severity: "light"
-    techniques: ["brightness", "hue_saturation", "rotation"]
+    severity: light
+    techniques:
+    - brightness
+    - hue_saturation
+    - rotation
     weather_simulation: false
-    focus_areas: ["color_variations"]
-    
+    focus_areas:
+    - color_variations
   nutrient_analysis:
-    severity: "medium"
-    techniques: ["brightness", "contrast", "hue_saturation"]
+    severity: medium
+    techniques:
+    - brightness
+    - contrast
+    - hue_saturation
     weather_simulation: false
-    focus_areas: ["color_variations", "subtle_changes"]
-    
+    focus_areas:
+    - color_variations
+    - subtle_changes
   weed_detection:
-    severity: "medium"
-    techniques: ["brightness", "contrast", "rotation", "flip"]
+    severity: medium
+    techniques:
+    - brightness
+    - contrast
+    - rotation
+    - flip
     weather_simulation: true
-    focus_areas: ["texture_variations", "lighting_conditions"]
-
-# ============================================================================
-# METADATA - System information
-# ============================================================================
+    focus_areas:
+    - texture_variations
+    - lighting_conditions
 metadata:
-  total_datasets: 7  # Primary datasets for production (plant_village removed)
-  total_experimental_datasets: 3  # Additional research datasets
-  total_expected_classes: 58  # Updated without plant_village
+  total_datasets: 7
+  total_experimental_datasets: 3
+  total_expected_classes: 58
   main_categories: 10
-  supported_formats: ["YOLO", "COCO"]
-  framework_version: "3.1"
-  
-  # Dataset statistics (estimated)
-  estimated_total_images: 65000  # Updated without plant_village
-  estimated_annotations: 85000   # Updated 
-  estimated_disk_space: "20 GB"  # Updated
-  
-  # System capabilities
-  features: [
-    "Hierarchical detection with Turkish labels",
-    "Color-coded bounding boxes",
-    "Specific pest and disease identification",
-    "Multi-task agricultural AI",
-    "Production-ready unified model",
-    "Automatic validation split creation",
-    "Fixed plant_village issues"
-  ]
-  
-  # Compatibility
-  yolo_versions: ["YOLOv8", "YOLO11"]
-  python_versions: ["3.8+"]
-  required_libraries: ["ultralytics", "opencv-python", "albumentations", "pyyaml", "numpy", "matplotlib"]
-  
-  # Contact and support
-  documentation_url: "https://github.com/your-repo/yolo11-hierarchical-agricultural"
-  last_tested: "2025-01-22"
-  
-  # Quick reference
-  main_colors: {
-    "SAĞLIKLI": "#2E8B57",
-    "ZARLI": "#FF4500", 
-    "MANTAR HASTALIĞI": "#8B4513",
-    "VİRÜS HASTALIĞI": "#FF6347",
-    "BESİN EKSİKLİĞİ": "#FFD700",
-    "YABANCI OT": "#8FBC8F"
-  }
-
-# ============================================================================
-# CHANGELOG - Version history
-# ============================================================================
+  supported_formats:
+  - YOLO
+  - COCO
+  framework_version: '3.1'
+  estimated_total_images: 65000
+  estimated_annotations: 85000
+  estimated_disk_space: 20 GB
+  features:
+  - Hierarchical detection with Turkish labels
+  - Color-coded bounding boxes
+  - Specific pest and disease identification
+  - Multi-task agricultural AI
+  - Production-ready unified model
+  - Automatic validation split creation
+  - Fixed plant_village issues
+  yolo_versions:
+  - YOLOv8
+  - YOLO11
+  python_versions:
+  - 3.8+
+  required_libraries:
+  - ultralytics
+  - opencv-python
+  - albumentations
+  - pyyaml
+  - numpy
+  - matplotlib
+  documentation_url: https://github.com/your-repo/yolo11-hierarchical-agricultural
+  last_tested: '2025-01-22'
+  main_colors:
+    SAĞLIKLI: '#2E8B57'
+    ZARLI: '#FF4500'
+    MANTAR HASTALIĞI: '#8B4513'
+    VİRÜS HASTALIĞI: '#FF6347'
+    BESİN EKSİKLİĞİ: '#FFD700'
+    YABANCI OT: '#8FBC8F'
 changelog:
-  "3.1":
-    date: "2025-01-22"
+  '3.1':
+    date: '2025-01-22'
     changes:
-      - "FIXED: Removed problematic plant_village dataset from all groups"
-      - "Updated all dataset groups to work without plant_village"
-      - "Verified all remaining datasets are working and downloadable"
-      - "Added validation split auto-creation functionality"
-      - "Reduced augmentation severity from heavy to medium for stability"
-      - "Updated metadata and statistics without plant_village"
-      - "Enhanced error handling for dataset downloads"
-      - "Improved modular code structure"
-    notes: "Complete fixed version - should work without download issues"
-    
-  "3.0":
-    date: "2025-01-15"
+    - 'FIXED: Removed problematic plant_village dataset from all groups'
+    - Updated all dataset groups to work without plant_village
+    - Verified all remaining datasets are working and downloadable
+    - Added validation split auto-creation functionality
+    - Reduced augmentation severity from heavy to medium for stability
+    - Updated metadata and statistics without plant_village
+    - Enhanced error handling for dataset downloads
+    - Improved modular code structure
+    notes: Complete fixed version - should work without download issues
+  '3.0':
+    date: '2025-01-15'
     changes:
-      - "Final production-ready hierarchical detection system"
-      - "Complete Turkish labeling system (ZARLI, MANTAR HASTALIĞI, etc.)"
-      - "Weed detection with proper color coding (#8FBC8F)"
-      - "Specific pest identification (Kırmızı Örümcek, etc.)"
-      - "Optimized dataset groups for unified model"
-      - "Enhanced visualization settings"
-      - "Production and research model separation"
-    notes: "Complete hierarchical agricultural AI system"
-    
-  "2.0":
-    date: "2025-01-15"
+    - Final production-ready hierarchical detection system
+    - Complete Turkish labeling system (ZARLI, MANTAR HASTALIĞI, etc.)
+    - Weed detection with proper color coding (#8FBC8F)
+    - Specific pest identification (Kırmızı Örümcek, etc.)
+    - Optimized dataset groups for unified model
+    - Enhanced visualization settings
+    - Production and research model separation
+    notes: Complete hierarchical agricultural AI system
+  '2.0':
+    date: '2025-01-15'
     changes:
-      - "Updated with real dataset URLs and class information"
-      - "Added comprehensive class mapping configuration"
-      - "Enhanced dataset groups with recommended settings"
-    notes: "Major update with real-world data integration"
-    
-  "1.0":
-    date: "2024-01-15"
+    - Updated with real dataset URLs and class information
+    - Added comprehensive class mapping configuration
+    - Enhanced dataset groups with recommended settings
+    notes: Major update with real-world data integration
+  '1.0':
+    date: '2024-01-15'
     changes:
-      - "Initial configuration file created"
-    notes: "First stable release"
-
-# ============================================================================
-# USAGE EXAMPLES
-# ============================================================================
+    - Initial configuration file created
+    notes: First stable release
 usage_examples:
-  basic_usage: |
-    # Basic hierarchical training (FIXED):
+  basic_usage: '# Basic hierarchical training (FIXED):
+
     python main_multi_dataset.py
+
     # Select option 2 (Training setup)
+
     # Choose "production_unified" (NO plant_village issues)
+
     # Results: Hierarchical detection with Turkish labels
-    
-  detection_output: |
-    # Example detection outputs:
+
+    '
+  detection_output: '# Example detection outputs:
+
     🔴 "ZARLI: Kırmızı Örümcek (0.85)"
+
     🟫 "MANTAR HASTALIĞI: Elma Karaleke (0.92)"
+
     🟢 "SAĞLIKLI: Domates Yaprağı (0.78)"
+
     🟡 "BESİN EKSİKLİĞİ: Azot Eksikliği (0.67)"
+
     🌿 "YABANCI OT: Yabani Ot (0.73)"
-  
-    
-  # add_new_dataset: |
-    # # To add a new dataset to experimental_datasets:
-    # new_dataset_name:
-      # url: "https://universe.roboflow.com/ds/XXXXXXX?key=YYYYYYY"
-      # description: "Your dataset description"
-      # resize_info: "Stretch to 640x640"
-      # expected_classes: ["class1", "class2"]
-      # class_count: 2
-      # priority: 4
-      # category: "your_category"
-      # dataset_type: "research"
-      # added_date: "2025-01-15"
-      # notes: "Added for specific research purpose"
+
+    '
