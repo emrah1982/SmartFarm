@@ -12,6 +12,7 @@ import humanize
 import time
 from typing import List, Tuple, Optional
 import torchvision
+import threading
 
 from ultralytics import YOLO
 from PIL import Image
