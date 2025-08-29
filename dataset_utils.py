@@ -149,9 +149,9 @@ def _build_api_endpoint_url(workspace: str, project: str, version: str, api_key:
     }
     if split_config and all(k in split_config for k in ("train", "test", "val")):
         q["split"] = f"{split_config['train']}-{split_config['test']}-{split_config['val']}"
-    # API path: https://api.roboflow.com/dataset/{workspace}/{project}/{version}
-    # Some docs show dataset identifier as {workspace}/{project}
-    path = f"/dataset/{workspace}/{project}/{version}"
+    # API path: https://api.roboflow.com/dataset/{workspace}/{project}/{version}/download
+    # Not: /download segmenti ZIP dönen doğru endpointtir.
+    path = f"/dataset/{workspace}/{project}/{version}/download"
     return f"https://api.roboflow.com{path}?{urlencode(q)}"
 
 def download_dataset(url, dataset_dir='datasets/roboflow_dataset', api_key=None, split_config=None):

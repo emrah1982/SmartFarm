@@ -12,10 +12,12 @@ import random
 from datetime import datetime
 from augmentation_utils import YOLOAugmentationPipeline
 try:
-    from roboflow_api_helper import get_api_key_from_config
+    from roboflow_api_helper import get_api_key_from_config, download_from_config_entry
 except Exception:
     def get_api_key_from_config():
         return None
+    def download_from_config_entry(*args, **kwargs):
+        return False
 
 class DatasetAnalyzer:
     """Dataset analysis and download operations"""
@@ -31,8 +33,8 @@ class DatasetAnalyzer:
         failed_downloads = []
         download_stats = {}
         
-        from dataset_utils import download_dataset
-        # Try to get a Roboflow API key (required for SDK-only flow).
+        # SDK-only akışı: Roboflow SDK kullanacağız
+        # Try to get a Roboflow API key (required for SDK flow).
         api_key = None
         split_config = None
         try:
@@ -64,26 +66,10 @@ class DatasetAnalyzer:
                 failed_downloads.append(dataset['name'])
                 continue
 
-            # 2) Build API endpoint URL from canonical
-            try:
-                ws, prj, ver = canonical.split('/')
-                split_suffix = ''
-                if split_config and all(k in split_config for k in ('train', 'test', 'val')):
-                    split_suffix = f"&split={split_config['train']}-{split_config['test']}-{split_config['val']}"
-                chosen_url = (
-                    f"https://api.roboflow.com/dataset/{ws}/{prj}/{ver}?api_key={api_key}"
-                    f"&format=yolov8{split_suffix}"
-                )
-                strategy = 'api_endpoint_from_canonical'
-            except Exception as e:
-                print(f"❌ Canonical ayrıştırma hatası: {e}")
-                failed_downloads.append(dataset['name'])
-                continue
-
-            print(f"🔗 URL Strategy: {strategy}")
-            print(f"🔗 Using URL: {chosen_url}")
-            
-            success = download_dataset(chosen_url, dataset['local_path'], api_key=api_key, split_config=split_config)
+            # 2) Roboflow SDK ile indirme (yerelde çalışan akışla aynı)
+            fmt = dataset.get('format') or 'yolov11'
+            print(f"🤖 SDK Strategy: download_from_config_entry (format={fmt})")
+            success = bool(download_from_config_entry(dataset, dataset_dir=dataset['local_path'], api_key=api_key, format_name=fmt))
             if not success:
                 print(f"❌ ERROR: {dataset['name']} could not be downloaded!")
                 failed_downloads.append(dataset['name'])
