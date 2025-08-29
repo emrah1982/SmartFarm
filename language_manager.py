@@ -23,7 +23,7 @@ class LanguageManager:
                 'option_training': '🎛️  Eğitim kurulumu ve yürütme',
                 'option_test': '🔍 Hiyerarşik tespiti test et (eğitilmiş model gerekli)',
                 'option_exit': '❌ Çıkış',
-                'select_option': 'Seçenek (1-4): ',
+                'select_option': 'Seçenek (1-4, varsayılan: 1): ',
                 
                 # Model Download
                 'model_download_title': '===== YOLO11 Model İndirme =====',
@@ -32,7 +32,7 @@ class LanguageManager:
                 'single_model': '1. Tek model indir',
                 'all_detection': '2. Tüm tespit modellerini indir',
                 'all_models': '3. Tüm modelleri indir (tüm tipler)',
-                'your_choice': 'Seçiminiz (1-3): ',
+                'your_choice': 'Seçiminiz (1-3, varsayılan: 2): ',
                 
                 # Model Types
                 'select_model_type': 'Model tipini seçin:',
@@ -195,7 +195,7 @@ class LanguageManager:
                 'option_training': '🎛️  Training setup and execution',
                 'option_test': '🔍 Test hierarchical detection (requires trained model)',
                 'option_exit': '❌ Exit',
-                'select_option': 'Select option (1-4): ',
+                'select_option': 'Select option (1-4, default: 1): ',
                 
                 # Model Download
                 'model_download_title': '===== YOLO11 Model Download =====',
@@ -204,7 +204,7 @@ class LanguageManager:
                 'single_model': '1. Download single model',
                 'all_detection': '2. Download all detection models',
                 'all_models': '3. Download all models (all types)',
-                'your_choice': 'Your choice (1-3): ',
+                'your_choice': 'Your choice (1-3, default: 2): ',
                 
                 # Model Types
                 'select_model_type': 'Select model type:',
