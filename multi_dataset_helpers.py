@@ -82,14 +82,11 @@ class DatasetAnalyzer:
                 dy = os.path.join(base_dir, 'data.yaml')
                 if os.path.exists(dy):
                     return dy
-                # search one level deep
+                # recursive search up to a reasonable depth
                 try:
-                    for entry in os.listdir(base_dir):
-                        p = os.path.join(base_dir, entry)
-                        if os.path.isdir(p):
-                            dy2 = os.path.join(p, 'data.yaml')
-                            if os.path.exists(dy2):
-                                return dy2
+                    for root, dirs, files in os.walk(base_dir):
+                        if 'data.yaml' in files:
+                            return os.path.join(root, 'data.yaml')
                 except Exception:
                     pass
                 return None
@@ -125,34 +122,39 @@ class DatasetAnalyzer:
         """Analyze the class distribution of a dataset"""
         print(f"\n--- {dataset['name']} Class Analysis ---")
         
-        # Resolve labels/train directory using data.yaml if available (YOLOv11 layout)
+        # Resolve labels/train directory using data.yaml if available (YOLO layout)
         train_labels_dir = None
         data_yaml_path = os.path.join(dataset['local_path'], 'data.yaml')
+        candidates = []
         if os.path.exists(data_yaml_path):
             try:
                 with open(data_yaml_path, 'r') as f:
                     data_cfg = yaml.safe_load(f) or {}
-                # Typical fields: path, train, val. We derive labels path by replacing 'images' with 'labels'.
                 root_path = data_cfg.get('path') or '.'
                 train_entry = data_cfg.get('train') or 'train/images'
-                # Join respecting relative vs absolute
                 def _join(root_dir, p):
                     return p if os.path.isabs(p) else os.path.normpath(os.path.join(root_dir, p))
-                images_train_dir = _join(dataset['local_path'], _join(root_path if root_path != '.' else '', train_entry))
-                # Replace last occurrence of 'images' with 'labels'
-                if 'images' in os.path.basename(images_train_dir):
-                    train_labels_dir = os.path.join(os.path.dirname(images_train_dir), 'labels')
-                else:
-                    # Fallback heuristic
-                    train_labels_dir = images_train_dir.replace(os.sep + 'images', os.sep + 'labels')
+                images_train_dir = _join(dataset['local_path'], _join('' if root_path == '.' else root_path, train_entry))
+                # Primary: replace images -> labels beside it
+                if os.path.basename(images_train_dir) == 'images':
+                    candidates.append(os.path.join(os.path.dirname(images_train_dir), 'labels'))
+                # Heuristics
+                candidates.append(images_train_dir.replace(os.sep + 'images', os.sep + 'labels'))
             except Exception as e:
                 print(f"⚠️  data.yaml analizi hatası: {e}")
-                train_labels_dir = None
+        # Common Roboflow layouts relative to data.yaml location
+        candidates.extend([
+            os.path.join(dataset['local_path'], 'train', 'labels'),
+            os.path.join(dataset['local_path'], 'labels', 'train'),
+            os.path.join(dataset['local_path'], 'datasets', 'train', 'labels'),
+        ])
+        # Pick the first existing directory
+        for c in candidates:
+            if c and os.path.isdir(c):
+                train_labels_dir = c
+                break
         if not train_labels_dir:
-            # Legacy fallback
-            train_labels_dir = os.path.join(dataset['local_path'], 'labels', 'train')
-        if not os.path.exists(train_labels_dir):
-            print(f"❌ Label directory not found: {train_labels_dir}")
+            print(f"❌ Label directory not found. Tried: {', '.join(candidates)}")
             return {}
         
         class_counts = Counter()
@@ -379,11 +381,45 @@ class DatasetMerger:
         
         class_idx = dataset['classes'].index(class_name)
         
-        # Paths
-        images_dir = os.path.join(dataset['local_path'], 'images', 'train')
-        labels_dir = os.path.join(dataset['local_path'], 'labels', 'train')
-        
-        if not os.path.exists(images_dir) or not os.path.exists(labels_dir):
+        # Resolve paths using data.yaml similarly to analysis step
+        images_dir = None
+        labels_dir = None
+        data_yaml_path = os.path.join(dataset['local_path'], 'data.yaml')
+        cand_imgs = []
+        cand_lbls = []
+        if os.path.exists(data_yaml_path):
+            try:
+                with open(data_yaml_path, 'r') as f:
+                    data_cfg = yaml.safe_load(f) or {}
+                root_path = data_cfg.get('path') or '.'
+                train_entry = data_cfg.get('train') or 'train/images'
+                def _join(root_dir, p):
+                    return p if os.path.isabs(p) else os.path.normpath(os.path.join(root_dir, p))
+                images_train_dir = _join(dataset['local_path'], _join('' if root_path == '.' else root_path, train_entry))
+                cand_imgs.append(images_train_dir)
+                if os.path.basename(images_train_dir) == 'images':
+                    cand_lbls.append(os.path.join(os.path.dirname(images_train_dir), 'labels'))
+                cand_lbls.append(images_train_dir.replace(os.sep + 'images', os.sep + 'labels'))
+            except Exception:
+                pass
+        # Common fallbacks
+        cand_imgs.extend([
+            os.path.join(dataset['local_path'], 'images', 'train'),
+            os.path.join(dataset['local_path'], 'train', 'images'),
+        ])
+        cand_lbls.extend([
+            os.path.join(dataset['local_path'], 'labels', 'train'),
+            os.path.join(dataset['local_path'], 'train', 'labels'),
+        ])
+        for p in cand_imgs:
+            if os.path.isdir(p):
+                images_dir = p
+                break
+        for p in cand_lbls:
+            if os.path.isdir(p):
+                labels_dir = p
+                break
+        if not images_dir or not labels_dir:
             return samples
         
         # Find all label files containing this class
