@@ -19,8 +19,8 @@ def iter_dataset_names(cfg: dict):
         if not isinstance(items, dict):
             continue
         for name, entry in items.items():
-            # Sadece roboflow_canonical olanları dene (SDK-only)
-            if isinstance(entry, dict) and entry.get('roboflow_canonical'):
+            # Yalnızca SDK ile indirilecek kayıtları döndür (roboflow_canonical zorunlu)
+            if isinstance(entry, dict) and 'roboflow_canonical' in entry:
                 yield group, name
 
 

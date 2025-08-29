@@ -36,6 +36,20 @@ datasets:
       notes: Enabled - Use roboflow_canonical with API key
       last_download_status: OK
       last_download_time: '2025-08-28 14:51:36'
+    tomato_ripeness_drone:
+      roboflow_canonical: drone-uzyqr/tomato-ripeness1-5fzpp/1
+      format: yolov11
+      description: Tomato ripeness (ripe vs unripe) - Object Detection (DRONE workspace)
+      resize_info: Stretch to 640x640
+      expected_classes:
+      - ripe
+      - unripe
+      class_count: 2
+      priority: 1
+      category: fruit_quality
+      dataset_type: quality_assessment
+      added_date: '2025-08-29'
+      notes: "Added from user snippet; use API key via env ROBOFLOW_API_KEY or config parameter"
     plant_village_telkom:
       roboflow_canonical: telkom-university-mfinb/plant-village-dataset-nyrhs/2
       description: PlantVillage Dataset (Telkom University) - Object detection labels
@@ -140,38 +154,20 @@ datasets:
       last_download_status: OK
       last_download_time: '2025-08-28 14:51:36'
   specialized_datasets:
-    nutrient_deficiency:
-      url: https://universe.roboflow.com/ds/vi801fQJoV?key=NC8Ksts5aY
-      roboflow_canonical: nutrient-deficiency/nutrient-deficiency/1
-      description: Plant nutrient deficiency detection
-      resize_info: Stretch to 640x640
-      expected_classes:
-      - nitrogen-deficiency
-      - phosphorus-deficiency
-      - potassium-deficiency
-      class_count: 3
-      priority: 3
-      category: nutrient_analysis
-      dataset_type: deficiency_detection
-      added_date: '2024-01-01'
-      notes: Critical for precision agriculture
-      last_download_status: FAIL
-      last_download_time: '2025-08-28 14:51:36'
     weeds_detection:
-      url: https://universe.roboflow.com/ds/9OIPfBTeDO?key=iwPIAahIko
-      roboflow_canonical: weeds-detection/weeds-detection/1
-      description: Weed detection and classification
+      roboflow_canonical: koley/weed-detection-535r5/3
+      format: yolov11
+      description: Weed vs Plant instance segmentation (koley workspace)
       resize_info: Not specified
       expected_classes:
-      - Weeds
-      class_count: 1
+      - plant
+      - weed
+      class_count: 2
       priority: 3
       category: weed_control
-      dataset_type: weed_detection
-      added_date: '2024-01-15'
-      notes: Essential for weed management - yabanci ot tespiti
-      last_download_status: FAIL
-      last_download_time: '2025-08-28 14:51:36'
+      dataset_type: segmentation
+      added_date: '2025-08-29'
+      notes: "Source: koley/weed-detection-535r5 v3 (Instance Segmentation)"
     tomato_leaf_nutrient_deficiency:
       roboflow_canonical: tomato-nutrient-deficiency/tomato-leaf-3jffl/4
       url: https://universe.roboflow.com/tomato-nutrient-deficiency/tomato-leaf-3jffl
@@ -526,16 +522,35 @@ class_mapping:
     priority: 2
     description: Damaged or deteriorated plant parts
     detection_label: HASARLI
+  tomato_ripeness_drone:
+    sub_classes:
+    - ripe
+    - unripe
+    keywords:
+    - ripe
+    - unripe
+    - tomato
+    - drone
+    color: '#FFA07A'
+    bbox_color:
+    - 255
+    - 160
+    - 122
+    priority: 1
+    description: Tomato ripeness detection using drone images
+    detection_label: DOMATES OLGUNLUĞU
+    specific_classes:
+      ripe: Olgun Domates
+      unripe: Olgunlaşmamış Domates
 dataset_groups:
   unified_agricultural_model:
-    description: 🌟 Universal Agricultural AI - All-in-one hierarchical detection (NO
-      PLANT_VILLAGE)
+    description: 🌟 Universal Agricultural AI - All-in-one hierarchical detection (NO PLANT_VILLAGE)
     datasets:
     - plant_diseases_comprehensive
     - fruit_ripeness
+    - tomato_ripeness_drone
     - pest_sams_sgift
     - pest_varshine
-    - nutrient_deficiency
     - weeds_detection
     use_case: Complete agricultural monitoring with hierarchical detection
     estimated_training_time: 4-8 hours
@@ -570,9 +585,9 @@ dataset_groups:
     datasets:
     - plant_diseases_comprehensive
     - fruit_ripeness
+    - tomato_ripeness_drone
     - pest_sams_sgift
     - pest_varshine
-    - nutrient_deficiency
     - weeds_detection
     - agricultural_dataset_4
     - agricultural_dataset_5
@@ -597,8 +612,8 @@ dataset_groups:
     datasets:
     - plant_diseases_comprehensive
     - fruit_ripeness
+    - tomato_ripeness_drone
     - pest_sams_sgift
-    - nutrient_deficiency
     use_case: Fast validation of hierarchical detection system
     estimated_training_time: 1-3 hours
     recommended_model: yolo11m.pt
@@ -616,9 +631,9 @@ dataset_groups:
     datasets:
     - plant_diseases_comprehensive
     - fruit_ripeness
+    - tomato_ripeness_drone
     - pest_sams_sgift
     - pest_varshine
-    - nutrient_deficiency
     use_case: Deployment-ready hierarchical agricultural AI
     estimated_training_time: 3-6 hours
     recommended_model: yolo11l.pt

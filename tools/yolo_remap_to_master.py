@@ -24,7 +24,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any
 
 try:
     import yaml  # PyYAML
@@ -149,8 +149,51 @@ def iter_label_files(labels_dir: Path) -> List[Path]:
     return sorted(labels_dir.rglob("*.txt"))
 
 
+def mapping_to_jsonable(dataset_path: Path, old_to_new: Dict[int, int], old_to_name: Dict[int, str], master_names: List[str]) -> Dict[str, Any]:
+    """Kullanıcı müdahalesi için düzenlenebilir JSON yapı üretir."""
+    items: List[Dict[str, Any]] = []
+    for old_id in sorted(old_to_name.keys()):
+        name = old_to_name[old_id]
+        new_id = old_to_new.get(old_id, None)
+        new_name = master_names[new_id] if isinstance(new_id, int) and 0 <= new_id < len(master_names) else None
+        items.append({
+            "old_id": old_id,
+            "name": name,
+            "new_id": new_id,   # kullanıcı değiştirebilir (None bırakabilir)
+            "new_name": new_name
+        })
+    return {
+        "dataset": str(dataset_path),
+        "mapping": items,
+        "master_names": master_names,
+        "note": "new_id alanlarını düzenleyin. None ise eşlenmez (keep/skip seçiminize göre işlem görür)."
+    }
+
+
+def save_mapping_json(out_path: Path, data: Dict[str, Any]) -> None:
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    with out_path.open("w", encoding="utf-8") as f:
+        yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+
+
+def load_mapping_json(path: Path) -> Dict[int, int]:
+    """Kullanıcı tarafından düzenlenmiş JSON/YAML dosyasından old_id->new_id haritasını okur."""
+    with path.open("r", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+    result: Dict[int, int] = {}
+    for item in data.get("mapping", []) or []:
+        try:
+            old_id = int(item.get("old_id"))
+        except Exception:
+            continue
+        new_id = item.get("new_id")
+        if isinstance(new_id, int):
+            result[old_id] = new_id
+    return result
+
+
 def remap_file(path: Path, old_to_new: Dict[int, int], old_to_name: Dict[int, str],
-               unknown_action: str = "keep") -> Tuple[bool, int, int]:
+               unknown_action: str = "keep", write: bool = True) -> Tuple[bool, int, int]:
     """Tek bir YOLO txt label dosyasını yeniden numaralandır.
 
     Parametreler:
@@ -197,7 +240,7 @@ def remap_file(path: Path, old_to_new: Dict[int, int], old_to_name: Dict[int, st
                 # keep
                 new_lines.append(ln)
 
-    if changed:
+    if changed and write:
         with path.open("w", encoding="utf-8") as f:
             f.write("\n".join(new_lines) + ("\n" if new_lines and not new_lines[-1].endswith("\n") else ""))
 
@@ -206,7 +249,21 @@ def remap_file(path: Path, old_to_new: Dict[int, int], old_to_name: Dict[int, st
 
 # ------------------------- Komut Satırı Arayüzü ------------------------- #
 
-def run(root: Path, unknown_action: str = "keep", backup: bool = False) -> None:
+def print_mapping(old_to_new: Dict[int, int], old_to_name: Dict[int, str], master_names: List[str]) -> None:
+    print("Eski -> Yeni (isim)")
+    for old_id in sorted(old_to_name.keys()):
+        name = old_to_name[old_id]
+        if old_id in old_to_new:
+            new_id = old_to_new[old_id]
+            new_name = master_names[new_id] if 0 <= new_id < len(master_names) else "?"
+            print(f"  {old_id:>2} -> {new_id:>2}  ({name} -> {new_name})")
+        else:
+            print(f"  {old_id:>2} ->  --  ({name} -> <UNMAPPED>)")
+
+
+def run(root: Path, unknown_action: str = "keep", backup: bool = False,
+        apply: bool = False, interactive: bool = False, preview_limit: int = 5,
+        export_mapping_dir: Path | None = None, use_mapping: Path | None = None) -> None:
     master_yaml = root / "master_data.yaml"
     if not master_yaml.exists():
         print(f"[HATA] master_data.yaml bulunamadı: {master_yaml}")
@@ -246,6 +303,35 @@ def run(root: Path, unknown_action: str = "keep", backup: bool = False) -> None:
 
         old_to_new, old_to_name = build_id_maps(dataset_names, master_names)
 
+        # Kullanıcı müdahalesi: export mapping skeleton
+        if export_mapping_dir is not None:
+            export_path = export_mapping_dir / f"{d.name}.mapping.yaml"
+            try:
+                payload = mapping_to_jsonable(d, old_to_new, old_to_name, master_names)
+                save_mapping_json(export_path, payload)
+                print(f"[BİLGİ] Mapping dışa aktarıldı: {export_path}")
+            except Exception as e:
+                print(f"[UYARI] Mapping dışa aktarılamadı ({d}): {e}")
+
+        # Kullanıcıdan mapping yükleme
+        if use_mapping is not None:
+            mapping_path = use_mapping
+            if mapping_path.is_dir():
+                cand = mapping_path / f"{d.name}.mapping.yaml"
+                if cand.exists():
+                    mapping_path = cand
+                else:
+                    print(f"[UYARI] {d.name} için mapping dosyası bulunamadı: {cand}")
+                    mapping_path = None  # type: ignore
+            if mapping_path and mapping_path.exists():
+                try:
+                    override = load_mapping_json(mapping_path)
+                    # override sadece verilen old_id'leri değiştirir
+                    old_to_new.update(override)
+                    print(f"[BİLGİ] Mapping yüklendi ve uygulandı: {mapping_path}")
+                except Exception as e:
+                    print(f"[UYARI] Mapping yüklenemedi ({mapping_path}): {e}")
+
         # data.yaml içinden labels dizinlerini topla
         label_dirs = get_label_dirs_from_data_yaml(data_yaml)
         # Hiç bulunamazsa eski davranış: dataset kökünde labels/
@@ -257,7 +343,46 @@ def run(root: Path, unknown_action: str = "keep", backup: bool = False) -> None:
                 print(f"[UYARI] labels dizini bulunamadı (data.yaml üzerinden de tespit edilemedi), atlanıyor: {d}")
                 continue
 
-        # Yedekleme ve remap tüm label dizinleri için
+        # Ön izleme (dry-run) istatistikleri
+        would_change_files = 0
+        would_update_lines = 0
+        would_skip_lines = 0
+        examples: List[Path] = []
+        for labels_dir in label_dirs:
+            for lbl in iter_label_files(labels_dir):
+                ch, up, sk = remap_file(lbl, old_to_new, old_to_name, unknown_action=unknown_action, write=False)
+                if ch:
+                    would_change_files += 1
+                    if len(examples) < preview_limit:
+                        examples.append(lbl)
+                would_update_lines += up
+                would_skip_lines += sk
+
+        # Özet ve eşleme tablosu
+        print(f"\n--- DATASET: {d} ---")
+        print_mapping(old_to_new, old_to_name, master_names)
+        print(f"Bulunan label dizinleri: {[str(x) for x in label_dirs]}")
+        print(f"Değişecek dosya (tahmini): {would_change_files}")
+        print(f"Güncellenecek satır (tahmini): {would_update_lines}")
+        print(f"Atlanacak satır (tahmini): {would_skip_lines}")
+        if examples:
+            print("Örnek değişecek dosyalar:")
+            for ex in examples:
+                print(f"  - {ex}")
+
+        # Uygulama kararı
+        do_apply = False
+        if apply:
+            do_apply = True
+        elif interactive:
+            ans = input("Uygulansın mı? [y/N]: ").strip().lower()
+            do_apply = ans in ("y", "yes")
+
+        if not do_apply:
+            # Bu dataset için yazma yok, genel sayaca sadece önizleme toplamlari eklemiyoruz
+            continue
+
+        # Yedekleme ve gerçek uygulama
         for labels_dir in label_dirs:
             # Yedekleme
             if backup:
@@ -271,7 +396,7 @@ def run(root: Path, unknown_action: str = "keep", backup: bool = False) -> None:
 
             for lbl in iter_label_files(labels_dir):
                 total_files += 1
-                changed, updated, skipped = remap_file(lbl, old_to_new, old_to_name, unknown_action=unknown_action)
+                changed, updated, skipped = remap_file(lbl, old_to_new, old_to_name, unknown_action=unknown_action, write=True)
                 if changed:
                     changed_files += 1
                 total_updated += updated
@@ -294,9 +419,23 @@ def main(argv: List[str] | None = None) -> None:
     parser.add_argument("--unknown-action", choices=["keep", "skip"], default="keep",
                         help="Master'da olmayan sınıf bulunan satırlar: keep = olduğu gibi bırak, skip = satırı atla.")
     parser.add_argument("--backup", action="store_true", help="labels/*.txt dosyalarını .bak olarak yedekle")
+    parser.add_argument("--apply", action="store_true", help="Önizleme yerine değişiklikleri uygula (yaz)")
+    parser.add_argument("--interactive", action="store_true", help="Her dataset için önizleme göster ve onay iste")
+    parser.add_argument("--preview-limit", type=int, default=5, help="Önizlemede örnek gösterilecek dosya sayısı")
+    parser.add_argument("--export-mapping-dir", type=str, default=None, help="Eşleme şablonlarını bu klasöre {dataset}.mapping.yaml olarak yaz")
+    parser.add_argument("--use-mapping", type=str, default=None, help="Eşleme dosyası (yaml/json) ya da klasörü (içinde {dataset}.mapping.yaml) kullan")
 
     args = parser.parse_args(argv)
-    run(root=Path(args.root).resolve(), unknown_action=args.unknown_action, backup=args.backup)
+    run(
+        root=Path(args.root).resolve(),
+        unknown_action=args.unknown_action,
+        backup=args.backup,
+        apply=args.apply,
+        interactive=args.interactive,
+        preview_limit=args.preview_limit,
+        export_mapping_dir=(Path(args.export_mapping_dir).resolve() if args.export_mapping_dir else None),
+        use_mapping=(Path(args.use_mapping).resolve() if args.use_mapping else None),
+    )
 
 
 if __name__ == "__main__":
