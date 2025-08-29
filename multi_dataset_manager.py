@@ -160,10 +160,16 @@ class YAMLBasedMultiDatasetManager:
         
         # Add selected datasets
         added_count = 0
+        skipped_disabled = 0
         for dataset_name in dataset_names:
             if dataset_name in all_datasets:
                 try:
                     dataset_info = all_datasets[dataset_name]
+                    # Respect 'enabled' flag (default True if missing)
+                    if isinstance(dataset_info, dict) and dataset_info.get('enabled') is False:
+                        print(f"🚫 Skipping disabled dataset: {dataset_name}")
+                        skipped_disabled += 1
+                        continue
                     self.add_dataset_from_config(dataset_name, dataset_info)
                     added_count += 1
                 except Exception as e:
@@ -172,6 +178,8 @@ class YAMLBasedMultiDatasetManager:
                 print(f"⚠️  Dataset '{dataset_name}' not found in configuration")
         
         print(f"✅ Successfully loaded {added_count}/{len(dataset_names)} datasets")
+        if skipped_disabled:
+            print(f"ℹ️  Skipped (disabled): {skipped_disabled}")
         return added_count > 0
     
     def _collect_all_datasets(self):
@@ -190,7 +198,10 @@ class YAMLBasedMultiDatasetManager:
     def add_dataset_from_config(self, dataset_name, dataset_config):
         """Add a dataset using configuration from the YAML file"""
         self.datasets.append({
-            'url': dataset_config['url'],
+            'url': dataset_config.get('url'),
+            'url_signed': dataset_config.get('url_signed'),
+            'roboflow_canonical': dataset_config.get('roboflow_canonical'),
+            'enabled': dataset_config.get('enabled', True),
             'name': dataset_name,
             'local_path': f"datasets/{dataset_name}",
             'classes': [],

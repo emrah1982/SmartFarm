@@ -243,6 +243,7 @@ datasets:
       dataset_type: supplementary
       added_date: '2024-01-01'
       notes: Requires analysis to determine classes
+      enabled: false
     agricultural_dataset_5:
       url: https://universe.roboflow.com/ds/nKPr1UgofJ?key=a2sSLftQC8
       description: Agricultural dataset with unspecified resize parameters
@@ -255,6 +256,7 @@ datasets:
       dataset_type: supplementary
       added_date: '2024-01-01'
       notes: Resize parameters need verification
+      enabled: false
     general_classes:
       url: https://universe.roboflow.com/ds/DTJ1sXKc7M?key=6dRQV0NFos
       description: General classification dataset with 6 classes
@@ -272,6 +274,7 @@ datasets:
       dataset_type: classification
       added_date: '2024-01-01'
       notes: Generic classes need proper naming
+      enabled: false
 class_mapping:
   healthy:
     sub_classes:

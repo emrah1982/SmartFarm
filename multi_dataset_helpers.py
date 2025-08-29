@@ -32,7 +32,7 @@ class DatasetAnalyzer:
         download_stats = {}
         
         from dataset_utils import download_dataset
-        # Try to get a Roboflow API key (optional). If present, use for all downloads.
+        # Try to get a Roboflow API key (required for SDK-only flow).
         api_key = None
         split_config = None
         try:
@@ -50,33 +50,35 @@ class DatasetAnalyzer:
         for i, dataset in enumerate(self.manager.datasets):
             print(f"\n[{i+1}/{len(self.manager.datasets)}] Downloading: {dataset['name']}")
             print(f"📝 {dataset.get('description', 'No description')}")
+            
+            # 0) Skip if disabled
+            if dataset.get('enabled') is False:
+                print(f"🚫 Atlandı (disabled): {dataset['name']}")
+                continue
 
-            # Choose URL strategy per dataset
-            chosen_url = dataset.get('url')
-            strategy = 'base_url'
+            # 1) Enforce SDK-only: require api_key + roboflow_canonical
+            canonical = dataset.get('roboflow_canonical')
+            if not api_key or not canonical or canonical.count('/') != 2:
+                print("⚠️  SDK-only mod etkin: Bu veri seti api_key + roboflow_canonical sağlamadığı için atlandı.")
+                print(f"   • api_key: {'var' if api_key else 'yok'} | canonical: {canonical if canonical else 'yok'}")
+                failed_downloads.append(dataset['name'])
+                continue
 
-            # 1) If a signed direct URL is provided, prefer it (no API key required)
-            if dataset.get('url_signed'):
-                chosen_url = dataset['url_signed']
-                strategy = 'signed_url'
-            else:
-                # 2) If api_key exists and canonical is provided, build API endpoint URL
-                canonical = dataset.get('roboflow_canonical')  # expected: "workspace/project/version"
-                if api_key and canonical and canonical.count('/') == 2:
-                    try:
-                        ws, prj, ver = canonical.split('/')
-                        # Build API URL directly to avoid Cloudflare
-                        split_suffix = ''
-                        if split_config and all(k in split_config for k in ('train', 'test', 'val')):
-                            split_suffix = f"&split={split_config['train']}-{split_config['test']}-{split_config['val']}"
-                        chosen_url = (
-                            f"https://api.roboflow.com/dataset/{ws}/{prj}/{ver}?api_key={api_key}"
-                            f"&format=yolov8{split_suffix}"
-                        )
-                        strategy = 'api_endpoint_from_canonical'
-                    except Exception:
-                        chosen_url = dataset.get('url')
-                        strategy = 'base_url'
+            # 2) Build API endpoint URL from canonical
+            try:
+                ws, prj, ver = canonical.split('/')
+                split_suffix = ''
+                if split_config and all(k in split_config for k in ('train', 'test', 'val')):
+                    split_suffix = f"&split={split_config['train']}-{split_config['test']}-{split_config['val']}"
+                chosen_url = (
+                    f"https://api.roboflow.com/dataset/{ws}/{prj}/{ver}?api_key={api_key}"
+                    f"&format=yolov8{split_suffix}"
+                )
+                strategy = 'api_endpoint_from_canonical'
+            except Exception as e:
+                print(f"❌ Canonical ayrıştırma hatası: {e}")
+                failed_downloads.append(dataset['name'])
+                continue
 
             print(f"🔗 URL Strategy: {strategy}")
             print(f"🔗 Using URL: {chosen_url}")
