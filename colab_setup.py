@@ -15,6 +15,31 @@ def is_colab():
     except ImportError:
         return False
 
+def ensure_unzip_installed():
+    """Colab ortamında sistemde 'unzip' aracı yoksa apt ile kurmaya çalış"""
+    try:
+        import shutil
+        if shutil.which('unzip') is not None:
+            print("✅ 'unzip' komutu mevcut")
+            return True
+        if not is_colab():
+            print("ℹ️ 'unzip' bulunamadı ancak Colab dışı ortamda apt ile kurulum atlandı")
+            return False
+        print("\n🛠️  'unzip' bulunamadı, apt-get ile kuruluyor...")
+        import subprocess
+        # Sessiz apt update/kurulum denemesi
+        subprocess.run(["bash", "-lc", "apt-get update -y && apt-get install -y unzip"], check=False)
+        import shutil as _sh
+        if _sh.which('unzip') is not None:
+            print("✅ 'unzip' başarıyla kuruldu")
+            return True
+        else:
+            print("⚠️ 'unzip' kurulamadı, lütfen manuel kurun: !apt-get install -y unzip")
+            return False
+    except Exception as e:
+        print(f"⚠️ 'unzip' kontrol/kurulumunda hata: {e}")
+        return False
+
 def get_installed_version(package_name):
     """Yüklü paket versiyonunu al"""
     try:
@@ -76,6 +101,9 @@ def setup_colab_environment():
     except Exception as e:
         print(f"Uyarı: Kaldırma sırasında sorun: {e}")
     
+    # Sistem aracı: unzip kontrolü/kurulumu (Roboflow/dataset işlemlerinde kullanışlı)
+    ensure_unzip_installed()
+
     # Gerekli paketleri yükle
     print("\n📦 Gerekli paketleri yükleniyor...")
     
@@ -83,7 +111,8 @@ def setup_colab_environment():
         # YOLO ve ML kütüphaneleri
         "ultralytics>=8.2.0",
         
-        # Roboflow inference kütüphanesi
+        # Roboflow SDK ve inference kütüphanesi
+        "roboflow>=1.1.27",
         "inference",
         
         # Görüntü işleme (opencv-python yerine headless versiyon)
@@ -156,6 +185,7 @@ def verify_installation():
     
     test_imports = [
         ('ultralytics', 'YOLO'),
+        ('roboflow', 'Roboflow SDK'),
         ('inference', 'Roboflow Inference'),
         ('cv2', 'OpenCV'),
         ('albumentations', 'Albumentations'),
