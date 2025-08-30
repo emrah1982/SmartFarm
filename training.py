@@ -710,7 +710,7 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
             # Kullanıcının belirlediği epoch'ta tüm weights klasörünü Drive timestamp klasörüne kopyala
             try:
                 if hasattr(drive_manager, 'copy_directory_to_drive'):
-                    drive_manager.copy_directory_to_drive(str(weights_dir), target_rel_path='checkpoints/weights')
+                    drive_manager.copy_directory_to_drive(str(weights_dir), target_rel_path='checkpoints')
                 else:
                     print("ℹ️ copy_directory_to_drive bulunamadı; sadece tekil .pt dosyaları yüklendi.")
             except Exception as copy_e:
@@ -921,7 +921,7 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
                     weights_dir = Path(project_dir) / experiment_name / 'weights'
                     if weights_dir.exists() and drive_manager:
                         try:
-                            drive_manager.copy_directory_to_drive(str(weights_dir), target_rel_path='checkpoints/weights')
+                            drive_manager.copy_directory_to_drive(str(weights_dir), target_rel_path='checkpoints')
                         except Exception as _e:
                             print(f"⚠️ Time-based kopyalama hatası: {_e}")
                 except Exception as _loop_e:
@@ -1005,14 +1005,15 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
 
             # Tüm weights klasörünü timestamp'li klasöre kopyala (Colab yolu öncelikli)
             candidates = [
-                '/content/SmartFarm/runs/train/exp/weights',
-                f"/content/SmartFarm/runs/train/{experiment_name}/weights",
+                str(Path(project_dir) / experiment_name / 'weights'),
+                f"/content/runs/train/{experiment_name}/weights",  # Colab varsayılanı
+                f"/content/SmartFarm/runs/train/{experiment_name}/weights",  # Proje klasörü altına aldıysanız
                 os.path.join(save_dir, 'weights')
             ]
             local_weights_dir = next((p for p in candidates if os.path.isdir(p)), None)
             if local_weights_dir:
-                print(f"📁 Weights klasörü Drive'a kopyalanıyor: {local_weights_dir} → checkpoints/weights")
-                drive_manager.copy_directory_to_drive(local_weights_dir, target_rel_path='checkpoints/weights')
+                print(f"📁 Weights klasörü Drive'a kopyalanıyor: {local_weights_dir} → checkpoints")
+                drive_manager.copy_directory_to_drive(local_weights_dir, target_rel_path='checkpoints')
                 # Ek güvence: tekil dosyaları da yükle
                 try:
                     alt_best = os.path.join(local_weights_dir, 'best.pt')

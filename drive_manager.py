@@ -1367,30 +1367,30 @@ def activate_drive_integration(folder_path: str, project_name: Optional[str] = N
                 # Base path, absolute destekli olabilir
                 base_path = os.path.join(dm.base_drive_path, folder_path) if folder_path else dm.base_drive_path
 
-                # 1) Mevcut konfigürasyondaki aktif timestamp'i kullan
+                # 1) Mevcut timestamp adaylarını tara ve ILK OLUŞANINI seç (ilk timestamp kuralı HER ZAMAN uygulanır)
+                #    Config'de farklı bir timestamp olsa bile, en eskisine geçilir.
                 reused = False
-                if dm.load_drive_config():
-                    ts_existing = dm.get_timestamp_dir()
-                    if ts_existing and os.path.isdir(ts_existing):
-                        # Aynı kök altında mı? (yolo11_models/...)
-                        if os.path.dirname(ts_existing).startswith(base_path):
-                            dm.project_folder = ts_existing
-                            reused = True
-
-                # 2) Konfigürasyon yoksa mevcut timestamp dizinlerini tara ve en yenisini seç
-                if not reused and os.path.isdir(base_path):
-                    try:
+                try:
+                    candidates = []
+                    if os.path.isdir(base_path):
                         candidates = [
                             os.path.join(base_path, d)
                             for d in os.listdir(base_path)
                             if len(d) == 15 and '_' in d and d.replace('_', '').isdigit() and os.path.isdir(os.path.join(base_path, d))
                         ]
-                        if candidates:
-                            candidates.sort(key=lambda p: os.path.getmtime(p))
-                            dm.project_folder = candidates[-1]
-                            reused = True
-                    except Exception:
-                        pass
+                    if candidates:
+                        candidates.sort(key=lambda p: os.path.getmtime(p))
+                        oldest = candidates[0]
+                        # Config'te farklı bir timestamp varsa bile, en eskisine zorla hizala
+                        if dm.load_drive_config():
+                            ts_existing = dm.get_timestamp_dir()
+                            if ts_existing and os.path.isdir(ts_existing) and os.path.dirname(ts_existing).startswith(base_path):
+                                if os.path.normpath(ts_existing) != os.path.normpath(oldest):
+                                    print(f"🕒 İlk timestamp kuralı: config'teki ({os.path.basename(ts_existing)}) yerine EN ESKİSİ kullanılacak → {os.path.basename(oldest)}")
+                        dm.project_folder = oldest
+                        reused = True
+                except Exception:
+                    pass
 
                 # 3) Hiçbiri yoksa yeni timestamp oluştur
                 if not dm.project_folder:
