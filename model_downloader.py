@@ -48,42 +48,30 @@ def _append_download_log(project_folder: str, paths):
 
 def _prepare_drive_timestamp_folder():
     """Colab + Drive ortamında timestamp klasörünü hazırla ve models yolunu döndür.
+    activate_drive_integration() kullanarak ilk timestamp kuralını garanti eder.
 
     Returns: (models_dir, project_folder, dm) veya (None, None, None)
     """
     if not (is_colab() and _DM_AVAILABLE):
         return None, None, None
     try:
-        dm = DriveManager()
-        if not dm.authenticate():
+        from drive_manager import activate_drive_integration
+        # Training.py ile aynı folder_path kullan - bu kritik!
+        dm = activate_drive_integration(folder_path="SmartFarm/colab_learn/yolo11_models", project_name="yolo11_models")
+        if not dm:
             return None, None, None
-
-        reused = False
-        # Önce mevcut konfigürasyonu yüklemeyi dene (mevcut timestamp varsa onu kullan)
-        if dm.load_drive_config():
-            project_folder = dm.get_timestamp_dir()
-            if project_folder and os.path.basename(os.path.dirname(project_folder)) == 'yolo11_models':
-                reused = True
-        else:
-            project_folder = None
-
-        # Konfigürasyon yoksa yeni timestamp kur
-        if not project_folder:
-            if not dm._setup_colab_folder():
-                return None, None, None
-            project_folder = dm.get_timestamp_dir()
-            reused = False
-
+        
+        project_folder = dm.project_folder
+        models_dir = os.path.join(project_folder, "models")
+        
         # Alt klasörleri garanti et
         for sub in ["models", "logs", "configs", "checkpoints"]:
             os.makedirs(os.path.join(project_folder, sub), exist_ok=True)
-        models_dir = os.path.join(project_folder, "models")
-        if reused:
-            print(f"📁 Mevcut Drive timestamp klasörü kullanılıyor: {project_folder}")
-        else:
-            print(f"📁 Drive timestamp klasörü oluşturuldu: {project_folder}")
+            
+        print(f"📁 Drive timestamp klasörü (session lock): {project_folder}")
         return models_dir, project_folder, dm
-    except Exception:
+    except Exception as e:
+        print(f"⚠️ Drive timestamp hazırlık hatası: {e}")
         pass
     return None, None, None
 
