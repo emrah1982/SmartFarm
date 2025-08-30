@@ -46,6 +46,26 @@ def _append_download_log(project_folder: str, paths):
     except Exception:
         pass
 
+def _prepare_drive_timestamp_folder():
+    """Colab + Drive ortamında timestamp klasörünü hazırla ve models yolunu döndür.
+
+    Returns: (models_dir, project_folder, dm) veya (None, None, None)
+    """
+    if not (is_colab() and _DM_AVAILABLE):
+        return None, None, None
+    try:
+        dm = DriveManager()
+        if dm.authenticate() and dm._setup_colab_folder():
+            project_folder = dm.project_folder
+            # Alt klasörleri garanti et
+            for sub in ["models", "logs", "configs", "checkpoints"]:
+                os.makedirs(os.path.join(project_folder, sub), exist_ok=True)
+            models_dir = os.path.join(project_folder, "models")
+            return models_dir, project_folder, dm
+    except Exception:
+        pass
+    return None, None, None
+
 def download_yolo11_models(save_dir=None, selected_models=None):
     """
     Download YOLO11 models from GitHub releases
@@ -58,8 +78,15 @@ def download_yolo11_models(save_dir=None, selected_models=None):
         List of paths to downloaded models
     """
     # Use default save directory if not specified
+    drive_models_dir, drive_project_folder, _dm = (None, None, None)
     if save_dir is None:
-        save_dir = os.path.join(os.getcwd(), "yolo11_models")
+        # Colab + Drive ise otomatik Drive timestamp klasörünü kullan
+        drive_models_dir, drive_project_folder, _dm = _prepare_drive_timestamp_folder()
+        if drive_models_dir:
+            save_dir = drive_models_dir
+            print(f"📁 İndirme dizini Drive timestamp klasörüne ayarlandı: {save_dir}")
+        else:
+            save_dir = os.path.join(os.getcwd(), "yolo11_models")
     
     # Create the directory if it doesn't exist
     os.makedirs(save_dir, exist_ok=True)
@@ -107,6 +134,9 @@ def download_yolo11_models(save_dir=None, selected_models=None):
             print(f"Error downloading {model}: {e}")
     
     print("YOLO11 models download completed!")
+    # Eğer Drive timestamp klasörü kullanıldıysa indirmeleri logla
+    if drive_project_folder and downloaded_models:
+        _append_download_log(drive_project_folder, downloaded_models)
     return downloaded_models
 
 def download_specific_model_type(model_type="detection", size="m", save_dir=None):

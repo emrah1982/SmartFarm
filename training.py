@@ -207,7 +207,7 @@ try:
 except Exception:
     pass
 
-def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
+def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
     """Train a YOLO model with the given options and hyperparameters."""
     print("\n" + "="*50)
     print(f"🚀 Starting training session")
@@ -225,7 +225,7 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
     if use_drive:
         print("\n🔄 Colab Kapanma Koruması Ayarları")
         print("Colab bazen kendiliğinden kapanabilir. Bu duruma karşı:")
-        print("1. Daha sık yedekleme (3-5 epoch)")
+        print("1. Daha sık yedekleme (3 epoch)")
         print("2. Normal yedekleme (10 epoch)")
         print("3. Özel aralık")
         
