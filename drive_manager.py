@@ -67,12 +67,47 @@ class DriveManager:
         self.drive_folder_id = None
         self.project_name = None
         self.is_colab = IS_COLAB
+        # Zaman damgalı kök klasör (global erişim için)
+        self.active_timestamp_dir: Optional[str] = None
+        # Standart alt klasör yolları
+        self._subdirs = {
+            'models': None,
+            'checkpoints': None,
+            'logs': None,
+            'configs': None,
+        }
         
         # Colab için ek özellikler
         if self.is_colab:
             self.base_drive_path = "/content/drive/MyDrive"
             self.project_folder = None
             self.is_mounted = False
+
+    # Yardımcılar: standart alt klasör yolları
+    def get_timestamp_dir(self) -> Optional[str]:
+        return self.active_timestamp_dir or self.project_folder
+
+    def get_subdir(self, name: str) -> Optional[str]:
+        ts = self.get_timestamp_dir()
+        if not ts:
+            return None
+        if name in self._subdirs and self._subdirs[name]:
+            return self._subdirs[name]
+        path = os.path.join(ts, name)
+        self._subdirs[name] = path
+        return path
+
+    def get_checkpoints_dir(self) -> Optional[str]:
+        return self.get_subdir('checkpoints')
+
+    def get_models_dir(self) -> Optional[str]:
+        return self.get_subdir('models')
+
+    def get_logs_dir(self) -> Optional[str]:
+        return self.get_subdir('logs')
+
+    def get_configs_dir(self) -> Optional[str]:
+        return self.get_subdir('configs')
         
     def authenticate(self) -> bool:
         """Google Drive kimlik doğrulama"""
@@ -254,10 +289,13 @@ class DriveManager:
             # Klasörleri oluştur
             os.makedirs(self.project_folder, exist_ok=True)
             
-            # Alt klasörleri oluştur
+            # Alt klasörleri oluştur ve global yol referanslarını güncelle
             sub_folders = ['models', 'checkpoints', 'logs', 'configs']
             for sub_folder in sub_folders:
                 os.makedirs(os.path.join(self.project_folder, sub_folder), exist_ok=True)
+                self._subdirs[sub_folder] = os.path.join(self.project_folder, sub_folder)
+            # Global timestamp kökü
+            self.active_timestamp_dir = self.project_folder
             
             print(f"✅ Drive klasörü oluşturuldu: {self.project_folder}")
             
@@ -341,6 +379,10 @@ class DriveManager:
         if os.path.exists(full_path):
             self.project_folder = full_path
             self.project_name = project_name or os.path.basename(folder_path)
+            # Global timestamp kökü olarak işaretle ve alt klasör referanslarını hazırla
+            self.active_timestamp_dir = self.project_folder
+            for sub in ['models', 'checkpoints', 'logs', 'configs']:
+                self._subdirs[sub] = os.path.join(self.project_folder, sub)
             print(f"✅ Var olan klasör kullanılacak: {self.project_folder}")
             self._save_drive_config(os.path.dirname(folder_path), os.path.basename(folder_path))
             return True
@@ -350,6 +392,12 @@ class DriveManager:
                 os.makedirs(full_path, exist_ok=True)
                 self.project_folder = full_path
                 self.project_name = project_name or os.path.basename(folder_path)
+                # Global timestamp kökü olarak işaretle ve alt klasör referanslarını hazırla
+                self.active_timestamp_dir = self.project_folder
+                for sub in ['models', 'checkpoints', 'logs', 'configs']:
+                    subp = os.path.join(self.project_folder, sub)
+                    os.makedirs(subp, exist_ok=True)
+                    self._subdirs[sub] = subp
                 print(f"✅ Yeni klasör oluşturuldu: {self.project_folder}")
                 self._save_drive_config(os.path.dirname(folder_path), os.path.basename(folder_path))
                 return True
@@ -425,6 +473,7 @@ class DriveManager:
         if self.is_colab:
             config['project_folder'] = self.project_folder
             config['base_drive_path'] = self.base_drive_path
+            config['active_timestamp_dir'] = self.active_timestamp_dir or self.project_folder
         else:
             config['drive_folder_id'] = self.drive_folder_id
         
@@ -450,6 +499,11 @@ class DriveManager:
             if self.is_colab:
                 self.project_folder = config.get('project_folder')
                 self.base_drive_path = config.get('base_drive_path', '/content/drive/MyDrive')
+                self.active_timestamp_dir = config.get('active_timestamp_dir', self.project_folder)
+                # Alt klasör referansları
+                if self.project_folder:
+                    for sub in ['models', 'checkpoints', 'logs', 'configs']:
+                        self._subdirs[sub] = os.path.join(self.project_folder, sub)
                 # Drive'ın mount edilmiş olup olmadığını kontrol et
                 if os.path.exists(self.base_drive_path):
                     self.is_mounted = True
