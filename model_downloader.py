@@ -5,6 +5,46 @@ import os
 import requests
 import sys
 from pathlib import Path
+import json
+
+try:
+    from drive_manager import DriveManager
+    _DM_AVAILABLE = True
+except Exception:
+    _DM_AVAILABLE = False
+
+def is_colab() -> bool:
+    """Basit Colab tespiti."""
+    try:
+        import google.colab  # noqa: F401
+        return True
+    except Exception:
+        return os.path.exists('/content')
+
+def _append_download_log(project_folder: str, paths):
+    """Drive timestamp klasöründeki logs/downloads.json'a ekleme yapar."""
+    try:
+        if not project_folder:
+            return
+        logs_dir = os.path.join(project_folder, 'logs')
+        os.makedirs(logs_dir, exist_ok=True)
+        logf = os.path.join(logs_dir, 'downloads.json')
+        if isinstance(paths, str):
+            paths = [paths]
+        try:
+            entries = []
+            if os.path.exists(logf):
+                with open(logf, 'r', encoding='utf-8') as f:
+                    entries = json.load(f)
+        except Exception:
+            entries = []
+        now = __import__('datetime').datetime.now().isoformat()
+        for p in paths or []:
+            entries.append({'file': os.path.basename(p), 'dest': p, 'ts': now})
+        with open(logf, 'w', encoding='utf-8') as f:
+            json.dump(entries, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
 
 def download_yolo11_models(save_dir=None, selected_models=None):
     """
@@ -114,9 +154,25 @@ if __name__ == "__main__":
     # If run directly, download all models or specific ones
     print("YOLO11 Model Downloader")
     print("======================")
-    
-    # Determine save directory
+
+    # Varsayılan dizin ve Drive timestamp klasörü (Colab ise) hazırlığı
     default_dir = os.path.join(os.getcwd(), "yolo11_models")
+    dm = None
+    drive_project_folder = None
+    if is_colab() and _DM_AVAILABLE:
+        try:
+            dm = DriveManager()
+            if dm.authenticate() and dm._setup_colab_folder():
+                drive_project_folder = dm.project_folder  # .../SmartFarm/colab_learn/yolo11_models/<timestamp>
+                # Alt klasörleri oluştur
+                for sub in ["models", "logs", "configs", "checkpoints"]:
+                    os.makedirs(os.path.join(drive_project_folder, sub), exist_ok=True)
+                default_dir = os.path.join(drive_project_folder, "models")
+                print(f"📁 İndirme hedefi Drive timestamp klasörüne yönlendirildi: {default_dir}")
+        except Exception as e:
+            print(f"⚠️ Drive klasör kurulumu atlandı: {e}")
+
+    # Determine save directory (now that default_dir may point to Drive/models)
     if len(sys.argv) > 1:
         save_dir = sys.argv[1]
     else:
@@ -124,9 +180,11 @@ if __name__ == "__main__":
     
     # Ask whether to download all models
     download_all = input("Download all models? (y/n, default: n): ").lower() == 'y'
-    
+
     if download_all:
-        download_yolo11_models(save_dir)
+        downloaded = download_yolo11_models(save_dir)
+        if drive_project_folder and downloaded:
+            _append_download_log(drive_project_folder, downloaded)
     else:
         # Ask for model type
         print("\nSelect model type:")
@@ -169,3 +227,5 @@ if __name__ == "__main__":
         
         if model_path:
             print(f"\nModel downloaded successfully to: {model_path}")
+            if drive_project_folder:
+                _append_download_log(drive_project_folder, model_path)
