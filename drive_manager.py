@@ -1444,6 +1444,13 @@ def activate_drive_integration(folder_path: str, project_name: Optional[str] = N
                 # Alt klasörleri garanti et
                 for sub in ['models', 'checkpoints', 'logs', 'configs']:
                     os.makedirs(os.path.join(dm.project_folder, sub), exist_ok=True)
+                # checkpoints/weights alt klasörünü de garanti et
+                try:
+                    weights_dir = os.path.join(dm.project_folder, 'checkpoints', 'weights')
+                    os.makedirs(weights_dir, exist_ok=True)
+                    print(f"📁 'checkpoints/weights' hazır: {weights_dir}")
+                except Exception:
+                    pass
 
                 # Global işaret ve konfigürasyon kaydı
                 dm.active_timestamp_dir = dm.project_folder
