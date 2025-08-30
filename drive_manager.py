@@ -582,7 +582,12 @@ class DriveManager:
             if not os.path.exists(local_path):
                 print(f"❌ Yerel dosya bulunamadı: {local_path}")
                 return False
-            target_path = os.path.join(self.project_folder, rel_path)
+            # Her zaman ilk seçilen timestamp'i kullan
+            ts_dir = getattr(self, 'active_timestamp_dir', None) or self.project_folder
+            if not os.path.isdir(ts_dir):
+                print(f"❌ Timestamp klasörü bulunamadı: {ts_dir}")
+                return False
+            target_path = os.path.join(ts_dir, rel_path)
             os.makedirs(os.path.dirname(target_path), exist_ok=True)
             # Boyut aynıysa kopyalamayı atla
             if os.path.exists(target_path) and os.path.getsize(target_path) == os.path.getsize(local_path):
@@ -729,8 +734,18 @@ class DriveManager:
                 print(f"❌ Yerel klasör bulunamadı: {local_dir}")
                 return False
 
-            dst_root = os.path.join(self.project_folder, target_rel_path)
+            # Her zaman İLK seçilen timestamp'i kullan (active_timestamp_dir > project_folder)
+            ts_dir = getattr(self, 'active_timestamp_dir', None) or self.project_folder
+            # Güvence: timestamp dizini mevcut olmalı
+            if not os.path.isdir(ts_dir):
+                print(f"❌ Timestamp klasörü bulunamadı: {ts_dir}")
+                return False
+
+            dst_root = os.path.join(ts_dir, target_rel_path)
             os.makedirs(dst_root, exist_ok=True)
+
+            print(f"🎯 Hedef timestamp klasörü: {ts_dir}")
+            print(f"📍 Kopyalama hedefi: {dst_root}")
 
             copied, skipped, total_size = 0, 0, 0
             t0 = time.time()

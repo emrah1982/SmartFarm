@@ -214,6 +214,9 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
     
     # Google Drive entegrasyonu (tek seferlik soru)
     print("\n🔧 Google Drive kaydetme ayarları - Colab kapanma durumu için optimize edilmiş")
+    # Kullanıcıya daha şeffaf bilgi: hedef Drive kökü
+    intended_drive_base = "/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models"
+    print(f"📍 Hedef Drive kökü: {intended_drive_base}")
     drive_default = "e"  # Varsayılan olarak Drive kullanımını öner
     use_drive = input(f"Google Drive'a otomatik kaydetme kullanılsın mı? (e/h, varsayılan: {drive_default}): ").lower() or drive_default
     use_drive = use_drive.startswith('e')
@@ -246,7 +249,19 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
         try:
             from drive_manager import activate_drive_integration as _activate_dm
             # Absolute base path: timestamp klasörü bu yolun altında oluşturulacak
-            drive_manager = _activate_dm(folder_path="/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models", project_name="yolo11_models")
+            drive_manager = _activate_dm(folder_path=intended_drive_base, project_name="yolo11_models")
+            # Etkinleşir etkinleşmez tam yolları göster
+            if drive_manager is not None:
+                try:
+                    ts_dir = getattr(drive_manager, 'active_timestamp_dir', None) or getattr(drive_manager, 'project_folder', None)
+                    if ts_dir:
+                        print(f"\n📍 Drive kayıt kökü (timestamp): {ts_dir}")
+                        print(f"📁 Checkpoints: {os.path.join(ts_dir, 'checkpoints')}")
+                        print(f"📁 Models: {os.path.join(ts_dir, 'models')}")
+                        print(f"📁 Logs: {os.path.join(ts_dir, 'logs')}")
+                        print(f"📁 Configs: {os.path.join(ts_dir, 'configs')}")
+                except Exception:
+                    pass
         except Exception as _dm_e:
             print(f"⚠️ Drive entegrasyon modülü yüklenemedi: {_dm_e}")
             drive_manager = None
