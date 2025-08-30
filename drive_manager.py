@@ -858,24 +858,28 @@ class DriveManager:
         return None, None
     
     def _search_checkpoint_in_dir(self, search_dir):
-        """Belirli bir (timestamp) klasörde checkpoint ara - iç alt klasörleri de kapsa."""
+        """Belirli bir (timestamp) klasörde checkpoints ara - iç alt klasörleri de kapsa."""
         print(f"📁 Aranıyor: {search_dir}")
 
         try:
-            # 1) Önce bilinen alt yolları kontrol et
+            # 1) Önce bilinen alt yolları kontrol et (açık loglarla)
             candidate_dirs = [
                 search_dir,
                 os.path.join(search_dir, 'models'),
-                os.path.join(search_dir, 'checkpoints'),
+                os.path.join(search_dir, 'checkpoints'),  # klasör adı: 'checkpoints'
                 os.path.join(search_dir, 'checkpoints', 'weights'),
             ]
+            print(f"🔎 Kontrol edilecek dizinler: {candidate_dirs}")
 
             def try_in_dir(d):
+                print(f"📂 Kontrol ediliyor: {d}")
                 if not os.path.isdir(d):
+                    print(f"⚠️ Erişilemedi veya yok: {d}")
                     return None
                 try:
                     files = os.listdir(d)
                 except Exception:
+                    print(f"⚠️ Erişilemedi veya yok: {d}")
                     return None
                 pt_files = [f for f in files if f.endswith('.pt')]
                 # Öncelik: last.pt, sonra best.pt
@@ -944,7 +948,8 @@ class DriveManager:
                 print(f"✅ Rekürsif aramada en yüksek epoch bulundu: {latest_epoch_path}")
                 return latest_epoch_path, os.path.basename(latest_epoch_path)
 
-            print(f"⚠️ {search_dir} içinde uygun checkpoint bulunamadı")
+            # Net mesaj: 'checkpoints' klasörü veya .pt dosyaları bulunamamış olabilir
+            print(f"⚠️ {search_dir} içinde 'checkpoints/' altı ya da uygun .pt (last/best/epoch_*.pt) bulunamadı")
         except Exception as e:
             print(f"⚠️ {search_dir} arama hatası: {e}")
         return None, None
