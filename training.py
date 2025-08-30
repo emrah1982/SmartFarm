@@ -217,6 +217,24 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
     # Kullanıcıya daha şeffaf bilgi: hedef Drive kökü
     intended_drive_base = "/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models"
     print(f"📍 Hedef Drive kökü: {intended_drive_base}")
+    # Mümkünse son kullanılan timestamp'i bul ve tam otomatik kaydetme yolunu göster
+    try:
+        last_ts_dir = None
+        if os.path.isdir(intended_drive_base):
+            cand = [d for d in os.listdir(intended_drive_base)
+                    if len(d) == 15 and '_' in d and d.replace('_', '').isdigit()
+                    and os.path.isdir(os.path.join(intended_drive_base, d))]
+            if cand:
+                cand.sort(key=lambda n: os.path.getmtime(os.path.join(intended_drive_base, n)))
+                last_ts_dir = os.path.join(intended_drive_base, cand[-1])
+        if last_ts_dir:
+            print(f"📍 Son kullanılan timestamp: {last_ts_dir}")
+            print(f"📁 Otomatik kaydetme hedefi: {os.path.join(last_ts_dir, 'checkpoints')}")
+        else:
+            print(f"📁 Otomatik kaydetme hedefi: {intended_drive_base}/<timestamp>/checkpoints (ilk çalıştırmada oluşturulacak)")
+    except Exception:
+        # Montaj yapılmadıysa veya erişim yoksa sessizce geç
+        print(f"📁 Otomatik kaydetme hedefi: {intended_drive_base}/<timestamp>/checkpoints (ilk çalıştırmada oluşturulacak)")
     drive_default = "e"  # Varsayılan olarak Drive kullanımını öner
     use_drive = input(f"Google Drive'a otomatik kaydetme kullanılsın mı? (e/h, varsayılan: {drive_default}): ").lower() or drive_default
     use_drive = use_drive.startswith('e')
