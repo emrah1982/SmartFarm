@@ -243,8 +243,8 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
         # Etkileşimsiz entegrasyon: kullanıcıya sormadan güvenli varsayılanları kullan
         try:
             from drive_manager import activate_drive_integration as _activate_dm
-            # Colab için: MyDrive/SmartFarm/Training altında timestamp'li klasör otomatik oluşur
-            drive_manager = _activate_dm(folder_path="SmartFarm/Training", project_name="SmartFarm_Training")
+            # Kullanıcının istediği hedef: /content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models
+            drive_manager = _activate_dm(folder_path="SmartFarm/colab_learn/yolo11_models", project_name="yolo11_models")
         except Exception as _dm_e:
             print(f"⚠️ Drive entegrasyon modülü yüklenemedi: {_dm_e}")
             drive_manager = None
@@ -637,18 +637,18 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
             # Epoch dosyasını kaydet (varsa), yoksa last.pt'yi o isimle yükle
             ok1 = True
             if epoch_file and epoch_file.exists():
-                ok1 = drive_manager.upload_model(str(epoch_file), epoch_file.name)
+                ok1 = drive_manager.upload_file(str(epoch_file), epoch_file.name)
             elif last_pt_path.exists():
                 # Fallback: last.pt'yi epoch adıyla yükle
-                ok1 = drive_manager.upload_model(str(last_pt_path), f'epoch_{current_epoch:03d}.pt')
+                ok1 = drive_manager.upload_file(str(last_pt_path), f'epoch_{current_epoch:03d}.pt')
 
             # last.pt kaydet (en önemli - devam etmek için gerekli)
             ok2 = True
             if last_pt_path.exists():
-                ok2 = drive_manager.upload_model(str(last_pt_path), 'last.pt')
+                ok2 = drive_manager.upload_file(str(last_pt_path), 'last.pt')
                 
                 # Eğitim durumu da kaydet
-                ok3 = drive_manager.upload_model(str(state_file), 'training_state.json')
+                ok3 = drive_manager.upload_file(str(state_file), 'training_state.json')
                 
                 if ok1 and ok2 and ok3:
                     print(f"✅ Checkpoint kaydedildi: epoch_{current_epoch:03d}.pt, last.pt, training_state.json")
@@ -657,7 +657,7 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
             
             # best.pt kaydet (varsa)
             if best_pt_path.exists():
-                okb = drive_manager.upload_model(str(best_pt_path), 'best.pt')
+                okb = drive_manager.upload_file(str(best_pt_path), 'best.pt')
                 if okb:
                     print(f"✅ best.pt yüklendi (epoch {current_epoch})")
                 else:
@@ -735,7 +735,7 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
                     if drive_manager is None and use_drive:
                         try:
                             from drive_manager import activate_drive_integration as _activate_dm
-                            drive_manager = _activate_dm(folder_path="SmartFarm/Training", project_name="SmartFarm_Training")
+                            drive_manager = _activate_dm(folder_path="SmartFarm/colab_learn/yolo11_models", project_name="yolo11_models")
                             if drive_manager:
                                 print("\n✅ Drive entegrasyonu thread içinde kuruldu.")
                         except Exception as _th_e:
@@ -908,9 +908,9 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
         if use_drive and drive_manager:
             # last.pt ve best.pt yedekle
             if os.path.exists(best_path):
-                drive_manager.upload_model(best_path, 'best.pt')
+                drive_manager.upload_file(best_path, 'best.pt')
             if os.path.exists(last_path):
-                drive_manager.upload_model(last_path, 'last.pt')
+                drive_manager.upload_file(last_path, 'last.pt')
 
             # Tüm weights klasörünü timestamp'li klasöre kopyala (Colab yolu öncelikli)
             candidates = [
@@ -925,8 +925,8 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
             else:
                 print("📁 Kopyalanacak weights klasörü bulunamadı.")
                 if os.path.exists(last_path):
-                    ok_last_name = drive_manager.upload_model(last_path, 'last.pt')
-                    ok_last_epoch = drive_manager.upload_model(last_path, f'epoch_{final_epoch:03d}.pt')
+                    ok_last_name = drive_manager.upload_file(last_path, 'last.pt')
+                    ok_last_epoch = drive_manager.upload_file(last_path, f'epoch_{final_epoch:03d}.pt')
                     if ok_last_name and ok_last_epoch:
                         print("✅ Final last.pt yüklendi (last.pt ve epoch_*.pt)")
                     else:

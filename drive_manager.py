@@ -474,7 +474,6 @@ class DriveManager:
             return self._upload_model_api(local_path, drive_filename)
     
     def _upload_model_colab(self, local_path: str, drive_filename: str) -> bool:
-        """Colab için model yükleme"""
         if not self.project_folder:
             print("❌ Proje klasörü ayarlanmamış!")
             return False
@@ -512,6 +511,33 @@ class DriveManager:
 
         except Exception as e:
             print(f"❌ Model kaydetme hatası: {e}")
+            return False
+
+    def upload_file(self, local_path: str, rel_path: str) -> bool:
+        """Belirtilen yerel dosyayı proje klasörü altındaki rel_path konumuna kopyala.
+
+        Örnekler:
+          rel_path = 'last.pt'                         -> <project_folder>/last.pt
+          rel_path = 'checkpoints/weights/epoch_003.pt'-> <project_folder>/checkpoints/weights/epoch_003.pt
+        """
+        try:
+            if not self.project_folder:
+                print("❌ Proje klasörü ayarlanmamış!")
+                return False
+            if not os.path.exists(local_path):
+                print(f"❌ Yerel dosya bulunamadı: {local_path}")
+                return False
+            target_path = os.path.join(self.project_folder, rel_path)
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+            # Boyut aynıysa kopyalamayı atla
+            if os.path.exists(target_path) and os.path.getsize(target_path) == os.path.getsize(local_path):
+                print(f"↪️ Atlandı (değişiklik yok): {target_path}")
+                return True
+            shutil.copy2(local_path, target_path)
+            print(f"✅ Dosya Drive'a kaydedildi: {target_path}")
+            return True
+        except Exception as e:
+            print(f"❌ Dosya kaydetme hatası: {e}")
             return False
     
     def _upload_model_api(self, local_path: str, drive_filename: str) -> bool:
