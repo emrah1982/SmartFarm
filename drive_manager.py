@@ -230,22 +230,23 @@ class DriveManager:
             auto_setup = input("Otomatik klasör kurulumu kullanılsın mı? (e/h, varsayılan: e): ").lower().strip()
             if not auto_setup or auto_setup.startswith('e'):
                 # Otomatik kurulum
-                folder_path = "SmartFarm/Training"
-                self.project_name = "SmartFarm_Training"
+                folder_path = "SmartFarm/colab_learn/yolo11_models"
+                self.project_name = "YOLO11"
                 print(f"✅ Otomatik kurulum: {folder_path}")
             else:
                 # Manuel kurulum
-                folder_path = input("Klasör yolu (örn: SmartFarm/Training): ").strip()
+                folder_path = input("Klasör yolu (örn: SmartFarm/colab_learn/yolo11_models): ").strip()
                 if not folder_path:
-                    folder_path = "SmartFarm/Training"
+                    folder_path = "SmartFarm/colab_learn/yolo11_models"
                 
-                self.project_name = input("Proje adı (varsayılan: SmartFarm_Training): ").strip()
+                self.project_name = input("Proje adı (varsayılan: YOLO11): ").strip()
                 if not self.project_name:
-                    self.project_name = "SmartFarm_Training"
+                    self.project_name = "YOLO11"
             
             # Zaman damgası oluştur
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            project_folder_name = f"{timestamp}_{self.project_name}"
+            # Kullanıcı talebine göre sadece timestamp klasör adı
+            project_folder_name = f"{timestamp}"
             
             # Tam klasör yolu
             self.project_folder = os.path.join(self.base_drive_path, folder_path, project_folder_name)
@@ -303,9 +304,9 @@ class DriveManager:
                     return False
                 parent_id = folder_id
             
-            # Zaman damgalı proje klasörü oluştur
+            # Zaman damgalı proje klasörü oluştur (sadece timestamp)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            project_folder_name = f"{timestamp}_{self.project_name}"
+            project_folder_name = f"{timestamp}"
             self.drive_folder_id = self._find_or_create_folder(project_folder_name, parent_id)
             
             if self.drive_folder_id:
@@ -656,7 +657,7 @@ class DriveManager:
         with open(log_file, 'w', encoding='utf-8') as f:
             json.dump(uploads, f, indent=2, ensure_ascii=False)
     
-    def copy_directory_to_drive(self, local_dir: str, target_rel_path: str = 'checkpoints/weights') -> bool:
+    def copy_directory_to_drive(self, local_dir: str, target_rel_path: str = 'checkpoints') -> bool:
         """Yerel bir klasörü Drive'daki timestamp'li proje klasörünün içine kopyala.
 
         - Colab modunda: dosya sistemi üstünden doğrudan kopyalar (hızlı ve güvenilir).

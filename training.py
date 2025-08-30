@@ -637,18 +637,18 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
             # Epoch dosyasını kaydet (varsa), yoksa last.pt'yi o isimle yükle
             ok1 = True
             if epoch_file and epoch_file.exists():
-                ok1 = drive_manager.upload_file(str(epoch_file), epoch_file.name)
+                ok1 = drive_manager.upload_file(str(epoch_file), f'models/epoch_{current_epoch:03d}.pt')
             elif last_pt_path.exists():
                 # Fallback: last.pt'yi epoch adıyla yükle
-                ok1 = drive_manager.upload_file(str(last_pt_path), f'epoch_{current_epoch:03d}.pt')
+                ok1 = drive_manager.upload_file(str(last_pt_path), f'models/epoch_{current_epoch:03d}.pt')
 
             # last.pt kaydet (en önemli - devam etmek için gerekli)
             ok2 = True
             if last_pt_path.exists():
-                ok2 = drive_manager.upload_file(str(last_pt_path), 'last.pt')
+                ok2 = drive_manager.upload_file(str(last_pt_path), 'models/last.pt')
                 
                 # Eğitim durumu da kaydet
-                ok3 = drive_manager.upload_file(str(state_file), 'training_state.json')
+                ok3 = drive_manager.upload_file(str(state_file), 'logs/training_state.json')
                 
                 if ok1 and ok2 and ok3:
                     print(f"✅ Checkpoint kaydedildi: epoch_{current_epoch:03d}.pt, last.pt, training_state.json")
@@ -657,7 +657,7 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
             
             # best.pt kaydet (varsa)
             if best_pt_path.exists():
-                okb = drive_manager.upload_file(str(best_pt_path), 'best.pt')
+                okb = drive_manager.upload_file(str(best_pt_path), 'models/best.pt')
                 if okb:
                     print(f"✅ best.pt yüklendi (epoch {current_epoch})")
                 else:
@@ -908,9 +908,9 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
         if use_drive and drive_manager:
             # last.pt ve best.pt yedekle
             if os.path.exists(best_path):
-                drive_manager.upload_file(best_path, 'best.pt')
+                drive_manager.upload_file(best_path, 'models/best.pt')
             if os.path.exists(last_path):
-                drive_manager.upload_file(last_path, 'last.pt')
+                drive_manager.upload_file(last_path, 'models/last.pt')
 
             # Tüm weights klasörünü timestamp'li klasöre kopyala (Colab yolu öncelikli)
             candidates = [
@@ -925,8 +925,8 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
             else:
                 print("📁 Kopyalanacak weights klasörü bulunamadı.")
                 if os.path.exists(last_path):
-                    ok_last_name = drive_manager.upload_file(last_path, 'last.pt')
-                    ok_last_epoch = drive_manager.upload_file(last_path, f'epoch_{final_epoch:03d}.pt')
+                    ok_last_name = drive_manager.upload_file(last_path, 'models/last.pt')
+                    ok_last_epoch = drive_manager.upload_file(last_path, f'models/epoch_{final_epoch:03d}.pt')
                     if ok_last_name and ok_last_epoch:
                         print("✅ Final last.pt yüklendi (last.pt ve epoch_*.pt)")
                     else:
