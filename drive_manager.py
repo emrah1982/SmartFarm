@@ -1379,6 +1379,8 @@ def setup_drive_integration() -> Optional[DriveManager]:
     return drive_manager
 
 def activate_drive_integration(folder_path: str, project_name: Optional[str] = None) -> Optional[DriveManager]:
+    # Oturum kilidi için global cache kullanımı
+    global _GLOBAL_SESSION_TS
     """Etkileşimsiz (non-interactive) Drive entegrasyonu başlatır.
 
     Parametreler:
@@ -1424,7 +1426,6 @@ def activate_drive_integration(folder_path: str, project_name: Optional[str] = N
 
                 # 0) Oturum kilidi (session lock): aynı runtime içinde hep aynı timestamp
                 try:
-                    global _GLOBAL_SESSION_TS
                     # Dosya-tabanlı oturum bilgisi
                     session_file = os.path.join(base_path, '.active_session.json')
                     session_ts = None
