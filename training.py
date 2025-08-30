@@ -214,6 +214,11 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
     
     # Google Drive entegrasyonu (tek seferlik soru)
     print("\n🔧 Google Drive kaydetme ayarları - Colab kapanma durumu için optimize edilmiş")
+    # İsim hatalarını engellemek için thread fonksiyonlarını önceden tanımla (gerçek tanımlar aşağıda)
+    def periodic_save_thread():
+        pass
+    def time_based_copy_thread(interval_seconds: int = 60):
+        pass
     # Kullanıcıya daha şeffaf bilgi: hedef Drive kökü
     intended_drive_base = "/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models"
     print(f"📍 Hedef Drive kökü: {intended_drive_base}")
