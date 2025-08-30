@@ -219,7 +219,8 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
     use_drive = use_drive.startswith('e')
     
     drive_manager = None
-    save_interval = drive_save_interval  # Fonksiyon parametresini kullan
+    # Öncelik: options['save_interval_epochs'] > drive_save_interval (param)
+    save_interval = int(options.get('save_interval_epochs', drive_save_interval))
     
     if use_drive:
         print("\n🔄 Colab Kapanma Koruması Ayarları")
@@ -237,7 +238,8 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
             save_interval = 10  # Normal yedekleme
             print("✅ Normal yedekleme modu: Her 10 epoch'ta bir kaydetme")
         else:
-            save_interval = int(input(f"Özel aralık (epoch): ") or str(drive_save_interval))
+            # Kullanıcı özel değer girmezse options veya parametre değeri korunur
+            save_interval = int(input(f"Özel aralık (epoch): ") or str(save_interval))
             print(f"✅ Özel yedekleme modu: Her {save_interval} epoch'ta bir kaydetme")
         
         # Etkileşimsiz entegrasyon: kullanıcıya sormadan güvenli varsayılanları kullan
@@ -591,7 +593,7 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
     except Exception as _rd_err:
         print(f"⚠️ Resume run klasörü ayarlanamadı: {_rd_err}")
     # Kullanıcıdan alınan değerle eşitle (önceki hatalı kullanım: drive_save_interval)
-    save_interval_epochs = save_interval
+    save_interval_epochs = int(save_interval)
     drive_save_dir = options.get('drive_save_path')
 
     # Ultralytics yerel periyodik kaydetme (weights/epoch_XXX.pt) için native parametre
