@@ -78,15 +78,36 @@ def download_yolo11_models(save_dir=None, selected_models=None):
         List of paths to downloaded models
     """
     # Use default save directory if not specified
-    drive_models_dir, drive_project_folder, _dm = (None, None, None)
+    drive_project_folder = None
     if save_dir is None:
-        # Colab + Drive ise otomatik Drive timestamp klasörünü kullan
-        drive_models_dir, drive_project_folder, _dm = _prepare_drive_timestamp_folder()
-        if drive_models_dir:
-            save_dir = drive_models_dir
+        # Colab + Drive otomatik yönlendirme
+        models_dir, drive_project_folder, _dm = _prepare_drive_timestamp_folder()
+        if models_dir:
+            save_dir = models_dir
             print(f"📁 İndirme dizini Drive timestamp klasörüne ayarlandı: {save_dir}")
         else:
             save_dir = os.path.join(os.getcwd(), "yolo11_models")
+    else:
+        # Drive kökü veya timestamp kökü ise düzelt
+        try:
+            norm = os.path.normpath(save_dir)
+            base = os.path.basename(norm)
+            parent = os.path.basename(os.path.dirname(norm))
+            if base == "yolo11_models":
+                ts = __import__('datetime').datetime.now().strftime("%Y%m%d_%H%M%S")
+                drive_project_folder = os.path.join(norm, ts)
+                for sub in ["models", "logs", "configs", "checkpoints"]:
+                    os.makedirs(os.path.join(drive_project_folder, sub), exist_ok=True)
+                save_dir = os.path.join(drive_project_folder, "models")
+                print(f"📁 Drive timestamp klasörü oluşturuldu ve indirime yönlendirildi: {save_dir}")
+            # Eğer timestamp köküne işaret ediyorsa, models altına yönlendir
+            elif (len(base) == 15 and '_' in base and parent == "yolo11_models"):
+                drive_project_folder = norm
+                os.makedirs(os.path.join(drive_project_folder, "models"), exist_ok=True)
+                save_dir = os.path.join(drive_project_folder, "models")
+                print(f"📁 İndirme dizini timestamp/models olarak ayarlandı: {save_dir}")
+        except Exception:
+            pass
     
     # Create the directory if it doesn't exist
     os.makedirs(save_dir, exist_ok=True)
