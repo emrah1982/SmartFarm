@@ -1268,6 +1268,19 @@ def activate_drive_integration(folder_path: str, project_name: Optional[str] = N
             print("❌ Drive kimlik doğrulama başarısız!")
             return None
 
+        # Colab için ABSOLUTE base path desteği:
+        # Eğer folder_path "/content/drive/" ile başlıyorsa, bu tam yolu base_drive_path olarak kabul et
+        # ve folder_path'i boş bırak. Böylece timestamp klasörü doğrudan bu klasörün altında oluşturulur.
+        if dm.is_colab and folder_path:
+            try:
+                norm_fp = os.path.normpath(folder_path)
+                if norm_fp.startswith('/content/drive/'):
+                    dm.base_drive_path = norm_fp
+                    folder_path = ''
+                    print(f"ℹ️ Base Drive yolu absolute olarak ayarlandı: {dm.base_drive_path}")
+            except Exception:
+                pass
+
         # Var olan (veya yoksa oluşturulacak) ana klasörü seç
         ok = dm.select_existing_folder(folder_path, project_name)
         if not ok:
