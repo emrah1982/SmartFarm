@@ -774,7 +774,8 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
                     if drive_manager is None and use_drive:
                         try:
                             from drive_manager import activate_drive_integration as _activate_dm
-                            drive_manager = _activate_dm(folder_path="SmartFarm/colab_learn/yolo11_models", project_name="yolo11_models")
+                            # Doğru mutlak kök yol: intended_drive_base
+                            drive_manager = _activate_dm(folder_path=intended_drive_base, project_name="yolo11_models")
                             if drive_manager:
                                 print("\n✅ Drive entegrasyonu thread içinde kuruldu.")
                         except Exception as _th_e:
@@ -890,12 +891,48 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
             sys.stdout.write("\n")
             sys.stdout.flush()
     
+        # Sadece süreye bağlı kopyalama thread'i (epoch bağımsız)
+        def time_based_copy_thread(interval_seconds: int = 60):
+            import time as _t
+            nonlocal drive_manager
+            # Hedef çıktılar için log
+            try:
+                ts_dir = getattr(drive_manager, 'active_timestamp_dir', None) or getattr(drive_manager, 'project_folder', None)
+                if ts_dir:
+                    print(f"\n⏱️ Süreye bağlı kopyalama aktif (her {interval_seconds}s) → {os.path.join(ts_dir, 'checkpoints', 'weights')}")
+            except Exception:
+                pass
+            while True:
+                try:
+                    if drive_manager is None and use_drive:
+                        try:
+                            from drive_manager import activate_drive_integration as _activate_dm
+                            drive_manager = _activate_dm(folder_path=intended_drive_base, project_name="yolo11_models")
+                            if drive_manager:
+                                print("\n✅ Drive entegrasyonu (time-based) kuruldu.")
+                        except Exception as _th_e:
+                            print(f"\n⚠️ Time-based thread içinde Drive entegrasyonu kurulamadı: {_th_e}")
+                    # Kaynak klasör
+                    weights_dir = Path(project_dir) / experiment_name / 'weights'
+                    if weights_dir.exists() and drive_manager:
+                        try:
+                            drive_manager.copy_directory_to_drive(str(weights_dir), target_rel_path='checkpoints/weights')
+                        except Exception as _e:
+                            print(f"⚠️ Time-based kopyalama hatası: {_e}")
+                except Exception as _loop_e:
+                    print(f"⚠️ Time-based thread genel hata: {_loop_e}")
+                _t.sleep(interval_seconds)
+
     # Thread'i başlat (daemon olarak)
     if use_drive:
         try:
             save_thread = threading.Thread(target=periodic_save_thread, daemon=True)
             save_thread.start()
             print("✅ Periyodik kaydetme thread'i başlatıldı (lazy Drive init)")
+            # Süreye bağlı kopyalama thread'i de başlat
+            time_thread = threading.Thread(target=time_based_copy_thread, kwargs={'interval_seconds': 60}, daemon=True)
+            time_thread.start()
+            print("✅ Süreye bağlı kopyalama thread'i başlatıldı (60s)")
         except Exception as e:
             # Beklenmedik bir hata olursa kullanıcıya bilgi ver ve eğitim devam etsin
             print(f"⚠️ Periyodik Drive kaydetme başlatılamadı: {e}")
