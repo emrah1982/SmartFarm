@@ -308,7 +308,7 @@ class _TeeStdout:
             return False
     
     def _setup_colab_folder(self) -> bool:
-        """Colab için klasör kurulumu - Otomatik ve Manuel Seçenekli"""
+        """Colab için klasör kurulumu - Session Lock Destekli"""
         if not self.is_mounted:
             print("❌ Drive bağlı değil! Önce authenticate() çalıştırın.")
             return False
@@ -333,14 +333,83 @@ class _TeeStdout:
                 if not self.project_name:
                     self.project_name = "YOLO11"
             
-            # Zaman damgası oluştur
+            # Session lock kontrolü - mevcut global timestamp varsa onu kullan
+            base_path = os.path.join(self.base_drive_path, folder_path)
+            global _GLOBAL_SESSION_TS
+            
+            # 1) Global session cache kontrolü
+            if _GLOBAL_SESSION_TS and os.path.isdir(_GLOBAL_SESSION_TS):
+                if os.path.normpath(_GLOBAL_SESSION_TS).startswith(os.path.normpath(base_path)):
+                    self.project_folder = _GLOBAL_SESSION_TS
+                    print(f"🔒 Mevcut session timestamp kullanılıyor: {os.path.basename(_GLOBAL_SESSION_TS)}")
+                    return self._finalize_colab_setup(folder_path)
+            
+            # 2) Dosya-tabanlı session lock kontrolü
+            session_file = os.path.join(base_path, '.active_session.json')
+            if os.path.exists(session_file):
+                try:
+                    with open(session_file, 'r', encoding='utf-8') as sf:
+                        data = json.load(sf)
+                        cand = data.get('ts_dir')
+                        if cand and os.path.isdir(cand):
+                            self.project_folder = cand
+                            _GLOBAL_SESSION_TS = cand
+                            print(f"🔒 Session dosyasından timestamp yüklendi: {os.path.basename(cand)}")
+                            return self._finalize_colab_setup(folder_path)
+                except Exception:
+                    pass
+            
+            # 3) Config'ten mevcut timestamp kontrolü
+            if self.load_drive_config():
+                existing_ts = self.get_timestamp_dir()
+                if existing_ts and os.path.isdir(existing_ts):
+                    if os.path.dirname(existing_ts).startswith(base_path):
+                        self.project_folder = existing_ts
+                        _GLOBAL_SESSION_TS = existing_ts
+                        print(f"🗂️ Config'ten mevcut timestamp kullanılıyor: {os.path.basename(existing_ts)}")
+                        return self._finalize_colab_setup(folder_path)
+            
+            # 4) Mevcut timestamp adaylarını tara (en eski)
+            candidates = []
+            if os.path.isdir(base_path):
+                candidates = [
+                    os.path.join(base_path, d)
+                    for d in os.listdir(base_path)
+                    if len(d) == 15 and '_' in d and d.replace('_', '').isdigit() and os.path.isdir(os.path.join(base_path, d))
+                ]
+            if candidates:
+                candidates.sort(key=lambda p: os.path.getmtime(p))
+                oldest = candidates[0]
+                self.project_folder = oldest
+                _GLOBAL_SESSION_TS = oldest
+                print(f"🕒 En eski mevcut timestamp kullanılıyor: {os.path.basename(oldest)}")
+                return self._finalize_colab_setup(folder_path)
+            
+            # 5) Yeni timestamp oluştur (sadece hiçbiri yoksa)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            # Kullanıcı talebine göre sadece timestamp klasör adı
             project_folder_name = f"{timestamp}"
+            self.project_folder = os.path.join(base_path, project_folder_name)
+            _GLOBAL_SESSION_TS = self.project_folder
+            print(f"✅ Yeni timestamp oluşturuldu: {project_folder_name}")
             
-            # Tam klasör yolu
-            self.project_folder = os.path.join(self.base_drive_path, folder_path, project_folder_name)
+            # Session lock dosyasını yaz
+            try:
+                os.makedirs(base_path, exist_ok=True)
+                with open(session_file, 'w', encoding='utf-8') as sf:
+                    json.dump({'ts_dir': self.project_folder, 'started_at': datetime.now().isoformat()}, sf, ensure_ascii=False, indent=2)
+                print(f"🔒 Session lock yazıldı: {session_file}")
+            except Exception:
+                pass
             
+            return self._finalize_colab_setup(folder_path)
+            
+        except Exception as e:
+            print(f"❌ Klasör kurulumu hatası: {e}")
+            return False
+    
+    def _finalize_colab_setup(self, folder_path: str) -> bool:
+        """Colab kurulumunu tamamla - ortak son adımlar"""
+        try:
             # Klasörleri oluştur
             os.makedirs(self.project_folder, exist_ok=True)
             
@@ -349,12 +418,18 @@ class _TeeStdout:
             for sub_folder in sub_folders:
                 os.makedirs(os.path.join(self.project_folder, sub_folder), exist_ok=True)
                 self._subdirs[sub_folder] = os.path.join(self.project_folder, sub_folder)
+            
+            # checkpoints/weights alt klasörünü de garanti et
+            weights_dir = os.path.join(self.project_folder, 'checkpoints', 'weights')
+            os.makedirs(weights_dir, exist_ok=True)
+            
             # Global timestamp kökü
             self.active_timestamp_dir = self.project_folder
             
             print(f"✅ Drive klasörü oluşturuldu: {self.project_folder}")
             
             # Konfigürasyonu kaydet
+            project_folder_name = os.path.basename(self.project_folder.rstrip('/'))
             self._save_drive_config(folder_path, project_folder_name)
             return True
             
