@@ -640,14 +640,28 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
             ok1 = True
             if epoch_file and epoch_file.exists():
                 ok1 = drive_manager.upload_file(str(epoch_file), f'models/epoch_{current_epoch:03d}.pt')
+                try:
+                    print(f"💾 Saved to {getattr(drive_manager, 'project_folder', '[Drive]')}/models/epoch_{current_epoch:03d}.pt")
+                except Exception:
+                    pass
             elif last_pt_path.exists():
                 # Fallback: last.pt'yi epoch adıyla yükle
                 ok1 = drive_manager.upload_file(str(last_pt_path), f'models/epoch_{current_epoch:03d}.pt')
+                try:
+                    print(f"💾 Saved to {getattr(drive_manager, 'project_folder', '[Drive]')}/models/epoch_{current_epoch:03d}.pt")
+                except Exception:
+                    pass
 
             # last.pt kaydet (en önemli - devam etmek için gerekli)
             ok2 = True
             if last_pt_path.exists():
                 ok2 = drive_manager.upload_file(str(last_pt_path), 'models/last.pt')
+                # Ek: checkpoints klasörüne de last.pt koy
+                try:
+                    drive_manager.upload_file(str(last_pt_path), 'checkpoints/last.pt')
+                    print(f"💾 Saved to {getattr(drive_manager, 'project_folder', '[Drive]')}/checkpoints/last.pt")
+                except Exception:
+                    pass
                 
                 # Eğitim durumu da kaydet
                 ok3 = drive_manager.upload_file(str(state_file), 'logs/training_state.json')
@@ -660,6 +674,12 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
             # best.pt kaydet (varsa)
             if best_pt_path.exists():
                 okb = drive_manager.upload_file(str(best_pt_path), 'models/best.pt')
+                # Ek: checkpoints klasörüne de best.pt koy
+                try:
+                    drive_manager.upload_file(str(best_pt_path), 'checkpoints/best.pt')
+                    print(f"💾 Saved to {getattr(drive_manager, 'project_folder', '[Drive]')}/checkpoints/best.pt")
+                except Exception:
+                    pass
                 if okb:
                     print(f"✅ best.pt yüklendi (epoch {current_epoch})")
                 else:
@@ -667,10 +687,25 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
 
             # Kullanıcının belirlediği epoch'ta tüm weights klasörünü Drive timestamp klasörüne kopyala
             try:
+                drive_root = getattr(drive_manager, 'project_folder', '[Drive]')
+                # Öncelik: standart weights_dir
                 if hasattr(drive_manager, 'copy_directory_to_drive'):
                     drive_manager.copy_directory_to_drive(str(weights_dir), target_rel_path='checkpoints/weights')
+                    print(f"📁 Copied weights to {drive_root}/checkpoints/weights")
                 else:
-                    print("ℹ️ copy_directory_to_drive bulunamadı; sadece tekil .pt dosyaları yüklendi.")
+                    for p in weights_dir.glob('*.pt'):
+                        drive_manager.upload_file(str(p), f'checkpoints/weights/{p.name}')
+                    print(f"📁 Copied weight files to {drive_root}/checkpoints/weights")
+
+                # Ek: Colab default yolunu da kontrol et ve varsa kopyala
+                colab_default = Path('/content/SmartFarm/runs/train/exp/weights')
+                if colab_default.exists():
+                    if hasattr(drive_manager, 'copy_directory_to_drive'):
+                        drive_manager.copy_directory_to_drive(str(colab_default), target_rel_path='checkpoints/weights')
+                    else:
+                        for p in colab_default.glob('*.pt'):
+                            drive_manager.upload_file(str(p), f'checkpoints/weights/{p.name}')
+                    print(f"📁 Copied weights to {drive_root}/checkpoints/weights from /content/SmartFarm/runs/train/exp/weights")
             except Exception as copy_e:
                 print(f"⚠️ Weights klasörü kopyalanırken hata: {copy_e}")
             
@@ -911,8 +946,18 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
             # last.pt ve best.pt yedekle
             if os.path.exists(best_path):
                 drive_manager.upload_file(best_path, 'models/best.pt')
+                # Ek: checkpoints klasörüne de yaz
+                try:
+                    drive_manager.upload_file(best_path, 'checkpoints/best.pt')
+                except Exception:
+                    pass
             if os.path.exists(last_path):
                 drive_manager.upload_file(last_path, 'models/last.pt')
+                # Ek: checkpoints klasörüne de yaz
+                try:
+                    drive_manager.upload_file(last_path, 'checkpoints/last.pt')
+                except Exception:
+                    pass
 
             # Tüm weights klasörünü timestamp'li klasöre kopyala (Colab yolu öncelikli)
             candidates = [
