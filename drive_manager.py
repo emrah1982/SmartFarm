@@ -1373,14 +1373,17 @@ def activate_drive_integration(folder_path: str, project_name: Optional[str] = N
                 try:
                     candidates = []
                     if os.path.isdir(base_path):
+                        print(f"🔎 Timestamp taraması: base_path = {base_path}")
                         candidates = [
                             os.path.join(base_path, d)
                             for d in os.listdir(base_path)
                             if len(d) == 15 and '_' in d and d.replace('_', '').isdigit() and os.path.isdir(os.path.join(base_path, d))
                         ]
                     if candidates:
+                        print(f"🔎 Bulunan timestamp adayları: {[os.path.basename(c) for c in candidates]}")
                         candidates.sort(key=lambda p: os.path.getmtime(p))
                         oldest = candidates[0]
+                        print(f"🕒 En eski timestamp: {os.path.basename(oldest)}")
                         # Config'te farklı bir timestamp varsa bile, en eskisine zorla hizala
                         if dm.load_drive_config():
                             ts_existing = dm.get_timestamp_dir()
@@ -1394,6 +1397,7 @@ def activate_drive_integration(folder_path: str, project_name: Optional[str] = N
 
                 # 3) Hiçbiri yoksa yeni timestamp oluştur
                 if not dm.project_folder:
+                    print("ℹ️ Mevcut timestamp bulunamadı; yeni timestamp oluşturulacak.")
                     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                     proj_dir = os.path.join(base_path, ts)
                     os.makedirs(proj_dir, exist_ok=True)
