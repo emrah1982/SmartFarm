@@ -240,11 +240,26 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
             save_interval = int(input(f"Özel aralık (epoch): ") or str(drive_save_interval))
             print(f"✅ Özel yedekleme modu: Her {save_interval} epoch'ta bir kaydetme")
         
-        drive_manager = setup_drive_integration()
+        # Etkileşimsiz entegrasyon: kullanıcıya sormadan güvenli varsayılanları kullan
+        try:
+            from drive_manager import activate_drive_integration as _activate_dm
+            # Colab için: MyDrive/SmartFarm/Training altında timestamp'li klasör otomatik oluşur
+            drive_manager = _activate_dm(folder_path="SmartFarm/Training", project_name="SmartFarm_Training")
+        except Exception as _dm_e:
+            print(f"⚠️ Drive entegrasyon modülü yüklenemedi: {_dm_e}")
+            drive_manager = None
         if not drive_manager:
             print("⚠️ Drive entegrasyonu kurulamadı, sadece yerel kaydetme yapılacak.")
             use_drive = False
             print(f"ℹ️ Yerel kaydetme aralığı: {save_interval} epoch")
+        else:
+            try:
+                # Colab tarafında proje klasörü bilgisi
+                proj_info = getattr(drive_manager, 'project_folder', None)
+                if proj_info:
+                    print(f"✅ Drive etkin: {proj_info}")
+            except Exception:
+                pass
 
     # --- Eğitim Modu Seçimi ---
     mode = input("\nEğitim modunu seçin:\n1. Yeni Eğitim Başlat\n2. Kaldığı Yerden Devam Et (Resume)\n3. Fine-tune (Önceki Ağırlıklarla Başla)\nSeçim (1/2/3): ").strip()
@@ -704,6 +719,7 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
             import sys
             seen_epochs = set()
             last_report = 0
+            first_log = True
             
             def status_print(msg):
                 """Tek satırda güncellenen status mesajı"""
@@ -718,15 +734,18 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
                     nonlocal drive_manager
                     if drive_manager is None and use_drive:
                         try:
-                            from drive_manager import setup_drive_integration as _setup_dm
-                            drive_manager = _setup_dm()
+                            from drive_manager import activate_drive_integration as _activate_dm
+                            drive_manager = _activate_dm(folder_path="SmartFarm/Training", project_name="SmartFarm_Training")
                             if drive_manager:
                                 print("\n✅ Drive entegrasyonu thread içinde kuruldu.")
-                        except Exception:
-                            pass
+                        except Exception as _th_e:
+                            print(f"\n⚠️ Thread içinde Drive entegrasyonu kurulamadı: {_th_e}")
 
                     # Weights klasöründeki epoch dosyalarını kontrol et
                     weights_dir = Path(project_dir) / experiment_name / 'weights'
+                    if first_log:
+                        print(f"\n📡 Periyodik izleme aktif: {weights_dir}")
+                        first_log = False
                     current_epochs = set()
                     
                     if weights_dir.exists():
@@ -767,6 +786,7 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
                                     reader = list(csv.reader(f))
                                 if len(reader) > 1:
                                     header = reader[0]
+                                    # Epoch sütunu bulunamazsa, güvenli fallback uygula
                                     epoch_idx = header.index('epoch') if 'epoch' in header else None
                                     if epoch_idx is not None:
                                         # Son birkaç satırı kontrol et (sadece son değil)
@@ -783,6 +803,31 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=10):
                                                     seen_epochs.add(ep)
                                             except (ValueError, IndexError):
                                                 continue
+                                    else:
+                                        # Fallback 1: İlk sütun epoch olabilir
+                                        try:
+                                            for row in reader[-3:]:
+                                                ep = int(float(row[0]))
+                                                current_epochs.add(ep)
+                                                if ep not in seen_epochs and ep > 0 and ep % int(save_interval_epochs) == 0:
+                                                    seen_epochs.add(ep)
+                                                    print(f"\n📊 Results.csv (fallback col0) epoch {ep} tespit edildi! Kaydetme başlatılıyor...")
+                                                    save_models_periodically(project_dir, experiment_name, drive_manager, int(save_interval_epochs), ep)
+                                                elif ep not in seen_epochs:
+                                                    seen_epochs.add(ep)
+                                        except Exception:
+                                            # Fallback 2: Satır sayısından epoch tahmini (başlık hariç)
+                                            try:
+                                                ep = max(0, len(reader) - 1)
+                                                current_epochs.add(ep)
+                                                if ep not in seen_epochs and ep > 0 and ep % int(save_interval_epochs) == 0:
+                                                    seen_epochs.add(ep)
+                                                    print(f"\n📊 Results.csv (fallback rows) epoch {ep} tespit edildi! Kaydetme başlatılıyor...")
+                                                    save_models_periodically(project_dir, experiment_name, drive_manager, int(save_interval_epochs), ep)
+                                                elif ep not in seen_epochs:
+                                                    seen_epochs.add(ep)
+                                            except Exception:
+                                                pass
                         except Exception:
                             pass  # CSV okuma hatası sessizce geç
 
