@@ -862,10 +862,10 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
         try:
             save_thread = threading.Thread(target=periodic_save_thread, daemon=True)
             save_thread.start()
-            print(" Periyodik kaydetme thread'i başlatıldı (lazy Drive init)")
-        except NameError:
-            # Bazı ortamlarda fonksiyon tanımı derleme akışında atlanırsa çökmesin
-            print("⚠️ periodic_save_thread tanımlı değil. Periyodik Drive kaydetme devre dışı bırakıldı.")
+            print("✅ Periyodik kaydetme thread'i başlatıldı (lazy Drive init)")
+        except Exception as e:
+            # Beklenmedik bir hata olursa kullanıcıya bilgi ver ve eğitim devam etsin
+            print(f"⚠️ Periyodik Drive kaydetme başlatılamadı: {e}")
         
     # Resume modunda: tespit edilen checkpoint'in klasöründeki last.pt/best.pt dosyalarını
     # yeni deneyin weights klasörüne kopyalayarak başlangıç dosyalarını hazırla
