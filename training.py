@@ -964,17 +964,20 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
             print("\n📋 Drive'daki tüm modeller:")
             drive_manager.list_drive_models()
 
-        # 2) Dosya sistemine kopyalama (Drive mount edilen dizine)
+        # 2) Dosya sistemine kopyalama (Drive mount edilen dizine) → checkpoints altına
         if drive_save_dir:
             try:
                 import shutil
-                os.makedirs(drive_save_dir, exist_ok=True)
+                ckpt_dir = os.path.join(drive_save_dir, 'checkpoints')
+                os.makedirs(ckpt_dir, exist_ok=True)
                 if os.path.exists(best_path):
-                    shutil.copy(best_path, os.path.join(drive_save_dir, "best.pt"))
-                    print(f"💾 Final best.pt kopyalandı → {os.path.join(drive_save_dir, 'best.pt')}")
+                    dst_best = os.path.join(ckpt_dir, "best.pt")
+                    shutil.copy(best_path, dst_best)
+                    print(f"💾 Final best.pt kopyalandı → {dst_best}")
                 if os.path.exists(last_path):
-                    shutil.copy(last_path, os.path.join(drive_save_dir, "last.pt"))
-                    print(f"💾 Final last.pt kopyalandı → {os.path.join(drive_save_dir, 'last.pt')}")
+                    dst_last = os.path.join(ckpt_dir, "last.pt")
+                    shutil.copy(last_path, dst_last)
+                    print(f"💾 Final last.pt kopyalandı → {dst_last}")
             except Exception as copy_e:
                 print(f"❌ Final kopyalama hatası: {copy_e}")
         

@@ -670,17 +670,27 @@ def interactive_training_setup():
         
         if save_to_drive_opt.startswith("e"):
             default_drive_path = get_smartfarm_models_dir() or "/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models"
-            drive_save_path = input(f"Kaydetme dizini (varsayılan: {default_drive_path}): ") or default_drive_path
-            
+            base_input = input(f"Kaydetme dizini (varsayılan: {default_drive_path}): ") or default_drive_path
+
+            # Zaman damgası klasörünü oluştur ve alt klasörleri hazırla
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            drive_save_path = os.path.join(drive_save_path, timestamp)
-            print(f"📁 Modeller şuraya kaydedilecek: {drive_save_path}")
-            # Klasörleri oluştur
+            timestamp_dir = os.path.join(base_input, timestamp)
+            checkpoints_dir = os.path.join(timestamp_dir, 'checkpoints')
+            models_dir = os.path.join(timestamp_dir, 'models')
+            logs_dir = os.path.join(timestamp_dir, 'logs')
+            configs_dir = os.path.join(timestamp_dir, 'configs')
+
             try:
-                os.makedirs(drive_save_path, exist_ok=True)
-                print(f"✅ Drive klasörü hazırlandı: {drive_save_path}")
+                os.makedirs(checkpoints_dir, exist_ok=True)
+                os.makedirs(models_dir, exist_ok=True)
+                os.makedirs(logs_dir, exist_ok=True)
+                os.makedirs(configs_dir, exist_ok=True)
+                print(f"✅ Drive timestamp hazırlandı: {timestamp_dir}")
+                print(f"🗂️  Kayıt hedefi (checkpoints): {checkpoints_dir}")
+                # Eğitim opsiyonlarına zaman damgası kökünü veriyoruz
+                drive_save_path = timestamp_dir
             except Exception as e:
-                print(f"❌ Drive klasörü oluşturulamadı: {e}")
+                print(f"❌ Drive klasörleri oluşturulamadı: {e}")
                 drive_save_path = None
     
     # Hyperparameter file
