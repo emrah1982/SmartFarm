@@ -683,16 +683,18 @@ def interactive_training_setup():
                         ts_existing = dm_probe.get_timestamp_dir()
                         if ts_existing and os.path.basename(os.path.dirname(ts_existing)) == 'yolo11_models':
                             timestamp_dir = ts_existing
-                # 2) Base klasörde mevcut timestamp dizinlerini tara ve en yenisini al
+                # 2) Base klasörde mevcut timestamp dizinlerini tara ve ILK OLUŞANINI al (ilk timestamp kuralı)
                 if not timestamp_dir and os.path.isdir(base_input):
                     candidates = [
                         os.path.join(base_input, d)
                         for d in os.listdir(base_input)
-                        if len(d) == 15 and d[8] == '_' and d.replace('_', '').isdigit() and os.path.isdir(os.path.join(base_input, d))
+                        if os.path.isdir(os.path.join(base_input, d)) and TIMESTAMP_PATTERN.match(d)
                     ]
                     if candidates:
+                        # mtime'a göre artan sırala: ilk eleman en eski (ilk oluşturulan)
                         candidates.sort(key=lambda p: os.path.getmtime(p))
-                        timestamp_dir = candidates[-1]
+                        timestamp_dir = candidates[0]
+                        print(f"🕒 İlk timestamp kuralı: mevcutlardan EN ESKİSİ kullanılacak → {os.path.basename(timestamp_dir)}")
             except Exception:
                 pass
             # 3) Hiçbiri yoksa yeni timestamp oluştur
@@ -713,8 +715,8 @@ def interactive_training_setup():
                 action = "kullanılıyor" if not created_any else "hazırlandı"
                 print(f"✅ Drive timestamp {action}: {timestamp_dir}")
                 print(f"🗂️  Kayıt hedefi (checkpoints): {checkpoints_dir}")
-                # Eğitim opsiyonlarına zaman damgası kökünü veriyoruz
-                drive_save_path = timestamp_dir
+                # Eğitim opsiyonlarında doğrudan 'checkpoints' klasörünü hedefle
+                drive_save_path = checkpoints_dir
             except Exception as e:
                 print(f"❌ Drive klasörleri oluşturulamadı: {e}")
                 drive_save_path = None
@@ -812,7 +814,7 @@ def interactive_training_setup():
     
     if drive_save_path:
         print(f"Drive kaydetme yolu: {drive_save_path}")
-        # Kaydedilecek dosyaları net belirt
+        # Kaydedilecek dosyaları net belirt (checkpoints altında)
         print(f"Kaydedilecek dosyalar:")
         print(f"  • best.pt  → {os.path.join(drive_save_path, 'best.pt')}")
         print(f"  • last.pt  → {os.path.join(drive_save_path, 'last.pt')}")
