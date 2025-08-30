@@ -13,6 +13,9 @@ from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 import logging
 
+# Oturum (runtime) boyunca seçilen timestamp'i sabitlemek için global cache
+_GLOBAL_SESSION_TS: Optional[str] = None
+
 # Ortam tespiti - Geliştirilmiş
 def detect_colab_environment():
     """Colab ortamını güvenli şekilde tespit et"""
@@ -1419,6 +1422,37 @@ def activate_drive_integration(folder_path: str, project_name: Optional[str] = N
                 # Base path, absolute destekli olabilir
                 base_path = os.path.join(dm.base_drive_path, folder_path) if folder_path else dm.base_drive_path
 
+                # 0) Oturum kilidi (session lock): aynı runtime içinde hep aynı timestamp
+                try:
+                    global _GLOBAL_SESSION_TS
+                    # Dosya-tabanlı oturum bilgisi
+                    session_file = os.path.join(base_path, '.active_session.json')
+                    session_ts = None
+                    if _GLOBAL_SESSION_TS and os.path.isdir(_GLOBAL_SESSION_TS):
+                        session_ts = _GLOBAL_SESSION_TS
+                    elif os.path.exists(session_file):
+                        with open(session_file, 'r', encoding='utf-8') as sf:
+                            data = json.load(sf)
+                            cand = data.get('ts_dir')
+                            if cand and os.path.isdir(cand):
+                                session_ts = cand
+                    if session_ts and os.path.normpath(session_ts).startswith(os.path.normpath(base_path)):
+                        dm.project_folder = session_ts
+                        dm.active_timestamp_dir = session_ts
+                        print(f"🔒 Oturum timestamp kilidi kullanılıyor: {os.path.basename(session_ts)}")
+                        # Alt klasörleri garanti et
+                        for sub in ['models', 'checkpoints', 'logs', 'configs']:
+                            os.makedirs(os.path.join(dm.project_folder, sub), exist_ok=True)
+                        # checkpoints/weights
+                        os.makedirs(os.path.join(dm.project_folder, 'checkpoints', 'weights'), exist_ok=True)
+                        ts_name = os.path.basename(dm.project_folder.rstrip('/'))
+                        dm._save_drive_config(folder_path or os.path.relpath(dm.project_folder, dm.base_drive_path).rsplit('/', 1)[0], ts_name)
+                        print(f"✅ Timestamp ve alt klasörler hazır (session lock): {dm.project_folder}")
+                        print("✅ Drive entegrasyonu hazır (etkileşimsiz mod)")
+                        return dm
+                except Exception as sl_e:
+                    print(f"⚠️ Session lock okunamadı: {sl_e}")
+
                 # 1) Eğer config'te bir timestamp kayıtlı ve geçerliyse, HER ZAMAN onu kullan
                 reused = False
                 try:
@@ -1481,6 +1515,17 @@ def activate_drive_integration(folder_path: str, project_name: Optional[str] = N
                 # Seçilen timestamp'i config'e kaydet
                 dm._save_drive_config(folder_path or os.path.relpath(dm.project_folder, dm.base_drive_path).rsplit('/', 1)[0], ts_name)
                 print(f"✅ Timestamp ve alt klasörler hazır: {dm.project_folder}")
+
+                # 4) Oturum kilidini yaz (global ve dosya)
+                try:
+                    global _GLOBAL_SESSION_TS
+                    _GLOBAL_SESSION_TS = dm.project_folder
+                    session_file = os.path.join(base_path, '.active_session.json')
+                    with open(session_file, 'w', encoding='utf-8') as sf:
+                        json.dump({'ts_dir': dm.project_folder, 'started_at': datetime.now().isoformat()}, sf, ensure_ascii=False, indent=2)
+                    print(f"🔒 Oturum timestamp kilidi yazıldı: {session_file}")
+                except Exception as slw_e:
+                    print(f"⚠️ Session lock yazılamadı: {slw_e}")
 
                 # Otomatik log yönlendirme (tee) — sadece bir kez etkinleştir
                 try:
