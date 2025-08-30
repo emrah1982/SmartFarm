@@ -1268,11 +1268,28 @@ def activate_drive_integration(folder_path: str, project_name: Optional[str] = N
             print("❌ Drive kimlik doğrulama başarısız!")
             return None
 
-        # Var olan (veya yoksa oluşturulacak) klasörü proje klasörü olarak seç
+        # Var olan (veya yoksa oluşturulacak) ana klasörü seç
         ok = dm.select_existing_folder(folder_path, project_name)
         if not ok:
             print(f"❌ Proje klasörü ayarlanamadı: {folder_path}")
             return None
+
+        # Colab modunda: timestamp alt klasörü ve standart alt klasörleri oluştur
+        if dm.is_colab:
+            try:
+                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                base_path = os.path.join(dm.base_drive_path, folder_path)
+                proj_dir = os.path.join(base_path, ts)
+                os.makedirs(proj_dir, exist_ok=True)
+                for sub in ['models', 'checkpoints', 'logs', 'configs']:
+                    os.makedirs(os.path.join(proj_dir, sub), exist_ok=True)
+                dm.project_folder = proj_dir
+                dm.project_name = project_name or os.path.basename(folder_path)
+                # Konfigürasyonu güncelle/kaydet
+                dm._save_drive_config(folder_path, ts)
+                print(f"✅ Timestamp klasörü ve alt klasörler hazır: {proj_dir}")
+            except Exception as e:
+                print(f"⚠️ Timestamp klasörü oluşturulamadı: {e}")
 
         print("✅ Drive entegrasyonu hazır (etkileşimsiz mod)")
         return dm
