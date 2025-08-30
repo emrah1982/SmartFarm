@@ -257,6 +257,23 @@ class DriveManager:
         else:
             return self._setup_api_folder()
 
+    def select_existing_folder(self, folder_path: str, project_name: Optional[str] = None) -> bool:
+        """Var olan bir klasörü proje klasörü olarak ayarla (sınıf içi sargı)."""
+        try:
+            # Modül düzeyindeki yardımcıları çağır
+            if self.is_colab:
+                return _select_existing_colab(self, folder_path, project_name)
+            else:
+                return _select_existing_api(self, folder_path, project_name)
+        except NameError:
+            # Eski sürümlerle uyum: doğrudan sınıf metotları varsa onları dene
+            if self.is_colab and hasattr(self, '_select_existing_colab'):
+                return self._select_existing_colab(folder_path, project_name)
+            if not self.is_colab and hasattr(self, '_select_existing_api'):
+                return self._select_existing_api(folder_path, project_name)
+            print("❌ select_existing_folder yardımcıları bulunamadı")
+            return False
+
 class _TeeStdout:
     def __init__(self, original, file_handle):
         self.original = original
