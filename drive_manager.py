@@ -1341,22 +1341,59 @@ def activate_drive_integration(folder_path: str, project_name: Optional[str] = N
             print(f"❌ Proje klasörü ayarlanamadı: {folder_path}")
             return None
 
-        # Colab modunda: timestamp alt klasörü ve standart alt klasörleri oluştur
+        # Colab modunda: timestamp alt klasörünü YENİDEN KULLAN veya yoksa oluştur
         if dm.is_colab:
             try:
-                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-                base_path = os.path.join(dm.base_drive_path, folder_path)
-                proj_dir = os.path.join(base_path, ts)
-                os.makedirs(proj_dir, exist_ok=True)
+                # Base path, absolute destekli olabilir
+                base_path = os.path.join(dm.base_drive_path, folder_path) if folder_path else dm.base_drive_path
+
+                # 1) Mevcut konfigürasyondaki aktif timestamp'i kullan
+                reused = False
+                if dm.load_drive_config():
+                    ts_existing = dm.get_timestamp_dir()
+                    if ts_existing and os.path.isdir(ts_existing):
+                        # Aynı kök altında mı? (yolo11_models/...)
+                        if os.path.dirname(ts_existing).startswith(base_path):
+                            dm.project_folder = ts_existing
+                            reused = True
+
+                # 2) Konfigürasyon yoksa mevcut timestamp dizinlerini tara ve en yenisini seç
+                if not reused and os.path.isdir(base_path):
+                    try:
+                        candidates = [
+                            os.path.join(base_path, d)
+                            for d in os.listdir(base_path)
+                            if len(d) == 15 and '_' in d and d.replace('_', '').isdigit() and os.path.isdir(os.path.join(base_path, d))
+                        ]
+                        if candidates:
+                            candidates.sort(key=lambda p: os.path.getmtime(p))
+                            dm.project_folder = candidates[-1]
+                            reused = True
+                    except Exception:
+                        pass
+
+                # 3) Hiçbiri yoksa yeni timestamp oluştur
+                if not dm.project_folder:
+                    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    proj_dir = os.path.join(base_path, ts)
+                    os.makedirs(proj_dir, exist_ok=True)
+                    dm.project_folder = proj_dir
+                    print(f"✅ Yeni timestamp klasörü oluşturuldu: {proj_dir}")
+                else:
+                    print(f"✅ Mevcut timestamp klasörü kullanılıyor: {dm.project_folder}")
+
+                # Alt klasörleri garanti et
                 for sub in ['models', 'checkpoints', 'logs', 'configs']:
-                    os.makedirs(os.path.join(proj_dir, sub), exist_ok=True)
-                dm.project_folder = proj_dir
-                dm.project_name = project_name or os.path.basename(folder_path)
-                # Konfigürasyonu güncelle/kaydet
-                dm._save_drive_config(folder_path, ts)
-                print(f"✅ Timestamp klasörü ve alt klasörler hazır: {proj_dir}")
+                    os.makedirs(os.path.join(dm.project_folder, sub), exist_ok=True)
+
+                # Global işaret ve konfigürasyon kaydı
+                dm.active_timestamp_dir = dm.project_folder
+                ts_name = os.path.basename(dm.project_folder.rstrip('/'))
+                dm.project_name = project_name or os.path.basename(folder_path) if folder_path else dm.project_name
+                dm._save_drive_config(folder_path or os.path.relpath(dm.project_folder, dm.base_drive_path).rsplit('/', 1)[0], ts_name)
+                print(f"✅ Timestamp ve alt klasörler hazır: {dm.project_folder}")
             except Exception as e:
-                print(f"⚠️ Timestamp klasörü oluşturulamadı: {e}")
+                print(f"⚠️ Timestamp klasörü hazırlığı başarısız: {e}")
 
         print("✅ Drive entegrasyonu hazır (etkileşimsiz mod)")
         return dm
