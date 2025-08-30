@@ -55,13 +55,34 @@ def _prepare_drive_timestamp_folder():
         return None, None, None
     try:
         dm = DriveManager()
-        if dm.authenticate() and dm._setup_colab_folder():
-            project_folder = dm.project_folder
-            # Alt klasörleri garanti et
-            for sub in ["models", "logs", "configs", "checkpoints"]:
-                os.makedirs(os.path.join(project_folder, sub), exist_ok=True)
-            models_dir = os.path.join(project_folder, "models")
-            return models_dir, project_folder, dm
+        if not dm.authenticate():
+            return None, None, None
+
+        reused = False
+        # Önce mevcut konfigürasyonu yüklemeyi dene (mevcut timestamp varsa onu kullan)
+        if dm.load_drive_config():
+            project_folder = dm.get_timestamp_dir()
+            if project_folder and os.path.basename(os.path.dirname(project_folder)) == 'yolo11_models':
+                reused = True
+        else:
+            project_folder = None
+
+        # Konfigürasyon yoksa yeni timestamp kur
+        if not project_folder:
+            if not dm._setup_colab_folder():
+                return None, None, None
+            project_folder = dm.get_timestamp_dir()
+            reused = False
+
+        # Alt klasörleri garanti et
+        for sub in ["models", "logs", "configs", "checkpoints"]:
+            os.makedirs(os.path.join(project_folder, sub), exist_ok=True)
+        models_dir = os.path.join(project_folder, "models")
+        if reused:
+            print(f"📁 Mevcut Drive timestamp klasörü kullanılıyor: {project_folder}")
+        else:
+            print(f"📁 Drive timestamp klasörü oluşturuldu: {project_folder}")
+        return models_dir, project_folder, dm
     except Exception:
         pass
     return None, None, None

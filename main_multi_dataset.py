@@ -672,20 +672,46 @@ def interactive_training_setup():
             default_drive_path = get_smartfarm_models_dir() or "/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models"
             base_input = input(f"Kaydetme dizini (varsayılan: {default_drive_path}): ") or default_drive_path
 
-            # Zaman damgası klasörünü oluştur ve alt klasörleri hazırla
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            timestamp_dir = os.path.join(base_input, timestamp)
+            # Varsa mevcut timestamp klasörünü KULLAN, yoksa oluştur
+            timestamp_dir = None
+            try:
+                # 1) DriveManager'da aktif timestamp var mı?
+                if _DRIVE_AVAILABLE:
+                    dm_probe = DriveManager()
+                    if dm_probe.authenticate():
+                        dm_probe.load_drive_config()
+                        ts_existing = dm_probe.get_timestamp_dir()
+                        if ts_existing and os.path.basename(os.path.dirname(ts_existing)) == 'yolo11_models':
+                            timestamp_dir = ts_existing
+                # 2) Base klasörde mevcut timestamp dizinlerini tara ve en yenisini al
+                if not timestamp_dir and os.path.isdir(base_input):
+                    candidates = [
+                        os.path.join(base_input, d)
+                        for d in os.listdir(base_input)
+                        if len(d) == 15 and d[8] == '_' and d.replace('_', '').isdigit() and os.path.isdir(os.path.join(base_input, d))
+                    ]
+                    if candidates:
+                        candidates.sort(key=lambda p: os.path.getmtime(p))
+                        timestamp_dir = candidates[-1]
+            except Exception:
+                pass
+            # 3) Hiçbiri yoksa yeni timestamp oluştur
+            if not timestamp_dir:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                timestamp_dir = os.path.join(base_input, timestamp)
             checkpoints_dir = os.path.join(timestamp_dir, 'checkpoints')
             models_dir = os.path.join(timestamp_dir, 'models')
             logs_dir = os.path.join(timestamp_dir, 'logs')
             configs_dir = os.path.join(timestamp_dir, 'configs')
 
             try:
-                os.makedirs(checkpoints_dir, exist_ok=True)
-                os.makedirs(models_dir, exist_ok=True)
-                os.makedirs(logs_dir, exist_ok=True)
-                os.makedirs(configs_dir, exist_ok=True)
-                print(f"✅ Drive timestamp hazırlandı: {timestamp_dir}")
+                created_any = False
+                for d in [checkpoints_dir, models_dir, logs_dir, configs_dir]:
+                    if not os.path.isdir(d):
+                        os.makedirs(d, exist_ok=True)
+                        created_any = True
+                action = "kullanılıyor" if not created_any else "hazırlandı"
+                print(f"✅ Drive timestamp {action}: {timestamp_dir}")
                 print(f"🗂️  Kayıt hedefi (checkpoints): {checkpoints_dir}")
                 # Eğitim opsiyonlarına zaman damgası kökünü veriyoruz
                 drive_save_path = timestamp_dir
