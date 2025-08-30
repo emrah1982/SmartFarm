@@ -2,6 +2,7 @@
 # drive_manager.py - Google Drive integration for SmartFarm model management
 
 import os
+import sys
 import json
 import pickle
 import shutil
@@ -10,6 +11,7 @@ import hashlib
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
+import logging
 
 # Ortam tespiti - Geliştirilmiş
 def detect_colab_environment():
@@ -82,6 +84,9 @@ class DriveManager:
             self.base_drive_path = "/content/drive/MyDrive"
             self.project_folder = None
             self.is_mounted = False
+        # Tee logging durumu
+        self._tee_enabled: bool = False
+        self._tee_file_path: Optional[str] = None
 
     # Yardımcılar: standart alt klasör yolları
     def get_timestamp_dir(self) -> Optional[str]:
@@ -251,6 +256,36 @@ class DriveManager:
             return self._setup_colab_folder()
         else:
             return self._setup_api_folder()
+
+class _TeeStdout:
+    def __init__(self, original, file_handle):
+        self.original = original
+        self.file_handle = file_handle
+        # Colab uyumluluğu için encoding/iwrite
+        self.encoding = getattr(original, 'encoding', 'utf-8')
+    def write(self, data):
+        try:
+            self.original.write(data)
+        except Exception:
+            pass
+        try:
+            self.file_handle.write(data)
+        except Exception:
+            pass
+    def flush(self):
+        try:
+            self.original.flush()
+        except Exception:
+            pass
+        try:
+            self.file_handle.flush()
+        except Exception:
+            pass
+    def isatty(self):
+        try:
+            return self.original.isatty()
+        except Exception:
+            return False
     
     def _setup_colab_folder(self) -> bool:
         """Colab için klasör kurulumu - Otomatik ve Manuel Seçenekli"""
@@ -1416,6 +1451,31 @@ def activate_drive_integration(folder_path: str, project_name: Optional[str] = N
                 dm.project_name = project_name or os.path.basename(folder_path) if folder_path else dm.project_name
                 dm._save_drive_config(folder_path or os.path.relpath(dm.project_folder, dm.base_drive_path).rsplit('/', 1)[0], ts_name)
                 print(f"✅ Timestamp ve alt klasörler hazır: {dm.project_folder}")
+
+                # Otomatik log yönlendirme (tee) — sadece bir kez etkinleştir
+                try:
+                    if not dm._tee_enabled:
+                        logs_dir = os.path.join(dm.project_folder, 'logs')
+                        os.makedirs(logs_dir, exist_ok=True)
+                        log_file = os.path.join(logs_dir, f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+                        # Python logging de dosyaya yazsın
+                        logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
+                        fh = logging.FileHandler(log_file, encoding='utf-8')
+                        fh.setLevel(logging.INFO)
+                        fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
+                        root_logger = logging.getLogger()
+                        # Aynı dosya handler'ı iki kez eklememek için kontrol
+                        if not any(getattr(h, 'baseFilename', None) == fh.baseFilename for h in root_logger.handlers):
+                            root_logger.addHandler(fh)
+                        # Stdout'u da tee ile aynı dosyaya kopyala
+                        dm._tee_file_path = log_file
+                        dm._tee_enabled = True
+                        dm._tee_file_handle = open(log_file, 'a', encoding='utf-8')
+                        dm._tee_stdout_prev = sys.stdout
+                        sys.stdout = _TeeStdout(sys.stdout, dm._tee_file_handle)
+                        print(f"📝 Otomatik loglama etkin: {log_file}")
+                except Exception as tee_e:
+                    print(f"⚠️ Log tee kurulamadı: {tee_e}")
             except Exception as e:
                 print(f"⚠️ Timestamp klasörü hazırlığı başarısız: {e}")
 
