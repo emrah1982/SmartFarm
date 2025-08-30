@@ -640,17 +640,9 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
             ok1 = True
             if epoch_file and epoch_file.exists():
                 ok1 = drive_manager.upload_file(str(epoch_file), f'models/epoch_{current_epoch:03d}.pt')
-                try:
-                    print(f"💾 Saved to {getattr(drive_manager, 'project_folder', '[Drive]')}/models/epoch_{current_epoch:03d}.pt")
-                except Exception:
-                    pass
             elif last_pt_path.exists():
                 # Fallback: last.pt'yi epoch adıyla yükle
                 ok1 = drive_manager.upload_file(str(last_pt_path), f'models/epoch_{current_epoch:03d}.pt')
-                try:
-                    print(f"💾 Saved to {getattr(drive_manager, 'project_folder', '[Drive]')}/models/epoch_{current_epoch:03d}.pt")
-                except Exception:
-                    pass
 
             # last.pt kaydet (en önemli - devam etmek için gerekli)
             ok2 = True
@@ -659,7 +651,6 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
                 # Ek: checkpoints klasörüne de last.pt koy
                 try:
                     drive_manager.upload_file(str(last_pt_path), 'checkpoints/last.pt')
-                    print(f"💾 Saved to {getattr(drive_manager, 'project_folder', '[Drive]')}/checkpoints/last.pt")
                 except Exception:
                     pass
                 
@@ -677,7 +668,6 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
                 # Ek: checkpoints klasörüne de best.pt koy
                 try:
                     drive_manager.upload_file(str(best_pt_path), 'checkpoints/best.pt')
-                    print(f"💾 Saved to {getattr(drive_manager, 'project_folder', '[Drive]')}/checkpoints/best.pt")
                 except Exception:
                     pass
                 if okb:
@@ -687,25 +677,10 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
 
             # Kullanıcının belirlediği epoch'ta tüm weights klasörünü Drive timestamp klasörüne kopyala
             try:
-                drive_root = getattr(drive_manager, 'project_folder', '[Drive]')
-                # Öncelik: standart weights_dir
                 if hasattr(drive_manager, 'copy_directory_to_drive'):
                     drive_manager.copy_directory_to_drive(str(weights_dir), target_rel_path='checkpoints/weights')
-                    print(f"📁 Copied weights to {drive_root}/checkpoints/weights")
                 else:
-                    for p in weights_dir.glob('*.pt'):
-                        drive_manager.upload_file(str(p), f'checkpoints/weights/{p.name}')
-                    print(f"📁 Copied weight files to {drive_root}/checkpoints/weights")
-
-                # Ek: Colab default yolunu da kontrol et ve varsa kopyala
-                colab_default = Path('/content/SmartFarm/runs/train/exp/weights')
-                if colab_default.exists():
-                    if hasattr(drive_manager, 'copy_directory_to_drive'):
-                        drive_manager.copy_directory_to_drive(str(colab_default), target_rel_path='checkpoints/weights')
-                    else:
-                        for p in colab_default.glob('*.pt'):
-                            drive_manager.upload_file(str(p), f'checkpoints/weights/{p.name}')
-                    print(f"📁 Copied weights to {drive_root}/checkpoints/weights from /content/SmartFarm/runs/train/exp/weights")
+                    print("ℹ️ copy_directory_to_drive bulunamadı; sadece tekil .pt dosyaları yüklendi.")
             except Exception as copy_e:
                 print(f"⚠️ Weights klasörü kopyalanırken hata: {copy_e}")
             
@@ -969,6 +944,20 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
             if local_weights_dir:
                 print(f"📁 Weights klasörü Drive'a kopyalanıyor: {local_weights_dir} → checkpoints/weights")
                 drive_manager.copy_directory_to_drive(local_weights_dir, target_rel_path='checkpoints/weights')
+                # Ek güvence: tekil dosyaları da yükle
+                try:
+                    alt_best = os.path.join(local_weights_dir, 'best.pt')
+                    alt_last = os.path.join(local_weights_dir, 'last.pt')
+                    if os.path.exists(alt_best):
+                        drive_manager.upload_file(alt_best, 'models/best.pt')
+                        drive_manager.upload_file(alt_best, 'checkpoints/best.pt')
+                        print("✅ Yerel best.pt Drive'a kopyalandı (models/ ve checkpoints/)")
+                    if os.path.exists(alt_last):
+                        drive_manager.upload_file(alt_last, 'models/last.pt')
+                        drive_manager.upload_file(alt_last, 'checkpoints/last.pt')
+                        print("✅ Yerel last.pt Drive'a kopyalandı (models/ ve checkpoints/)")
+                except Exception as e:
+                    print(f"⚠️ Tekil dosya yükleme (exp/weights) hatası: {e}")
             else:
                 print("📁 Kopyalanacak weights klasörü bulunamadı.")
                 if os.path.exists(last_path):
