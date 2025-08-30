@@ -1402,37 +1402,42 @@ def activate_drive_integration(folder_path: str, project_name: Optional[str] = N
                 # Base path, absolute destekli olabilir
                 base_path = os.path.join(dm.base_drive_path, folder_path) if folder_path else dm.base_drive_path
 
-                # 1) Mevcut timestamp adaylarını tara ve ILK OLUŞANINI seç (ilk timestamp kuralı HER ZAMAN uygulanır)
-                #    Config'de farklı bir timestamp olsa bile, en eskisine geçilir.
+                # 1) Eğer config'te bir timestamp kayıtlı ve geçerliyse, HER ZAMAN onu kullan
                 reused = False
                 try:
-                    candidates = []
-                    if os.path.isdir(base_path):
-                        print(f"🔎 Timestamp taraması: base_path = {base_path}")
-                        candidates = [
-                            os.path.join(base_path, d)
-                            for d in os.listdir(base_path)
-                            if len(d) == 15 and '_' in d and d.replace('_', '').isdigit() and os.path.isdir(os.path.join(base_path, d))
-                        ]
-                    if candidates:
-                        print(f"🔎 Bulunan timestamp adayları: {[os.path.basename(c) for c in candidates]}")
-                        candidates.sort(key=lambda p: os.path.getmtime(p))
-                        oldest = candidates[0]
-                        print(f"🕒 En eski timestamp: {os.path.basename(oldest)}")
-                        # Config'te farklı bir timestamp varsa bile, en eskisine zorla hizala
-                        if dm.load_drive_config():
-                            ts_existing = dm.get_timestamp_dir()
-                            if ts_existing and os.path.isdir(ts_existing) and os.path.dirname(ts_existing).startswith(base_path):
-                                if os.path.normpath(ts_existing) != os.path.normpath(oldest):
-                                    print(f"🕒 İlk timestamp kuralı: config'teki ({os.path.basename(ts_existing)}) yerine EN ESKİSİ kullanılacak → {os.path.basename(oldest)}")
-                        dm.project_folder = oldest
-                        reused = True
+                    if dm.load_drive_config():
+                        ts_existing = dm.get_timestamp_dir()
+                        if ts_existing and os.path.isdir(ts_existing) and os.path.dirname(ts_existing).startswith(base_path):
+                            dm.project_folder = ts_existing
+                            print(f"🗂️ Config'teki timestamp yeniden kullanılıyor: {os.path.basename(ts_existing)}")
+                            reused = True
                 except Exception:
                     pass
 
+                # 2) Config yoksa veya geçersizse, mevcut timestamp adaylarını tara ve ILK OLUŞANINI seç
+                if not reused:
+                    try:
+                        candidates = []
+                        if os.path.isdir(base_path):
+                            print(f"🔎 Timestamp taraması: base_path = {base_path}")
+                            candidates = [
+                                os.path.join(base_path, d)
+                                for d in os.listdir(base_path)
+                                if len(d) == 15 and '_' in d and d.replace('_', '').isdigit() and os.path.isdir(os.path.join(base_path, d))
+                            ]
+                        if candidates:
+                            print(f"🔎 Bulunan timestamp adayları: {[os.path.basename(c) for c in candidates]}")
+                            candidates.sort(key=lambda p: os.path.getmtime(p))
+                            oldest = candidates[0]
+                            print(f"🕒 En eski timestamp: {os.path.basename(oldest)}")
+                            dm.project_folder = oldest
+                            reused = True
+                    except Exception:
+                        pass
+
                 # 3) Hiçbiri yoksa yeni timestamp oluştur
                 if not dm.project_folder:
-                    print("ℹ️ Mevcut timestamp bulunamadı; yeni timestamp oluşturulacak.")
+                    print("ℹ️ Config geçersiz veya aday bulunamadı; yeni timestamp oluşturulacak.")
                     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
                     proj_dir = os.path.join(base_path, ts)
                     os.makedirs(proj_dir, exist_ok=True)
@@ -1456,6 +1461,7 @@ def activate_drive_integration(folder_path: str, project_name: Optional[str] = N
                 dm.active_timestamp_dir = dm.project_folder
                 ts_name = os.path.basename(dm.project_folder.rstrip('/'))
                 dm.project_name = project_name or os.path.basename(folder_path) if folder_path else dm.project_name
+                # Seçilen timestamp'i config'e kaydet
                 dm._save_drive_config(folder_path or os.path.relpath(dm.project_folder, dm.base_drive_path).rsplit('/', 1)[0], ts_name)
                 print(f"✅ Timestamp ve alt klasörler hazır: {dm.project_folder}")
 
