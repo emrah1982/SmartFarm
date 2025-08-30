@@ -1519,7 +1519,6 @@ def activate_drive_integration(folder_path: str, project_name: Optional[str] = N
 
                 # 4) Oturum kilidini yaz (global ve dosya)
                 try:
-                    global _GLOBAL_SESSION_TS
                     _GLOBAL_SESSION_TS = dm.project_folder
                     session_file = os.path.join(base_path, '.active_session.json')
                     with open(session_file, 'w', encoding='utf-8') as sf:
