@@ -72,7 +72,7 @@ from pathlib import Path
 from ultralytics import YOLO
 
 from memory_utils import show_memory_usage, clean_memory
-from drive_manager import DriveManager, setup_drive_integration
+from drive_manager import DriveManager, activate_drive_integration
 
 
 def auto_profile_training(options: dict, speed_mode: bool) -> None:
@@ -220,7 +220,8 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
     def time_based_copy_thread(interval_seconds: int = 60):
         pass
     # Kullanıcıya daha şeffaf bilgi: hedef Drive kökü
-    intended_drive_base = "/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models"
+    # Standartlaştırılmış base path. activate_drive_integration Colab ortamını otomatik algılar.
+    intended_drive_base = "SmartFarm/colab_learn/yolo11_models"
     print(f"📍 Hedef Drive kökü: {intended_drive_base}")
     # Mümkünse son kullanılan timestamp'i bul ve tam otomatik kaydetme yolunu göster
     try:
@@ -270,9 +271,9 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
         
         # Etkileşimsiz entegrasyon: kullanıcıya sormadan güvenli varsayılanları kullan
         try:
-            from drive_manager import activate_drive_integration as _activate_dm
+            # `activate_drive_integration` zaten dosyanın başında import edildi.
             # Absolute base path: timestamp klasörü bu yolun altında oluşturulacak
-            drive_manager = _activate_dm(folder_path=intended_drive_base, project_name="yolo11_models")
+            drive_manager = activate_drive_integration(folder_path=intended_drive_base, project_name="yolo11_models")
             # Etkinleşir etkinleşmez tam yolları göster
             if drive_manager is not None:
                 try:
