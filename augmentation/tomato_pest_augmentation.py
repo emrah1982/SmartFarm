@@ -82,7 +82,7 @@ class TomatoPestAugmentation:
             A.LongestMaxSize(max_size=self.target_size),
             A.PadIfNeeded(min_height=self.target_size, min_width=self.target_size,
                           border_mode=cv2.BORDER_CONSTANT, value=(114, 114, 114))
-        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels']))
+        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
 
     def _clip_and_filter_bboxes(self, bboxes, class_labels):
         """YOLO bbox'ları [0,1] aralığına kırp ve sıfır/alakasız kutuları filtrele"""
@@ -204,6 +204,7 @@ class TomatoPestAugmentation:
         ], bbox_params=A.BboxParams(
             format='yolo',
             label_fields=['class_labels'],
+            clip=True,
             min_visibility=0.2  # Çok küçük sinekler için düşük threshold
         ))
     
@@ -257,6 +258,7 @@ class TomatoPestAugmentation:
         ], bbox_params=A.BboxParams(
             format='yolo',
             label_fields=['class_labels'],
+            clip=True,
             min_visibility=0.25
         ))
     
@@ -313,6 +315,7 @@ class TomatoPestAugmentation:
         ], bbox_params=A.BboxParams(
             format='yolo',
             label_fields=['class_labels'],
+            clip=True,
             min_visibility=0.15  # Çok hızlı hareket eden böcekler
         ))
     
@@ -373,6 +376,7 @@ class TomatoPestAugmentation:
         ], bbox_params=A.BboxParams(
             format='yolo',
             label_fields=['class_labels'],
+            clip=True,
             min_visibility=0.1  # En küçük zararlılar
         ))
 
@@ -427,6 +431,7 @@ class TomatoPestAugmentation:
         ], bbox_params=A.BboxParams(
             format='yolo',
             label_fields=['class_labels'],
+            clip=True,
             min_visibility=0.4
         ))
     
@@ -480,6 +485,7 @@ class TomatoPestAugmentation:
         ], bbox_params=A.BboxParams(
             format='yolo',
             label_fields=['class_labels'],
+            clip=True,
             min_visibility=0.3
         ))
     
@@ -529,6 +535,7 @@ class TomatoPestAugmentation:
         ], bbox_params=A.BboxParams(
             format='yolo',
             label_fields=['class_labels'],
+            clip=True,
             min_visibility=0.2
         ))
     
@@ -585,6 +592,7 @@ class TomatoPestAugmentation:
         ], bbox_params=A.BboxParams(
             format='yolo',
             label_fields=['class_labels'],
+            clip=True,
             min_visibility=0.1  # En küçük ve hızlı böcekler
         ))
     
@@ -644,6 +652,7 @@ class TomatoPestAugmentation:
         ], bbox_params=A.BboxParams(
             format='yolo',
             label_fields=['class_labels'],
+            clip=True,
             min_visibility=0.3
         ))
     
@@ -698,6 +707,7 @@ class TomatoPestAugmentation:
         ], bbox_params=A.BboxParams(
             format='yolo',
             label_fields=['class_labels'],
+            clip=True,
             min_visibility=0.35
         ))
 
@@ -745,6 +755,7 @@ class TomatoPestAugmentation:
             ], bbox_params=A.BboxParams(
                 format='yolo',
                 label_fields=['class_labels'],
+                clip=True,
                 min_visibility=0.1
             ))
         
@@ -770,6 +781,7 @@ class TomatoPestAugmentation:
             ], bbox_params=A.BboxParams(
                 format='yolo',
                 label_fields=['class_labels'],
+                clip=True,
                 min_visibility=0.2
             ))
         
@@ -795,6 +807,7 @@ class TomatoPestAugmentation:
             ], bbox_params=A.BboxParams(
                 format='yolo',
                 label_fields=['class_labels'],
+                clip=True,
                 min_visibility=0.3
             ))
         
@@ -821,6 +834,7 @@ class TomatoPestAugmentation:
             ], bbox_params=A.BboxParams(
                 format='yolo',
                 label_fields=['class_labels'],
+                clip=True,
                 min_visibility=0.4
             ))
         

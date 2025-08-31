@@ -44,7 +44,7 @@ class MineralDeficiencyAugmentation:
             A.LongestMaxSize(max_size=self.target_size),
             A.PadIfNeeded(min_height=self.target_size, min_width=self.target_size,
                           border_mode=cv2.BORDER_CONSTANT, value=(114, 114, 114))
-        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels']))
+        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
 
     def _clip_and_filter_bboxes(self, bboxes, class_labels):
         """YOLO bbox'ları [0,1] aralığına kırp ve sıfır/alakasız kutuları filtrele"""
@@ -113,7 +113,8 @@ class MineralDeficiencyAugmentation:
                 A.Rotate(limit=8, border_mode=cv2.BORDER_CONSTANT, p=0.4),
                 A.ShiftScaleRotate(shift_limit=0.03, scale_limit=0.08, rotate_limit=5, p=0.5),
             ], p=0.6),
-        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], min_visibility=0.4))
+        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], clip=True, min_visibility=0.4))
+        
     
     def get_phosphorus_deficiency_transforms(self):
         """Fosfor (P) eksikliği - Mor/kırmızımsı renk, büyüme geriliği"""
@@ -127,7 +128,7 @@ class MineralDeficiencyAugmentation:
                 A.RandomBrightnessContrast(brightness_limit=(-0.2, 0.1), contrast_limit=(0.1, 0.3), p=0.6),
             ], p=0.5),
             A.OneOf([A.Rotate(limit=10, p=0.4), A.HorizontalFlip(p=0.5), A.Perspective(scale=(0.02, 0.04), p=0.3)], p=0.7),
-        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], min_visibility=0.3))
+        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], clip=True, min_visibility=0.3))
     
     def get_potassium_deficiency_transforms(self):
         """Potasyum (K) eksikliği - Yaprak kenarlarında kahverengi yanık"""
@@ -141,7 +142,7 @@ class MineralDeficiencyAugmentation:
                 A.Sharpen(alpha=(0.1, 0.3), lightness=(0.7, 1.0), p=0.4),
             ], p=0.8),
             A.OneOf([A.OpticalDistortion(distort_limit=0.05, p=0.3), A.ElasticTransform(alpha=30, sigma=5, p=0.2)], p=0.4),
-        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], min_visibility=0.4))
+        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], clip=True, min_visibility=0.4))
     
     def get_magnesium_deficiency_transforms(self):
         """Magnezyum (Mg) eksikliği - Damarlar arası sarılaşma"""
@@ -155,7 +156,7 @@ class MineralDeficiencyAugmentation:
                 A.RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.2, p=0.6),
             ], p=0.7),
             A.UnsharpMask(blur_limit=(3, 5), sigma_limit=(1.0, 1.5), alpha=(0.1, 0.25), threshold=5, p=0.4),
-        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], min_visibility=0.4))
+        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], clip=True, min_visibility=0.4))
     
     def get_calcium_deficiency_transforms(self):
         """Kalsiyum (Ca) eksikliği - Yaprak ucu yanığı, nekrotik lekeler"""
@@ -169,7 +170,7 @@ class MineralDeficiencyAugmentation:
                 A.GaussNoise(var_limit=(10, 25), p=0.3),
             ], p=0.6),
             A.OneOf([A.ElasticTransform(alpha=25, sigma=4, p=0.2), A.OpticalDistortion(distort_limit=0.08, p=0.3)], p=0.4),
-        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], min_visibility=0.3))
+        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], clip=True, min_visibility=0.3))
     
     def get_iron_deficiency_transforms(self):
         """Demir (Fe) eksikliği - Genç yapraklarda kloroz"""
@@ -183,7 +184,7 @@ class MineralDeficiencyAugmentation:
                 A.Sharpen(alpha=(0.15, 0.35), lightness=(1.0, 1.3), p=0.4),
             ], p=0.6),
             A.OneOf([A.Rotate(limit=6, p=0.4), A.ShiftScaleRotate(shift_limit=0.05, scale_limit=0.1, rotate_limit=3, p=0.5)], p=0.5),
-        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], min_visibility=0.4))
+        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], clip=True, min_visibility=0.4))
     
     def get_sulfur_deficiency_transforms(self):
         """Kükürt (S) eksikliği - Genç yapraklar soluk yeşil-sarı"""
@@ -196,7 +197,7 @@ class MineralDeficiencyAugmentation:
                 A.RandomBrightnessContrast(brightness_limit=(0.05, 0.15), contrast_limit=(-0.1, 0.1), p=0.6),
                 A.RandomGamma(gamma_limit=(90, 110), p=0.4),
             ], p=0.7),
-        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], min_visibility=0.4))
+        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], clip=True, min_visibility=0.4))
     
     def get_zinc_deficiency_transforms(self):
         """Çinko (Zn) eksikliği - Küçük yaprak, damarlar arası kloroz"""
@@ -207,7 +208,7 @@ class MineralDeficiencyAugmentation:
             ], p=0.9),
             A.OneOf([A.ShiftScaleRotate(scale_limit=(-0.15, -0.05), rotate_limit=5, p=0.4)], p=0.5),
             A.UnsharpMask(blur_limit=(2, 4), sigma_limit=(0.8, 1.2), alpha=(0.15, 0.3), threshold=8, p=0.4),
-        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], min_visibility=0.3))
+        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], clip=True, min_visibility=0.3))
     
     def get_manganese_deficiency_transforms(self):
         """Mangan (Mn) eksikliği - Damarlar arası kloroz, nekrotik lekeler"""
@@ -217,7 +218,7 @@ class MineralDeficiencyAugmentation:
                 A.ColorJitter(brightness=(-0.05, 0.15), contrast=(1.0, 1.2), saturation=(0.6, 0.9), hue=(0.02, 0.07), p=0.7),
             ], p=0.9),
             A.OneOf([A.GaussNoise(var_limit=(5, 15), p=0.4), A.ISONoise(color_shift=(0.01, 0.05), intensity=(0.1, 0.25), p=0.3)], p=0.5),
-        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], min_visibility=0.4))
+        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], clip=True, min_visibility=0.4))
     
     def get_boron_deficiency_transforms(self):
         """Bor (B) eksikliği - Yaprak deformasyonu, büyüme noktası ölümü"""
@@ -232,7 +233,7 @@ class MineralDeficiencyAugmentation:
                 A.GridDistortion(num_steps=3, distort_limit=0.05, p=0.3),
             ], p=0.6),
             A.RandomBrightnessContrast(brightness_limit=(-0.2, 0.1), contrast_limit=(0.1, 0.25), p=0.5),
-        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], min_visibility=0.25))
+        ], bbox_params=A.BboxParams(format='yolo', label_fields=['class_labels'], clip=True, min_visibility=0.25))
     
     # Mineral eksikliği türlerini mapping
     MINERAL_TRANSFORMS = {

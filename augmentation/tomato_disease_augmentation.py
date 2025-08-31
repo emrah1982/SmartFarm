@@ -68,7 +68,7 @@ class TomatoDiseaseAugmentation:
             A.LongestMaxSize(max_size=self.target_size),
             A.PadIfNeeded(min_height=self.target_size, min_width=self.target_size,
                           border_mode=cv2.BORDER_CONSTANT, value=(114, 114, 114))
-        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels']))
+        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
 
         # BBox filtreleme için minimum genişlik/yükseklik eşikleri (normalized YOLO formatında)
         self.min_box_w = 1e-3
@@ -168,7 +168,7 @@ class TomatoDiseaseAugmentation:
             A.GaussNoise(var_limit=(10, 30), p=0.6),
             A.RandomRotate90(p=0.5),
             A.Flip(p=0.5)
-        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels']))
+        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
 
     def get_late_blight_transform(self):
         """
@@ -188,7 +188,7 @@ class TomatoDiseaseAugmentation:
                                val_shift_limit=(-50, -20), p=0.8),
             A.RandomRotate90(p=0.5),
             A.Flip(p=0.5)
-        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels']))
+        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
 
     def get_leaf_mold_transform(self):
         """
@@ -206,7 +206,7 @@ class TomatoDiseaseAugmentation:
             A.Blur(blur_limit=(1, 3), p=0.5),
             A.RandomRotate90(p=0.5),
             A.Flip(p=0.5)
-        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels']))
+        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
 
     def get_septoria_leaf_spot_transform(self):
         """
@@ -225,7 +225,7 @@ class TomatoDiseaseAugmentation:
             A.GaussNoise(var_limit=(8, 25), p=0.7),
             A.RandomRotate90(p=0.5),
             A.Flip(p=0.5)
-        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels']))
+        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
 
     def get_spider_mites_transform(self):
         """
@@ -244,7 +244,7 @@ class TomatoDiseaseAugmentation:
                                      contrast_limit=(0.1, 0.3), p=0.7),
             A.RandomRotate90(p=0.5),
             A.Flip(p=0.5)
-        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels']))
+        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
 
     def get_target_spot_transform(self):
         """
@@ -263,7 +263,7 @@ class TomatoDiseaseAugmentation:
             A.GaussNoise(var_limit=(12, 28), p=0.7),
             A.RandomRotate90(p=0.5),
             A.Flip(p=0.5)
-        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels']))
+        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
 
     def get_yellow_leaf_curl_transform(self):
         """
@@ -281,7 +281,7 @@ class TomatoDiseaseAugmentation:
             A.GridDistortion(num_steps=5, distort_limit=0.1, p=0.5),
             A.RandomRotate90(p=0.5),
             A.Flip(p=0.5)
-        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels']))
+        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
 
     def get_mosaic_virus_transform(self):
         """
@@ -300,7 +300,7 @@ class TomatoDiseaseAugmentation:
                                      contrast_limit=(0.1, 0.4), p=0.8),
             A.RandomRotate90(p=0.5),
             A.Flip(p=0.5)
-        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels']))
+        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
 
     def get_bacterial_spot_transform(self):
         """
@@ -320,7 +320,7 @@ class TomatoDiseaseAugmentation:
             A.Blur(blur_limit=(1, 3), p=0.4),
             A.RandomRotate90(p=0.5),
             A.Flip(p=0.5)
-        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels']))
+        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
 
     def get_healthy_transform(self):
         """
@@ -339,7 +339,7 @@ class TomatoDiseaseAugmentation:
             A.GaussNoise(var_limit=(0, 10), p=0.3),
             A.RandomRotate90(p=0.5),
             A.Flip(p=0.5)
-        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels']))
+        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
 
     def get_transform_for_disease(self, disease_type):
         """
