@@ -50,8 +50,8 @@ except ImportError:
 
 # Import augmentation systems
 try:
-    from tomato_disease_augmentation import TomatoDiseaseAugmentation
-    from tomato_pest_augmentation import TomatoPestAugmentation
+    from augmentation import TomatoDiseaseAugmentation
+    from augmentation import TomatoPestAugmentation
     AUGMENTATION_SYSTEMS_AVAILABLE = True
 except ImportError:
     print("⚠️  Augmentation systems not available")

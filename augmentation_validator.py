@@ -765,7 +765,7 @@ for suggestion in suggestions:
     print("📝 ÖRNEK 4: Augmentation + Validation Entegrasyonu")
     print("="*50)
     print("""
-from tomato_pest_augmentation import TomatoPestAugmentation
+from augmentation import TomatoPestAugmentation
 
 # Augmentation yap
 augmenter = TomatoPestAugmentation('input_images', 'input_labels', 

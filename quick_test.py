@@ -17,7 +17,7 @@ def test_imports():
     print("📦 Modül importları test ediliyor...")
     
     try:
-        from tomato_pest_augmentation import TomatoPestAugmentation
+        from augmentation import TomatoPestAugmentation
         print("✅ TomatoPestAugmentation import başarılı")
     except ImportError as e:
         print(f"❌ TomatoPestAugmentation import hatası: {e}")
@@ -87,7 +87,7 @@ def test_basic_functionality():
         create_test_label(test_label_path)
         
         # TomatoPestAugmentation test et
-        from tomato_pest_augmentation import TomatoPestAugmentation
+        from augmentation import TomatoPestAugmentation
         
         augmenter = TomatoPestAugmentation(
             str(images_dir),

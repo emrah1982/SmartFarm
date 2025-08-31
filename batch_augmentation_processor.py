@@ -50,7 +50,7 @@ except ImportError:
     psutil = None
 
 try:
-    from tomato_pest_augmentation import TomatoPestAugmentation
+    from augmentation import TomatoPestAugmentation
 except ImportError:
     TomatoPestAugmentation = None
 
