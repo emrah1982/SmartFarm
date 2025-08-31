@@ -51,7 +51,7 @@ def labels_dir_exists_for_split(dataset_root: Path, split: str) -> Path | None:
     return None
 
 
-def run_remap(dataset_root: Path, split: str, backup: bool = True) -> int:
+def run_remap(dataset_root: Path, split: str, backup: bool = True, force_backup: bool = False) -> int:
     cmd = [
         sys.executable,
         str(Path("tools") / "remap_single_dataset.py"),
@@ -60,6 +60,8 @@ def run_remap(dataset_root: Path, split: str, backup: bool = True) -> int:
     ]
     if backup:
         cmd.append("--backup")
+    if force_backup:
+        cmd.append("--force-backup")
     print(f"[APPLY] {dataset_root} split={split}")
     proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if proc.returncode != 0:
@@ -74,6 +76,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--root", default="datasets")
     ap.add_argument("--no-backup", action="store_true")
+    ap.add_argument("--force-backup", action="store_true")
     args = ap.parse_args()
 
     root = Path(args.root)
@@ -112,7 +115,7 @@ def main():
                 continue
 
             total_targets += 1
-            rc = run_remap(dataset_root, normalized, backup=(not args.no_backup))
+            rc = run_remap(dataset_root, normalized, backup=(not args.no_backup), force_backup=args.force_backup)
             if rc == 0:
                 applied += 1
 

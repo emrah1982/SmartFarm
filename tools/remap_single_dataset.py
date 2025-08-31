@@ -66,7 +66,7 @@ def build_old_to_new_map(dataset_names: List[str], aliases_map: Dict[str, str], 
     return mapping, {n: i for i, n in enumerate(new_names)}
 
 
-def remap_labels(labels_dir: Path, id_map: Dict[int, int], backup: bool) -> Tuple[int, int, List[Path]]:
+def remap_labels(labels_dir: Path, id_map: Dict[int, int], backup: bool, force_backup: bool = False) -> Tuple[int, int, List[Path]]:
     changed_files = 0
     total_files = 0
     touched_spider_files: List[Path] = []
@@ -96,6 +96,14 @@ def remap_labels(labels_dir: Path, id_map: Dict[int, int], backup: bool) -> Tupl
                 shutil.copy2(txt, txt.with_suffix('.txt.bak'))
             txt.write_text('\n'.join(new_lines) + ('\n' if new_lines else ''), encoding='utf-8')
             changed_files += 1
+        else:
+            # Değişiklik yoksa ve force_backup isteniyorsa yine de .bak üret
+            if backup and force_backup:
+                bak = txt.with_suffix('.txt.bak')
+                try:
+                    shutil.copy2(txt, bak)
+                except Exception:
+                    pass
         # Spider dosyası tespiti yeni id üzerinden sonra yapılacak (dışarıdan geçilecek)
     return total_files, changed_files, []
 
@@ -125,6 +133,7 @@ def main():
     ap.add_argument('--dataset-root', required=True)
     ap.add_argument('--split', default='valid', choices=['train', 'val', 'valid', 'test'])
     ap.add_argument('--backup', action='store_true')
+    ap.add_argument('--force-backup', action='store_true', help='Değişiklik olmasa da her dosya için .bak üret')
     args = ap.parse_args()
 
     root = Path(args.dataset_root)
@@ -145,7 +154,7 @@ def main():
     aliases_map = load_alias_canonical_map(aliases_path)
     id_map, new_name_to_id = build_old_to_new_map(dataset_names, aliases_map, class_ids_path)
 
-    total, changed, _ = remap_labels(labels_dir, id_map, backup=args.backup)
+    total, changed, _ = remap_labels(labels_dir, id_map, backup=args.backup, force_backup=args.force_backup)
 
     # spider_id = new_name_to_id.get('Spider')
     # spider_files = []

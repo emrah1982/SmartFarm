@@ -5,6 +5,7 @@ import os
 import sys
 import yaml
 from pathlib import Path
+import subprocess
 
 # Roboflow API yönetimi için import
 try:
@@ -432,24 +433,12 @@ def hierarchical_dataset_setup():
     default_output = "datasets/hierarchical_merged"
     output_dir = input(f"\nBirleştirilmiş veri seti dizini (varsayılan: {default_output}): ") or default_output
 
-    # --- Etiket yeniden eşleme modu seçimi ---
-    print("\nEtiket Yeniden Eşleme Modu:")
-    print("1) Merge aşamasında alt-sınıf etiketleri KORUNMAZ; tüm kutular ANA sınıfa toplanır (varsayılan)")
-    print("2) Merge aşamasında alt-sınıf etiketleri KORUNUR; tüm kutular ana sınıfa toplanmaz")
-    while True:
-        label_mode_choice = (input("Seçenek [1-2] (varsayılan: 1): ") or "1").strip()
-        if label_mode_choice in ["1", "2"]:
-            break
-        print("❌ Lütfen 1 veya 2 giriniz.")
-    label_mode = "collapse_to_main" if label_mode_choice == "1" else "preserve_subclasses"
-    
     return {
         'manager': manager,
         'selected_group': selected_group,
         'target_count': target_count,
         'per_class_targets': per_class_targets,
         'output_dir': output_dir,
-        'label_mode': label_mode,
         'recommendations': recommendations,
         'settings': settings
     }
@@ -469,7 +458,18 @@ def process_hierarchical_datasets(dataset_config):
         if not download_success:
             print("❌ Veri seti indirme başarısız!")
             return False
-        
+
+        # Etiket Yeniden Eşleme Modu — İNDİRME SONRASI taşındı
+        print("\nEtiket Yeniden Eşleme Modu:")
+        print("1) Merge aşamasında alt-sınıf etiketleri KORUNMAZ; tüm kutular ANA sınıfa toplanır (varsayılan)")
+        print("2) Merge aşamasında alt-sınıf etiketleri KORUNUR; tüm kutular ana sınıfa toplanmaz")
+        while True:
+            label_mode_choice = (input("Seçenek [1-2] (varsayılan: 1): ") or "1").strip()
+            if label_mode_choice in ["1", "2"]:
+                break
+            print("❌ Lütfen 1 veya 2 giriniz.")
+        dataset_config['label_mode'] = "collapse_to_main" if label_mode_choice == "1" else "preserve_subclasses"
+
         # 2. Create unified class mapping
         print("\n2️⃣ Hiyerarşik sınıf haritalaması oluşturuluyor...")
         classes_created = manager.create_unified_class_mapping()
@@ -483,15 +483,24 @@ def process_hierarchical_datasets(dataset_config):
         # 3. Label mode yönlendirmesi
         label_mode = dataset_config.get('label_mode') or dataset_config.get('setup', {}).get('label_mode')
         if label_mode == 'preserve_subclasses':
-            print("\n⚠️ Seçiminiz: Alt-sınıf etiketleri KORUNACAK (ana sınıfa toplanmayacak).")
-            print("ℹ️ Bu mod için, birleştirmeden ÖNCE veri setlerinizi master sınıf sözlüğüne göre normalize etmeniz önerilir:")
-            print("   • Araç: tools/yolo_remap_to_master.py")
-            print("   • Master YAML: master_data.yaml içindeki 'names' listesi")
-            print("   • Amaç: Dağınık sınıf isimlerini tek bir master listede hizalamak (alt-sınıf isimlerini koruyarak)")
-            proceed = (input("Bu uyarıyı anladım, mevcut hiyerarşik merge ile (alt-sınıflar ana sınıfa toplanabilir) devam edeyim mi? (e/h, varsayılan: h): ") or "h").lower()
-            if not proceed.startswith('e'):
-                print("🚫 İşlem iptal edildi. Lütfen önce 'tools/yolo_remap_to_master.py' ile normalize edip yeniden deneyin.")
-                return False
+            print("\n⚙️ Seçenek 2: Alt-sınıf etiketleri KORUNACAK. Global remap otomatik başlatılıyor...")
+            try:
+                cmd = [
+                    sys.executable,
+                    str(Path("tools") / "remap_from_all_yaml.py"),
+                    "--root", "datasets",
+                    "--force-backup",
+                ]
+                print(f"[APPLY] Remap komutu: {' '.join(cmd)}")
+                proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                if proc.stdout:
+                    print(proc.stdout)
+                if proc.returncode != 0:
+                    print(f"[UYARI] Remap sırasında hata oluştu (kod={proc.returncode}). Devam ediliyor...\n{proc.stderr}")
+                else:
+                    print("✅ Etiket remap işlemi tamamlandı.")
+            except Exception as e:
+                print(f"[UYARI] Remap çağrısı başarısız: {e}. İşleme devam edilecek.")
 
         # 4. Merge datasets with hierarchical structure
         print("\n3️⃣ Veri setleri hiyerarşik yapıyla birleştiriliyor...")
