@@ -502,7 +502,12 @@ def process_hierarchical_datasets(dataset_config):
             except Exception as e:
                 print(f"[UYARI] Remap çağrısı başarısız: {e}. İşleme devam edilecek.")
 
-        # 4. Merge datasets with hierarchical structure
+        # 4. Merge step: only for option 1 (collapse_to_main)
+        if label_mode == 'preserve_subclasses':
+            print("\nℹ️ Seçenek 2 (alt-sınıflar KORUNUR) seçildiği için merge ADIMI atlandı.")
+            print("İndirme, remap ve sınıf haritalama tamamlandı. Çıkılıyor.")
+            return True
+        
         print("\n3️⃣ Veri setleri hiyerarşik yapıyla birleştiriliyor...")
         # Fonksiyona 'setup' dict'i geçirildiği için doğrudan buradan oku
         pct = dataset_config.get('per_class_targets')
