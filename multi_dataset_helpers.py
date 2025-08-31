@@ -552,23 +552,55 @@ class DatasetMerger:
                     continue
                 image = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
                 
-                # Read YOLO labels
+                # Read YOLO labels (support detection and segmentation)
                 bboxes = []
                 class_labels = []
                 with open(sample['label_path'], 'r') as f:
                     for line in f:
                         parts = line.strip().split()
-                        if parts and len(parts) >= 5:
+                        if not parts:
+                            continue
+                        # detection: class x y w h
+                        if len(parts) == 5:
                             try:
                                 x_center = float(parts[1])
                                 y_center = float(parts[2])
                                 width = float(parts[3])
                                 height = float(parts[4])
-                                bboxes.append([x_center, y_center, width, height])
-                                # Keep original label list length in sync; values will be overridden to main class on save
-                                class_labels.append(main_class_idx)
-                            except (ValueError, IndexError):
-                                pass
+                            except ValueError:
+                                continue
+                        else:
+                            # segmentation: class x1 y1 x2 y2 ... (normalized)
+                            coords = parts[1:]
+                            if len(coords) < 6 or len(coords) % 2 != 0:
+                                continue
+                            try:
+                                xs = [float(coords[i]) for i in range(0, len(coords), 2)]
+                                ys = [float(coords[i+1]) for i in range(0, len(coords), 2)]
+                            except ValueError:
+                                continue
+                            x_min = max(0.0, min(xs))
+                            y_min = max(0.0, min(ys))
+                            x_max = min(1.0, max(xs))
+                            y_max = min(1.0, max(ys))
+                            width = max(0.0, x_max - x_min)
+                            height = max(0.0, y_max - y_min)
+                            if width <= 0.0 or height <= 0.0:
+                                continue
+                            x_center = (x_min + x_max) / 2.0
+                            y_center = (y_min + y_max) / 2.0
+
+                        # clip to [0,1]
+                        x_center = max(0.0, min(1.0, x_center))
+                        y_center = max(0.0, min(1.0, y_center))
+                        width = max(0.0, min(1.0, width))
+                        height = max(0.0, min(1.0, height))
+                        if width < 1e-4 or height < 1e-4:
+                            continue
+
+                        bboxes.append([x_center, y_center, width, height])
+                        # Keep original label list length in sync; values will be overridden to main class on save
+                        class_labels.append(main_class_idx)
                 if not bboxes:
                     continue
                 

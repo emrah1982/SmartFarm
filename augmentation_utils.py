@@ -66,7 +66,7 @@ class YOLOAugmentationPipeline:
             A.LongestMaxSize(max_size=self.image_size),
             A.PadIfNeeded(min_height=self.image_size, min_width=self.image_size,
                           border_mode=cv2.BORDER_CONSTANT, value=(114, 114, 114))
-        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels']))
+        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
         
         # Agricultural specific augmentations
         self.agricultural_transforms = self._create_agricultural_pipeline()
@@ -124,7 +124,7 @@ class YOLOAugmentationPipeline:
                 A.Defocus(radius=(1, 3), alias_blur=(0.1, 0.2), p=0.3),
             ], p=0.3),
             
-        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels']))
+        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
     
     def _create_geometric_pipeline(self):
         """Create geometric transformation pipeline"""
@@ -157,7 +157,7 @@ class YOLOAugmentationPipeline:
                 A.LongestMaxSize(max_size=int(self.image_size * 1.1), p=0.4),
             ], p=0.5),
             
-        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels']))
+        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
     
     def _create_color_pipeline(self):
         """Create color transformation pipeline"""
@@ -184,7 +184,7 @@ class YOLOAugmentationPipeline:
                 A.Solarize(threshold=128, p=0.2),
             ], p=0.3),
             
-        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels']))
+        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
     
     def apply_augmentation(self, image, bboxes, class_labels, augmentation_type='mixed'):
         """Apply augmentation to image and bounding boxes"""
@@ -375,18 +375,55 @@ class YOLOAugmentationPipeline:
                 with open(source_label, 'r') as f:
                     for line in f:
                         parts = line.strip().split()
-                        if parts and len(parts) >= 5:
+                        if not parts:
+                            continue
+                        try:
+                            cls_id = int(parts[0])
+                        except (ValueError, IndexError):
+                            continue
+
+                        # Detection format: class x y w h
+                        if len(parts) == 5:
                             try:
-                                cls_id = int(parts[0])
                                 x_center = float(parts[1])
                                 y_center = float(parts[2])
                                 width = float(parts[3])
                                 height = float(parts[4])
-                                
-                                bboxes.append([x_center, y_center, width, height])
-                                class_labels.append(cls_id)
-                            except (ValueError, IndexError):
-                                pass
+                            except ValueError:
+                                continue
+                        else:
+                            # Segmentation format: class x1 y1 x2 y2 ... (normalized)
+                            coords = parts[1:]
+                            if len(coords) < 6 or len(coords) % 2 != 0:
+                                # Not enough points to form a polygon; skip
+                                continue
+                            try:
+                                xs = [float(coords[i]) for i in range(0, len(coords), 2)]
+                                ys = [float(coords[i+1]) for i in range(0, len(coords), 2)]
+                            except ValueError:
+                                continue
+                            # Compute bbox from polygon
+                            x_min = max(0.0, min(xs))
+                            y_min = max(0.0, min(ys))
+                            x_max = min(1.0, max(xs))
+                            y_max = min(1.0, max(ys))
+                            width = max(0.0, x_max - x_min)
+                            height = max(0.0, y_max - y_min)
+                            if width <= 0.0 or height <= 0.0:
+                                continue
+                            x_center = (x_min + x_max) / 2.0
+                            y_center = (y_min + y_max) / 2.0
+
+                        # Clip to [0,1] and filter tiny boxes
+                        x_center = max(0.0, min(1.0, x_center))
+                        y_center = max(0.0, min(1.0, y_center))
+                        width = max(0.0, min(1.0, width))
+                        height = max(0.0, min(1.0, height))
+                        if width < 1e-4 or height < 1e-4:
+                            continue
+
+                        bboxes.append([x_center, y_center, width, height])
+                        class_labels.append(cls_id)
                 
                 if not bboxes:
                     continue
