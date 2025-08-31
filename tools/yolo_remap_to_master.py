@@ -184,7 +184,7 @@ def get_label_dirs_from_data_yaml(data_yaml: Path) -> List[Path]:
     base = data_yaml.parent
     label_dirs: List[Path] = []
 
-    for key in ("train", "val", "test"):
+    for key in ("train", "val", "valid", "test"):
         p = data.get(key)
         if not p:
             continue
@@ -256,17 +256,46 @@ def build_id_maps(dataset_names: List[str], master_names: List[str],
 
 
 def find_datasets(root: Path) -> List[Path]:
-    """root altında images/, labels/ ve data.yaml bulunduran dataset klasörlerini bulur.
-    master_data.yaml dosyasının bulunduğu kökü dataset olarak saymayız.
+    """root altında dataset klasörlerini bulur.
+    
+    Algoritma (genişletilmiş):
+    - 1) Eski mantık: root'un bir altındaki klasörlerde images/ ve labels/ + data.yaml varsa dataset kabul et.
+    - 2) Yeni mantık: root altında (recursive) bulunan data.yaml/dataset.yaml dosyalarını tara,
+         bunların içindeki train/val/test yollarından labels dizinlerini türet. En az bir labels dizini
+         mevcutsa, yaml'ın parent klasörünü dataset kabul et.
     """
     datasets: List[Path] = []
+    seen: set[str] = set()
+
+    # 1) Eski doğrudan tespit (performant, bozulmasın)
     for p in root.iterdir():
         if not p.is_dir():
             continue
         if (p / "labels").is_dir() and (p / "images").is_dir():
-            # data.yaml veya dataset.yaml ismi değişebilir; ikisini de kontrol et
             if (p / "data.yaml").exists() or (p / "dataset.yaml").exists():
-                datasets.append(p)
+                rp = str(p.resolve())
+                if rp not in seen:
+                    seen.add(rp)
+                    datasets.append(p)
+
+    # 2) Yeni: data.yaml/dataset.yaml üzerinden tespit
+    for yml in discover_dataset_yamls(root):
+        d = yml.parent
+        try:
+            label_dirs = get_label_dirs_from_data_yaml(yml)
+        except Exception:
+            label_dirs = []
+        # Eğer yaml'dan türetilen label dizinleri yoksa ya da bulunamadıysa,
+        # dataset kökü altındaki 'labels' dizinini fallback olarak kabul et.
+        accept = bool(label_dirs)
+        if not accept and (d / "labels").is_dir():
+            accept = True
+        if accept:
+            rp = str(d.resolve())
+            if rp not in seen:
+                seen.add(rp)
+                datasets.append(d)
+
     return datasets
 
 
@@ -473,6 +502,17 @@ def run(root: Path, unknown_action: str = "keep", backup: bool = False,
         _export_master_ids_to_configs(master_names, output_dir=config_dir)
     except Exception as e:
         print(f"[UYARI] class_ids.json dışa aktarımı başarısız: {e}")
+
+    # Tanılama: root ve yaml keşfi hakkında bilgi yazdır
+    try:
+        print(f"[BİLGİ] Kök dizin: {root} (exists={root.exists()})")
+        ymls = discover_dataset_yamls(root)
+        print(f"[BİLGİ] Keşfedilen yaml sayısı: {len(ymls)}")
+        if ymls:
+            for y in ymls:
+                print(f"  - {y}")
+    except Exception as _e:
+        pass
 
     datasets = find_datasets(root)
     if not datasets:

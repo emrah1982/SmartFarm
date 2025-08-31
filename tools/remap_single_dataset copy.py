@@ -147,21 +147,21 @@ def main():
 
     total, changed, _ = remap_labels(labels_dir, id_map, backup=args.backup)
 
-    # spider_id = new_name_to_id.get('Spider')
-    # spider_files = []
-    # if spider_id is not None:
-        # spider_files = list_spider_files(labels_dir, spider_id)
-        # out_path = Path('config') / 'spider_files.yaml'
-        # data = {
-            # 'dataset': str(root),
-            # 'split': args.split,
-            # 'spider_id': spider_id,
-            # 'files': [str(p.relative_to(Path('.'))) if (Path('.') in p.parents) else str(p) for p in spider_files],
-        # }
-        # out_path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding='utf-8')
+    spider_id = new_name_to_id.get('Spider')
+    spider_files = []
+    if spider_id is not None:
+        spider_files = list_spider_files(labels_dir, spider_id)
+        out_path = Path('config') / 'spider_files.yaml'
+        data = {
+            'dataset': str(root),
+            'split': args.split,
+            'spider_id': spider_id,
+            'files': [str(p.relative_to(Path('.'))) if (Path('.') in p.parents) else str(p) for p in spider_files],
+        }
+        out_path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=True), encoding='utf-8')
 
     print(f"[BİLGİ] Toplam dosya: {total}, Değişen: {changed}")
-    # print(f"[BİLGİ] Spider (id={spider_id}) dosya sayısı: {len(spider_files)}")
+    print(f"[BİLGİ] Spider (id={spider_id}) dosya sayısı: {len(spider_files)}")
 
 
 if __name__ == '__main__':
