@@ -64,6 +64,85 @@ def load_yaml_names(yaml_path: Path) -> List[str]:
     return [str(x) for x in names]
 
 
+def _normalize_name(s: str) -> str:
+    """Basit normalize: lower-case, harf/rakam dışını kaldır.
+
+    Örn: 'Tomato__Target_Spot' -> 'tomatotargetspot'
+    """
+    s = s.lower()
+    return "".join(ch for ch in s if ch.isalnum())
+
+
+def load_aliases(config_dir: Path) -> Dict[str, str]:
+    """config/class_aliases.yaml varsa alias haritasını yükler.
+
+    Dönüş: normalized_variant -> canonical_name
+    """
+    path = config_dir / "class_aliases.yaml"
+    mapping: Dict[str, str] = {}
+    if not path.exists():
+        return mapping
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        aliases = data.get("aliases", {}) or {}
+        for canonical, variants in aliases.items():
+            if not isinstance(variants, list):
+                continue
+            for v in variants:
+                mapping[_normalize_name(str(v))] = str(canonical)
+    except Exception:
+        # alias dosyası bozuksa sessiz geç
+        return {}
+    return mapping
+
+
+def discover_dataset_yamls(root: Path) -> List[Path]:
+    """Kök altında recursive olarak data.yaml/dataset.yaml dosyalarını bulur.
+
+    Not: find_datasets() şartlarını (images/labels) aramaz; yalnızca yaml dosyalarını toplar.
+    """
+    found: List[Path] = []
+    seen = set()
+    # data.yaml
+    for p in root.rglob("data.yaml"):
+        rp = str(p.resolve())
+        if rp not in seen:
+            seen.add(rp)
+            found.append(p)
+    # dataset.yaml
+    for p in root.rglob("dataset.yaml"):
+        rp = str(p.resolve())
+        if rp not in seen:
+            seen.add(rp)
+            found.append(p)
+    return sorted(found)
+
+
+def build_master_names_from_datasets(root: Path) -> List[str]:
+    """Tüm dataset yaml'larından isimleri okuyup benzersiz sırada birleştirir."""
+    seen = set()
+    merged: List[str] = []
+    for yml in discover_dataset_yamls(root):
+        try:
+            names = load_yaml_names(yml)
+        except Exception:
+            continue
+        for n in names:
+            if n not in seen:
+                seen.add(n)
+                merged.append(n)
+    return merged
+
+
+def write_master_yaml(master_yaml: Path, names: List[str]) -> None:
+    """Verilen isim listesiyle master_data.yaml oluşturur."""
+    data = {"names": [str(x) for x in names]}
+    master_yaml.parent.mkdir(parents=True, exist_ok=True)
+    with master_yaml.open("w", encoding="utf-8") as f:
+        yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
+
+
 def get_label_dirs_from_data_yaml(data_yaml: Path) -> List[Path]:
     """data.yaml içindeki train/val/test yollarından labels dizinlerini türetir.
 
@@ -114,21 +193,40 @@ def get_label_dirs_from_data_yaml(data_yaml: Path) -> List[Path]:
     return uniq
 
 
-def build_id_maps(dataset_names: List[str], master_names: List[str]) -> Tuple[Dict[int, int], Dict[int, str]]:
+def build_id_maps(dataset_names: List[str], master_names: List[str],
+                  alias_map: Dict[str, str] | None = None) -> Tuple[Dict[int, int], Dict[int, str]]:
     """Dataset sınıf isimlerinden master sınıf isimlerine id eşlemesi üretir.
+
+    alias_map: normalized_variant -> canonical_name
 
     Dönüş:
     - old_to_new: eski_id -> yeni_master_id (bulunamazsa eşleme yok)
     - old_to_name: eski_id -> sınıf adı (loglama için)
     """
-    name_to_master = {name: idx for idx, name in enumerate(master_names)}
+    alias_map = alias_map or {}
+    name_to_master_exact = {name: idx for idx, name in enumerate(master_names)}
+    name_to_master_norm = {_normalize_name(name): idx for idx, name in enumerate(master_names)}
+
     old_to_new: Dict[int, int] = {}
     old_to_name: Dict[int, str] = {}
 
-    for old_id, name in enumerate(dataset_names):
-        old_to_name[old_id] = name
-        if name in name_to_master:
-            old_to_new[old_id] = name_to_master[name]
+    for old_id, raw_name in enumerate(dataset_names):
+        old_to_name[old_id] = raw_name
+        # 1) Önce exact eşleşme
+        if raw_name in name_to_master_exact:
+            old_to_new[old_id] = name_to_master_exact[raw_name]
+            continue
+        # 2) Alias çözümleme
+        norm = _normalize_name(str(raw_name))
+        canonical = alias_map.get(norm)
+        if canonical and canonical in name_to_master_exact:
+            old_to_new[old_id] = name_to_master_exact[canonical]
+            continue
+        # 3) Normalize edilmiş doğrudan eşleşme (alias olmadan)
+        if norm in name_to_master_norm:
+            old_to_new[old_id] = name_to_master_norm[norm]
+            continue
+        # Aksi halde eşleme yok (warn flow üstte)
     return old_to_new, old_to_name
 
 
@@ -252,7 +350,7 @@ def remap_file(path: Path, old_to_new: Dict[int, int], old_to_name: Dict[int, st
 
 # ------------------------- Komut Satırı Arayüzü ------------------------- #
 
-def _export_master_ids_to_configs(master_names: List[str]) -> None:
+def _export_master_ids_to_configs(master_names: List[str], output_dir: Path | None = None) -> None:
     """Master sınıf isimlerinden class id listesini JSON olarak yaz.
 
     Öncelik: DriveManager mevcutsa ve aktif timestamp/configs dizini tespit edilebiliyorsa
@@ -264,22 +362,25 @@ def _export_master_ids_to_configs(master_names: List[str]) -> None:
         "id_to_name": [{"id": i, "name": n} for i, n in enumerate(master_names)],
     }
 
-    # 1) DriveManager ile dene
+    # 1) Eğer özel bir output_dir verildiyse doğrudan oraya yaz
     out_path: Path | None = None
-    try:
-        from drive_manager import DriveManager  # type: ignore
-        dm = DriveManager()
-        if dm.authenticate() and dm.load_drive_config():
-            cfg_dir = dm.get_configs_dir()
-            if cfg_dir:
-                out_path = Path(cfg_dir) / "class_ids.json"
-    except Exception:
-        # Drive entegrasyonu yoksa sessizce geç
-        out_path = None
+    if output_dir is not None:
+        out_path = Path(output_dir) / "class_ids.json"
+    else:
+        # 2) Opsiyonel: DriveManager ile dene
+        try:
+            from drive_manager import DriveManager  # type: ignore
+            dm = DriveManager()
+            if dm.authenticate() and dm.load_drive_config():
+                cfg_dir = dm.get_configs_dir()
+                if cfg_dir:
+                    out_path = Path(cfg_dir) / "class_ids.json"
+        except Exception:
+            out_path = None
 
-    # 2) Yerel fallback
-    if out_path is None:
-        out_path = Path.cwd() / "configs" / "class_ids.json"
+        # 3) Yerel fallback: config/ altında class_ids.json
+        if out_path is None:
+            out_path = Path.cwd() / "config" / "class_ids.json"
 
     try:
         out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -304,10 +405,26 @@ def print_mapping(old_to_new: Dict[int, int], old_to_name: Dict[int, str], maste
 def run(root: Path, unknown_action: str = "keep", backup: bool = False,
         apply: bool = False, interactive: bool = False, preview_limit: int = 5,
         export_mapping_dir: Path | None = None, use_mapping: Path | None = None) -> None:
-    master_yaml = root / "master_data.yaml"
+    # Konfigürasyon dizinini çözümle: öncelik root/config, sonra root.parent/config, sonra cwd/config
+    def _resolve_config_dir(r: Path) -> Path:
+        candidates = [r / "config", r.parent / "config", Path.cwd() / "config"]
+        for c in candidates:
+            if c.exists():
+                return c
+        # hiçbiri yoksa ilk adayı oluşturacağız
+        return candidates[0]
+
+    config_dir = _resolve_config_dir(root)
+    config_dir.mkdir(parents=True, exist_ok=True)
+    master_yaml = config_dir / "master_data.yaml"
     if not master_yaml.exists():
-        print(f"[HATA] master_data.yaml bulunamadı: {master_yaml}")
-        sys.exit(1)
+        print(f"[BİLGİ] master_data.yaml bulunamadı, otomatik oluşturulacak: {master_yaml}")
+        auto_names = build_master_names_from_datasets(root)
+        if not auto_names:
+            print(f"[HATA] Dataset yaml'larından isim toplanamadı. Lütfen 'root' altında data.yaml/dataset.yaml içeren datasetler olduğundan emin olun.")
+            sys.exit(1)
+        write_master_yaml(master_yaml, auto_names)
+        print(f"[BİLGİ] master_data.yaml oluşturuldu. Sınıf sayısı: {len(auto_names)}")
 
     try:
         master_names = load_yaml_names(master_yaml)
@@ -315,11 +432,14 @@ def run(root: Path, unknown_action: str = "keep", backup: bool = False,
         print(f"[HATA] master_data.yaml okunamadı: {e}")
         sys.exit(1)
 
-    # Master sınıf id listesini Drive configs içine yazmaya çalış
+    # Master sınıf id listesini config klasörüne yaz
     try:
-        _export_master_ids_to_configs(master_names)
+        _export_master_ids_to_configs(master_names, output_dir=config_dir)
     except Exception as e:
         print(f"[UYARI] class_ids.json dışa aktarımı başarısız: {e}")
+
+    # Alias haritasını yükle
+    alias_map = load_aliases(config_dir)
 
     datasets = find_datasets(root)
     if not datasets:
@@ -347,7 +467,7 @@ def run(root: Path, unknown_action: str = "keep", backup: bool = False,
             print(f"[UYARI] {data_yaml} okunamadı, atlanıyor: {e}")
             continue
 
-        old_to_new, old_to_name = build_id_maps(dataset_names, master_names)
+        old_to_new, old_to_name = build_id_maps(dataset_names, master_names, alias_map=alias_map)
 
         # Kullanıcı müdahalesi: export mapping skeleton
         if export_mapping_dir is not None:

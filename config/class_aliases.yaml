@@ -1,0 +1,54 @@
+aliases:
+  TomatoBacterialSpot:
+    - Tomato_Bacterial_spot
+    - tomato_bacterial_spot
+    - tomato-bacterial-spot
+    - tomato bacterial spot
+  TomatoEarlyBlight:
+    - Tomato_Early_blight
+    - tomato_early_blight
+    - tomato-early-blight
+    - tomato early blight
+  TomatoLateBlight:
+    - Tomato_Late_blight
+    - tomato_late_blight
+    - tomato-late-blight
+    - tomato late blight
+  TomatoLeafMold:
+    - Tomato_Leaf_Mold
+    - tomato_leaf_mold
+    - tomato-leaf-mold
+    - tomato leaf mold
+  TomatoSeptoriaLeafSpot:
+    - Tomato_Septoria_leaf_spot
+    - tomato_septoria_leaf_spot
+    - tomato-septoria-leaf-spot
+    - tomato septoria leaf spot
+  TomatoSpiderMitesTwoSpottedSpiderMite:
+    - Tomato_Spider_mites_Two_spotted_spider_mite
+    - tomato_spider_mites_two_spotted_spider_mite
+    - tomato-spider-mites-two-spotted-spider-mite
+    - tomato spider mites two spotted spider mite
+  TomatoTargetSpot:
+    - Tomato__Target_Spot
+    - Tomato_Target_Spot
+    - tomato_target_spot
+    - tomato-target-spot
+    - tomato target spot
+  TomatoYellowLeafCurlVirus:
+    - Tomato__Tomato_YellowLeaf__Curl_Virus
+    - Tomato_YellowLeaf_Curl_Virus
+    - tomato_yellowleaf_curl_virus
+    - tomato-yellow-leaf-curl-virus
+    - tomato yellow leaf curl virus
+  TomatoMosaicVirus:
+    - Tomato__Tomato_mosaic_virus
+    - Tomato_mosaic_virus
+    - tomato_mosaic_virus
+    - tomato-mosaic-virus
+    - tomato mosaic virus
+  TomatoHealthy:
+    - Tomato_healthy
+    - tomato_healthy
+    - tomato-healthy
+    - tomato healthy

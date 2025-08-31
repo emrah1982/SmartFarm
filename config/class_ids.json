@@ -1,0 +1,432 @@
+{
+  "generated_at": "2025-08-31T11:49:05.131462",
+  "names": [
+    "Pepper__bell___Bacterial_spot",
+    "Pepper__bell___healthy",
+    "Potato___Early_blight",
+    "Potato___Late_blight",
+    "Potato___healthy",
+    "Tomato_Bacterial_spot",
+    "Tomato_Early_blight",
+    "Tomato_Late_blight",
+    "Tomato_Leaf_Mold",
+    "Tomato_Septoria_leaf_spot",
+    "Tomato_Spider_mites_Two_spotted_spider_mite",
+    "Tomato__Target_Spot",
+    "Tomato__Tomato_YellowLeaf__Curl_Virus",
+    "Tomato__Tomato_mosaic_virus",
+    "Tomato_healthy",
+    "army worm",
+    "black cutworm",
+    "grub",
+    "mole cricket",
+    "peach borer",
+    "red spider",
+    "Ant",
+    "Aphid",
+    "Bee",
+    "Beetle",
+    "Bird",
+    "Caterpillar",
+    "Cockroach",
+    "Earthworms",
+    "Earwig",
+    "Fruit Flies",
+    "Grasshopper",
+    "Moth",
+    "Pests",
+    "Scorpion",
+    "Slug",
+    "Snail",
+    "Spider",
+    "Wasp",
+    "Weevil",
+    "PepperBellHealthy",
+    "PepperBellSpot",
+    "PotatoEarlyBlight",
+    "PotatoHealthy",
+    "PotatoLateBlight",
+    "TomatoBacterialSpot",
+    "TomatoEarlyBlight",
+    "TomatoHealthy",
+    "TomatoLateBlight",
+    "TomatoLeafMold",
+    "TomatoMosaicVirus",
+    "TomatoSeptoriaLeafSpot",
+    "TomatoSpiderMitesTwoSpottedSpiderMite",
+    "TomatoTargetSpot",
+    "TomatoYellowLeafCurlVirus",
+    "Weeds",
+    "at risk",
+    "chilli",
+    "fresh",
+    "rotten",
+    "tomato_half_ripe",
+    "tomato_overripe",
+    "tomato_ripe",
+    "tomato_rotten",
+    "tomato_unripe",
+    "Healthy",
+    "Iron Deficiency",
+    "Magnesium Deficiency",
+    "Manganese Deficiency",
+    "Nitrogen Deficiency",
+    "Phosphorus Deficiency",
+    "Potassium Deficiency",
+    "nitrogen-deficiency",
+    "phosphorus-deficiency",
+    "potassium-deficiency",
+    "ripe",
+    "unripe",
+    "Tomato - S1",
+    "Tomato - S2",
+    "Tomato - S3",
+    "Tomato - S4",
+    "Tomato - S5",
+    "Tomato - S6",
+    "plant",
+    "weed"
+  ],
+  "id_to_name": [
+    {
+      "id": 0,
+      "name": "Pepper__bell___Bacterial_spot"
+    },
+    {
+      "id": 1,
+      "name": "Pepper__bell___healthy"
+    },
+    {
+      "id": 2,
+      "name": "Potato___Early_blight"
+    },
+    {
+      "id": 3,
+      "name": "Potato___Late_blight"
+    },
+    {
+      "id": 4,
+      "name": "Potato___healthy"
+    },
+    {
+      "id": 5,
+      "name": "Tomato_Bacterial_spot"
+    },
+    {
+      "id": 6,
+      "name": "Tomato_Early_blight"
+    },
+    {
+      "id": 7,
+      "name": "Tomato_Late_blight"
+    },
+    {
+      "id": 8,
+      "name": "Tomato_Leaf_Mold"
+    },
+    {
+      "id": 9,
+      "name": "Tomato_Septoria_leaf_spot"
+    },
+    {
+      "id": 10,
+      "name": "Tomato_Spider_mites_Two_spotted_spider_mite"
+    },
+    {
+      "id": 11,
+      "name": "Tomato__Target_Spot"
+    },
+    {
+      "id": 12,
+      "name": "Tomato__Tomato_YellowLeaf__Curl_Virus"
+    },
+    {
+      "id": 13,
+      "name": "Tomato__Tomato_mosaic_virus"
+    },
+    {
+      "id": 14,
+      "name": "Tomato_healthy"
+    },
+    {
+      "id": 15,
+      "name": "army worm"
+    },
+    {
+      "id": 16,
+      "name": "black cutworm"
+    },
+    {
+      "id": 17,
+      "name": "grub"
+    },
+    {
+      "id": 18,
+      "name": "mole cricket"
+    },
+    {
+      "id": 19,
+      "name": "peach borer"
+    },
+    {
+      "id": 20,
+      "name": "red spider"
+    },
+    {
+      "id": 21,
+      "name": "Ant"
+    },
+    {
+      "id": 22,
+      "name": "Aphid"
+    },
+    {
+      "id": 23,
+      "name": "Bee"
+    },
+    {
+      "id": 24,
+      "name": "Beetle"
+    },
+    {
+      "id": 25,
+      "name": "Bird"
+    },
+    {
+      "id": 26,
+      "name": "Caterpillar"
+    },
+    {
+      "id": 27,
+      "name": "Cockroach"
+    },
+    {
+      "id": 28,
+      "name": "Earthworms"
+    },
+    {
+      "id": 29,
+      "name": "Earwig"
+    },
+    {
+      "id": 30,
+      "name": "Fruit Flies"
+    },
+    {
+      "id": 31,
+      "name": "Grasshopper"
+    },
+    {
+      "id": 32,
+      "name": "Moth"
+    },
+    {
+      "id": 33,
+      "name": "Pests"
+    },
+    {
+      "id": 34,
+      "name": "Scorpion"
+    },
+    {
+      "id": 35,
+      "name": "Slug"
+    },
+    {
+      "id": 36,
+      "name": "Snail"
+    },
+    {
+      "id": 37,
+      "name": "Spider"
+    },
+    {
+      "id": 38,
+      "name": "Wasp"
+    },
+    {
+      "id": 39,
+      "name": "Weevil"
+    },
+    {
+      "id": 40,
+      "name": "PepperBellHealthy"
+    },
+    {
+      "id": 41,
+      "name": "PepperBellSpot"
+    },
+    {
+      "id": 42,
+      "name": "PotatoEarlyBlight"
+    },
+    {
+      "id": 43,
+      "name": "PotatoHealthy"
+    },
+    {
+      "id": 44,
+      "name": "PotatoLateBlight"
+    },
+    {
+      "id": 45,
+      "name": "TomatoBacterialSpot"
+    },
+    {
+      "id": 46,
+      "name": "TomatoEarlyBlight"
+    },
+    {
+      "id": 47,
+      "name": "TomatoHealthy"
+    },
+    {
+      "id": 48,
+      "name": "TomatoLateBlight"
+    },
+    {
+      "id": 49,
+      "name": "TomatoLeafMold"
+    },
+    {
+      "id": 50,
+      "name": "TomatoMosaicVirus"
+    },
+    {
+      "id": 51,
+      "name": "TomatoSeptoriaLeafSpot"
+    },
+    {
+      "id": 52,
+      "name": "TomatoSpiderMitesTwoSpottedSpiderMite"
+    },
+    {
+      "id": 53,
+      "name": "TomatoTargetSpot"
+    },
+    {
+      "id": 54,
+      "name": "TomatoYellowLeafCurlVirus"
+    },
+    {
+      "id": 55,
+      "name": "Weeds"
+    },
+    {
+      "id": 56,
+      "name": "at risk"
+    },
+    {
+      "id": 57,
+      "name": "chilli"
+    },
+    {
+      "id": 58,
+      "name": "fresh"
+    },
+    {
+      "id": 59,
+      "name": "rotten"
+    },
+    {
+      "id": 60,
+      "name": "tomato_half_ripe"
+    },
+    {
+      "id": 61,
+      "name": "tomato_overripe"
+    },
+    {
+      "id": 62,
+      "name": "tomato_ripe"
+    },
+    {
+      "id": 63,
+      "name": "tomato_rotten"
+    },
+    {
+      "id": 64,
+      "name": "tomato_unripe"
+    },
+    {
+      "id": 65,
+      "name": "Healthy"
+    },
+    {
+      "id": 66,
+      "name": "Iron Deficiency"
+    },
+    {
+      "id": 67,
+      "name": "Magnesium Deficiency"
+    },
+    {
+      "id": 68,
+      "name": "Manganese Deficiency"
+    },
+    {
+      "id": 69,
+      "name": "Nitrogen Deficiency"
+    },
+    {
+      "id": 70,
+      "name": "Phosphorus Deficiency"
+    },
+    {
+      "id": 71,
+      "name": "Potassium Deficiency"
+    },
+    {
+      "id": 72,
+      "name": "nitrogen-deficiency"
+    },
+    {
+      "id": 73,
+      "name": "phosphorus-deficiency"
+    },
+    {
+      "id": 74,
+      "name": "potassium-deficiency"
+    },
+    {
+      "id": 75,
+      "name": "ripe"
+    },
+    {
+      "id": 76,
+      "name": "unripe"
+    },
+    {
+      "id": 77,
+      "name": "Tomato - S1"
+    },
+    {
+      "id": 78,
+      "name": "Tomato - S2"
+    },
+    {
+      "id": 79,
+      "name": "Tomato - S3"
+    },
+    {
+      "id": 80,
+      "name": "Tomato - S4"
+    },
+    {
+      "id": 81,
+      "name": "Tomato - S5"
+    },
+    {
+      "id": 82,
+      "name": "Tomato - S6"
+    },
+    {
+      "id": 83,
+      "name": "plant"
+    },
+    {
+      "id": 84,
+      "name": "weed"
+    }
+  ]
+}
