@@ -25,6 +25,9 @@ import argparse
 import sys
 from pathlib import Path
 from typing import Dict, List, Tuple, Any
+import json
+import os
+from datetime import datetime
 
 try:
     import yaml  # PyYAML
@@ -249,6 +252,43 @@ def remap_file(path: Path, old_to_new: Dict[int, int], old_to_name: Dict[int, st
 
 # ------------------------- Komut Satırı Arayüzü ------------------------- #
 
+def _export_master_ids_to_configs(master_names: List[str]) -> None:
+    """Master sınıf isimlerinden class id listesini JSON olarak yaz.
+
+    Öncelik: DriveManager mevcutsa ve aktif timestamp/configs dizini tespit edilebiliyorsa
+    oraya yazar. Aksi halde yerelde ./configs/class_ids.json konumuna yazar.
+    """
+    payload = {
+        "generated_at": datetime.now().isoformat(),
+        "names": master_names,
+        "id_to_name": [{"id": i, "name": n} for i, n in enumerate(master_names)],
+    }
+
+    # 1) DriveManager ile dene
+    out_path: Path | None = None
+    try:
+        from drive_manager import DriveManager  # type: ignore
+        dm = DriveManager()
+        if dm.authenticate() and dm.load_drive_config():
+            cfg_dir = dm.get_configs_dir()
+            if cfg_dir:
+                out_path = Path(cfg_dir) / "class_ids.json"
+    except Exception:
+        # Drive entegrasyonu yoksa sessizce geç
+        out_path = None
+
+    # 2) Yerel fallback
+    if out_path is None:
+        out_path = Path.cwd() / "configs" / "class_ids.json"
+
+    try:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        with out_path.open("w", encoding="utf-8") as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        print(f"[BİLGİ] class_ids.json yazıldı: {out_path}")
+    except Exception as e:
+        print(f"[UYARI] class_ids.json yazılamadı: {e}")
+
 def print_mapping(old_to_new: Dict[int, int], old_to_name: Dict[int, str], master_names: List[str]) -> None:
     print("Eski -> Yeni (isim)")
     for old_id in sorted(old_to_name.keys()):
@@ -274,6 +314,12 @@ def run(root: Path, unknown_action: str = "keep", backup: bool = False,
     except Exception as e:
         print(f"[HATA] master_data.yaml okunamadı: {e}")
         sys.exit(1)
+
+    # Master sınıf id listesini Drive configs içine yazmaya çalış
+    try:
+        _export_master_ids_to_configs(master_names)
+    except Exception as e:
+        print(f"[UYARI] class_ids.json dışa aktarımı başarısız: {e}")
 
     datasets = find_datasets(root)
     if not datasets:

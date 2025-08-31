@@ -231,6 +231,45 @@ def save_models_to_drive(drive_folder_path, best_file=True, last_file=True):
         print("❌ Kopyalanacak dosya bulunamadı.")
         return False
 
+# --- Yardımcı: master sınıf isimlerini yükleyip class_ids.json yaz ---
+def _load_names_from_yaml(yaml_path: str):
+    try:
+        if os.path.exists(yaml_path):
+            with open(yaml_path, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f) or {}
+            names = []
+            if isinstance(data.get('names'), list):
+                names = data['names']
+            elif isinstance(data.get('names'), dict):
+                names = [v for k, v in sorted(((int(k), v) for k, v in data['names'].items()), key=lambda x: x[0])]
+            elif isinstance(data.get('classes'), list):
+                names = data['classes']
+            return [str(x) for x in names] if names else None
+    except Exception:
+        return None
+    return None
+
+def _write_class_ids_json(configs_dir: str) -> bool:
+    try:
+        # Öncelik master_data.yaml, yoksa merged_dataset.yaml
+        names = _load_names_from_yaml('master_data.yaml') or _load_names_from_yaml('merged_dataset.yaml')
+        if not names:
+            return False
+        payload = {
+            'generated_at': datetime.now().isoformat(),
+            'names': names,
+            'id_to_name': [{'id': i, 'name': n} for i, n in enumerate(names)],
+        }
+        os.makedirs(configs_dir, exist_ok=True)
+        out_path = os.path.join(configs_dir, 'class_ids.json')
+        with open(out_path, 'w', encoding='utf-8') as f:
+            json.dump(payload, f, ensure_ascii=False, indent=2)
+        print(f"✅ class_ids.json yazıldı: {out_path}")
+        return True
+    except Exception as e:
+        print(f"⚠️ class_ids.json yazılamadı: {e}")
+        return False
+
 def download_models_menu():
     """Interactive menu for downloading YOLO11 models"""
     print(f"\n{get_text('model_download_title')}")
@@ -717,6 +756,14 @@ def interactive_training_setup():
                 print(f"🗂️  Kayıt hedefi (checkpoints): {checkpoints_dir}")
                 # Eğitim opsiyonlarında doğrudan 'checkpoints' klasörünü hedefle
                 drive_save_path = checkpoints_dir
+                # Etiket modu 2 ise: sınıf ID listesini configs/ altına yaz
+                try:
+                    # label_mode, bu fonksiyonun üst kısmında belirlenmişti
+                    if (dataset_config.get('type') == 'hierarchical_multi' and
+                        (dataset_config.get('setup') or {}).get('label_mode') == 'preserve_subclasses'):
+                        _write_class_ids_json(configs_dir)
+                except Exception:
+                    pass
             except Exception as e:
                 print(f"❌ Drive klasörleri oluşturulamadı: {e}")
                 drive_save_path = None
