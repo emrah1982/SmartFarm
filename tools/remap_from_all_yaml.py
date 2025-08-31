@@ -41,13 +41,25 @@ def split_names_in_yaml(data: dict) -> List[Tuple[str, str]]:
 
 
 def labels_dir_exists_for_split(dataset_root: Path, split: str) -> Path | None:
-    # support: <root>/<split>/labels OR <root>/labels/<split>
-    p1 = dataset_root / split / "labels"
-    p2 = dataset_root / "labels" / split
-    if p1.exists():
-        return p1
-    if p2.exists():
-        return p2
+    """Find labels directory for a given split.
+
+    Tries both layouts: <root>/<split>/labels and <root>/labels/<split>.
+    Additionally resolves val/valid synonyms bidirectionally.
+    """
+    candidates = [split]
+    # Handle val/valid synonyms
+    if split == "val":
+        candidates.append("valid")
+    elif split == "valid":
+        candidates.append("val")
+
+    for cand in candidates:
+        p1 = dataset_root / cand / "labels"
+        p2 = dataset_root / "labels" / cand
+        if p1.exists():
+            return p1
+        if p2.exists():
+            return p2
     return None
 
 
