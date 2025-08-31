@@ -52,3 +52,107 @@ aliases:
     - tomato_healthy
     - tomato-healthy
     - tomato healthy
+    - Healthy
+
+  TomatoIronDeficiency:
+    - Iron_Deficiency
+    - iron_deficiency
+    - iron-deficiency
+    - iron deficiency
+
+  TomatoMagnesiumDeficiency:
+    - Magnesium_Deficiency
+    - magnesium_deficiency
+    - magnesium-deficiency
+    - magnesium deficiency
+
+  TomatoManganeseDeficiency:
+    - Manganese_Deficiency
+    - manganese_deficiency
+    - manganese-deficiency
+    - manganese deficiency
+
+  TomatoNitrogenDeficiency:
+    - Nitrogen_Deficiency
+    - nitrogen_deficiency
+    - nitrogen-deficiency
+    - nitrogen deficiency
+
+  TomatoPhosphorusDeficiency:
+    - Phosphorus_Deficiency
+    - phosphorus_deficiency
+    - phosphorus-deficiency
+    - phosphorus deficiency
+
+  TomatoPotassiumDeficiency:
+    - Potassium_Deficiency
+    - potassium_deficiency
+    - potassium-deficiency
+    - potassium deficiency
+
+  TomatoHalfRipe:
+    - TomatoHalfRipe
+    - tomato-half-ripe
+    - tomato half ripe
+  
+  TomatoOverripe:
+    - TomatoOverripe
+    - tomato-overripe
+    - tomato overripe
+  
+  TomatoRipe:
+    - TomatoRipe
+    - tomato-ripe
+    - tomato ripe
+    - ripe
+  
+  TomatoRotten:
+    - TomatoRotten
+    - tomato-rotten
+    - tomato rotten
+    
+  TomatoUnripe:
+    - TomatoUnripe
+    - tomato-unripe
+    - tomato unripe
+    - unripe
+  
+  Weeds:
+    - weed
+  
+  PotatoHealthy:
+    - Potato_healthy
+    - Potato_healthy
+    - Potato-healthy
+    - Potato healthy
+    - Potato___healthy
+
+  PepperBellSpot:
+    - Pepper__bell___Bacterial_spot
+    - pepper__bell___bacterial_spot
+    - pepper-bell-bacterial-spot
+    - pepper bell bacterial spot
+    - PepperBellBacterialSpot
+
+  PepperBellHealthy:
+    - Pepper__bell___healthy
+    - pepper__bell___healthy
+    - pepper-bell-healthy
+    - pepper bell healthy
+
+  PotatoEarlyBlight:
+    - Potato___Early_blight
+    - potato_early_blight
+    - potato-early-blight
+    - potato early blight
+
+  PotatoLateBlight:
+    - Potato___Late_blight
+    - potato_late_blight
+    - potato-late-blight
+    - potato late blight
+  
+  Spider:
+    - Spider
+    - red spider
+    - red_spider

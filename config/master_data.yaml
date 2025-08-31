@@ -1,25 +1,25 @@
 names:
-- Pepper__bell___Bacterial_spot
-- Pepper__bell___healthy
-- Potato___Early_blight
-- Potato___Late_blight
-- Potato___healthy
-- Tomato_Bacterial_spot
-- Tomato_Early_blight
-- Tomato_Late_blight
-- Tomato_Leaf_Mold
-- Tomato_Septoria_leaf_spot
-- Tomato_Spider_mites_Two_spotted_spider_mite
-- Tomato__Target_Spot
-- Tomato__Tomato_YellowLeaf__Curl_Virus
-- Tomato__Tomato_mosaic_virus
-- Tomato_healthy
+- PepperBellSpot
+- PepperBellHealthy
+- PotatoEarlyBlight
+- PotatoLateBlight
+- PotatoHealthy
+- TomatoBacterialSpot
+- TomatoEarlyBlight
+- TomatoLateBlight
+- TomatoLeafMold
+- TomatoSeptoriaLeafSpot
+- TomatoSpiderMitesTwoSpottedSpiderMite
+- TomatoTargetSpot
+- TomatoYellowLeafCurlVirus
+- TomatoMosaicVirus
+- TomatoHealthy
 - army worm
 - black cutworm
 - grub
 - mole cricket
 - peach borer
-- red spider
+- Spider
 - Ant
 - Aphid
 - Bee
@@ -36,46 +36,24 @@ names:
 - Scorpion
 - Slug
 - Snail
-- Spider
 - Wasp
 - Weevil
-- PepperBellHealthy
-- PepperBellSpot
-- PotatoEarlyBlight
-- PotatoHealthy
-- PotatoLateBlight
-- TomatoBacterialSpot
-- TomatoEarlyBlight
-- TomatoHealthy
-- TomatoLateBlight
-- TomatoLeafMold
-- TomatoMosaicVirus
-- TomatoSeptoriaLeafSpot
-- TomatoSpiderMitesTwoSpottedSpiderMite
-- TomatoTargetSpot
-- TomatoYellowLeafCurlVirus
 - Weeds
 - at risk
 - chilli
 - fresh
 - rotten
-- tomato_half_ripe
-- tomato_overripe
-- tomato_ripe
-- tomato_rotten
-- tomato_unripe
-- Healthy
-- Iron Deficiency
-- Magnesium Deficiency
-- Manganese Deficiency
-- Nitrogen Deficiency
-- Phosphorus Deficiency
-- Potassium Deficiency
-- nitrogen-deficiency
-- phosphorus-deficiency
-- potassium-deficiency
-- ripe
-- unripe
+- TomatoHalfRipe
+- TomatoOverripe
+- TomatoRipe
+- TomatoRotten
+- TomatoUnripe
+- TomatoIronDeficiency
+- TomatoMagnesiumDeficiency
+- TomatoManganeseDeficiency
+- TomatoNitrogenDeficiency
+- TomatoPhosphorusDeficiency
+- TomatoPotassiumDeficiency
 - Tomato - S1
 - Tomato - S2
 - Tomato - S3
@@ -83,4 +61,3 @@ names:
 - Tomato - S5
 - Tomato - S6
 - plant
-- weed

@@ -1,27 +1,27 @@
 {
-  "generated_at": "2025-08-31T11:49:05.131462",
+  "generated_at": "2025-08-31T13:14:54.554618",
   "names": [
-    "Pepper__bell___Bacterial_spot",
-    "Pepper__bell___healthy",
-    "Potato___Early_blight",
-    "Potato___Late_blight",
-    "Potato___healthy",
-    "Tomato_Bacterial_spot",
-    "Tomato_Early_blight",
-    "Tomato_Late_blight",
-    "Tomato_Leaf_Mold",
-    "Tomato_Septoria_leaf_spot",
-    "Tomato_Spider_mites_Two_spotted_spider_mite",
-    "Tomato__Target_Spot",
-    "Tomato__Tomato_YellowLeaf__Curl_Virus",
-    "Tomato__Tomato_mosaic_virus",
-    "Tomato_healthy",
+    "PepperBellSpot",
+    "PepperBellHealthy",
+    "PotatoEarlyBlight",
+    "PotatoLateBlight",
+    "PotatoHealthy",
+    "TomatoBacterialSpot",
+    "TomatoEarlyBlight",
+    "TomatoLateBlight",
+    "TomatoLeafMold",
+    "TomatoSeptoriaLeafSpot",
+    "TomatoSpiderMitesTwoSpottedSpiderMite",
+    "TomatoTargetSpot",
+    "TomatoYellowLeafCurlVirus",
+    "TomatoMosaicVirus",
+    "TomatoHealthy",
     "army worm",
     "black cutworm",
     "grub",
     "mole cricket",
     "peach borer",
-    "red spider",
+    "Spider",
     "Ant",
     "Aphid",
     "Bee",
@@ -38,115 +38,92 @@
     "Scorpion",
     "Slug",
     "Snail",
-    "Spider",
     "Wasp",
     "Weevil",
-    "PepperBellHealthy",
-    "PepperBellSpot",
-    "PotatoEarlyBlight",
-    "PotatoHealthy",
-    "PotatoLateBlight",
-    "TomatoBacterialSpot",
-    "TomatoEarlyBlight",
-    "TomatoHealthy",
-    "TomatoLateBlight",
-    "TomatoLeafMold",
-    "TomatoMosaicVirus",
-    "TomatoSeptoriaLeafSpot",
-    "TomatoSpiderMitesTwoSpottedSpiderMite",
-    "TomatoTargetSpot",
-    "TomatoYellowLeafCurlVirus",
     "Weeds",
     "at risk",
     "chilli",
     "fresh",
     "rotten",
-    "tomato_half_ripe",
-    "tomato_overripe",
-    "tomato_ripe",
-    "tomato_rotten",
-    "tomato_unripe",
-    "Healthy",
-    "Iron Deficiency",
-    "Magnesium Deficiency",
-    "Manganese Deficiency",
-    "Nitrogen Deficiency",
-    "Phosphorus Deficiency",
-    "Potassium Deficiency",
-    "nitrogen-deficiency",
-    "phosphorus-deficiency",
-    "potassium-deficiency",
-    "ripe",
-    "unripe",
+    "TomatoHalfRipe",
+    "TomatoOverripe",
+    "TomatoRipe",
+    "TomatoRotten",
+    "TomatoUnripe",
+    "TomatoIronDeficiency",
+    "TomatoMagnesiumDeficiency",
+    "TomatoManganeseDeficiency",
+    "TomatoNitrogenDeficiency",
+    "TomatoPhosphorusDeficiency",
+    "TomatoPotassiumDeficiency",
     "Tomato - S1",
     "Tomato - S2",
     "Tomato - S3",
     "Tomato - S4",
     "Tomato - S5",
     "Tomato - S6",
-    "plant",
-    "weed"
+    "plant"
   ],
   "id_to_name": [
     {
       "id": 0,
-      "name": "Pepper__bell___Bacterial_spot"
+      "name": "PepperBellSpot"
     },
     {
       "id": 1,
-      "name": "Pepper__bell___healthy"
+      "name": "PepperBellHealthy"
     },
     {
       "id": 2,
-      "name": "Potato___Early_blight"
+      "name": "PotatoEarlyBlight"
     },
     {
       "id": 3,
-      "name": "Potato___Late_blight"
+      "name": "PotatoLateBlight"
     },
     {
       "id": 4,
-      "name": "Potato___healthy"
+      "name": "PotatoHealthy"
     },
     {
       "id": 5,
-      "name": "Tomato_Bacterial_spot"
+      "name": "TomatoBacterialSpot"
     },
     {
       "id": 6,
-      "name": "Tomato_Early_blight"
+      "name": "TomatoEarlyBlight"
     },
     {
       "id": 7,
-      "name": "Tomato_Late_blight"
+      "name": "TomatoLateBlight"
     },
     {
       "id": 8,
-      "name": "Tomato_Leaf_Mold"
+      "name": "TomatoLeafMold"
     },
     {
       "id": 9,
-      "name": "Tomato_Septoria_leaf_spot"
+      "name": "TomatoSeptoriaLeafSpot"
     },
     {
       "id": 10,
-      "name": "Tomato_Spider_mites_Two_spotted_spider_mite"
+      "name": "TomatoSpiderMitesTwoSpottedSpiderMite"
     },
     {
       "id": 11,
-      "name": "Tomato__Target_Spot"
+      "name": "TomatoTargetSpot"
     },
     {
       "id": 12,
-      "name": "Tomato__Tomato_YellowLeaf__Curl_Virus"
+      "name": "TomatoYellowLeafCurlVirus"
     },
     {
       "id": 13,
-      "name": "Tomato__Tomato_mosaic_virus"
+      "name": "TomatoMosaicVirus"
     },
     {
       "id": 14,
-      "name": "Tomato_healthy"
+      "name": "TomatoHealthy"
     },
     {
       "id": 15,
@@ -170,7 +147,7 @@
     },
     {
       "id": 20,
-      "name": "red spider"
+      "name": "Spider"
     },
     {
       "id": 21,
@@ -238,195 +215,103 @@
     },
     {
       "id": 37,
-      "name": "Spider"
-    },
-    {
-      "id": 38,
       "name": "Wasp"
     },
     {
-      "id": 39,
+      "id": 38,
       "name": "Weevil"
     },
     {
-      "id": 40,
-      "name": "PepperBellHealthy"
-    },
-    {
-      "id": 41,
-      "name": "PepperBellSpot"
-    },
-    {
-      "id": 42,
-      "name": "PotatoEarlyBlight"
-    },
-    {
-      "id": 43,
-      "name": "PotatoHealthy"
-    },
-    {
-      "id": 44,
-      "name": "PotatoLateBlight"
-    },
-    {
-      "id": 45,
-      "name": "TomatoBacterialSpot"
-    },
-    {
-      "id": 46,
-      "name": "TomatoEarlyBlight"
-    },
-    {
-      "id": 47,
-      "name": "TomatoHealthy"
-    },
-    {
-      "id": 48,
-      "name": "TomatoLateBlight"
-    },
-    {
-      "id": 49,
-      "name": "TomatoLeafMold"
-    },
-    {
-      "id": 50,
-      "name": "TomatoMosaicVirus"
-    },
-    {
-      "id": 51,
-      "name": "TomatoSeptoriaLeafSpot"
-    },
-    {
-      "id": 52,
-      "name": "TomatoSpiderMitesTwoSpottedSpiderMite"
-    },
-    {
-      "id": 53,
-      "name": "TomatoTargetSpot"
-    },
-    {
-      "id": 54,
-      "name": "TomatoYellowLeafCurlVirus"
-    },
-    {
-      "id": 55,
+      "id": 39,
       "name": "Weeds"
     },
     {
-      "id": 56,
+      "id": 40,
       "name": "at risk"
     },
     {
-      "id": 57,
+      "id": 41,
       "name": "chilli"
     },
     {
-      "id": 58,
+      "id": 42,
       "name": "fresh"
     },
     {
-      "id": 59,
+      "id": 43,
       "name": "rotten"
     },
     {
-      "id": 60,
-      "name": "tomato_half_ripe"
+      "id": 44,
+      "name": "TomatoHalfRipe"
     },
     {
-      "id": 61,
-      "name": "tomato_overripe"
+      "id": 45,
+      "name": "TomatoOverripe"
     },
     {
-      "id": 62,
-      "name": "tomato_ripe"
+      "id": 46,
+      "name": "TomatoRipe"
     },
     {
-      "id": 63,
-      "name": "tomato_rotten"
+      "id": 47,
+      "name": "TomatoRotten"
     },
     {
-      "id": 64,
-      "name": "tomato_unripe"
+      "id": 48,
+      "name": "TomatoUnripe"
     },
     {
-      "id": 65,
-      "name": "Healthy"
+      "id": 49,
+      "name": "TomatoIronDeficiency"
     },
     {
-      "id": 66,
-      "name": "Iron Deficiency"
+      "id": 50,
+      "name": "TomatoMagnesiumDeficiency"
     },
     {
-      "id": 67,
-      "name": "Magnesium Deficiency"
+      "id": 51,
+      "name": "TomatoManganeseDeficiency"
     },
     {
-      "id": 68,
-      "name": "Manganese Deficiency"
+      "id": 52,
+      "name": "TomatoNitrogenDeficiency"
     },
     {
-      "id": 69,
-      "name": "Nitrogen Deficiency"
+      "id": 53,
+      "name": "TomatoPhosphorusDeficiency"
     },
     {
-      "id": 70,
-      "name": "Phosphorus Deficiency"
+      "id": 54,
+      "name": "TomatoPotassiumDeficiency"
     },
     {
-      "id": 71,
-      "name": "Potassium Deficiency"
-    },
-    {
-      "id": 72,
-      "name": "nitrogen-deficiency"
-    },
-    {
-      "id": 73,
-      "name": "phosphorus-deficiency"
-    },
-    {
-      "id": 74,
-      "name": "potassium-deficiency"
-    },
-    {
-      "id": 75,
-      "name": "ripe"
-    },
-    {
-      "id": 76,
-      "name": "unripe"
-    },
-    {
-      "id": 77,
+      "id": 55,
       "name": "Tomato - S1"
     },
     {
-      "id": 78,
+      "id": 56,
       "name": "Tomato - S2"
     },
     {
-      "id": 79,
+      "id": 57,
       "name": "Tomato - S3"
     },
     {
-      "id": 80,
+      "id": 58,
       "name": "Tomato - S4"
     },
     {
-      "id": 81,
+      "id": 59,
       "name": "Tomato - S5"
     },
     {
-      "id": 82,
+      "id": 60,
       "name": "Tomato - S6"
     },
     {
-      "id": 83,
+      "id": 61,
       "name": "plant"
-    },
-    {
-      "id": 84,
-      "name": "weed"
     }
   ]
 }

@@ -97,6 +97,31 @@ def load_aliases(config_dir: Path) -> Dict[str, str]:
     return mapping
 
 
+def deduplicate_master_names(master_names: List[str], alias_map: Dict[str, str]) -> Tuple[List[str], bool]:
+    """Alias ve normalize kuralları ile master isimleri gruplayıp tekrarı kaldırır.
+
+    Dönüş: (yeni_master_listesi, degisiklik_var_mi)
+    """
+    seen_keys = set()
+    unique: List[str] = []
+
+    for name in master_names:
+        norm = _normalize_name(name)
+        # Eğer alias bir kanonik isme işaret ediyorsa onu anahtar olarak kullan
+        preferred = alias_map.get(norm, name)
+        key = _normalize_name(preferred)
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        # Kanonik adı alias haritasındaki hedefe ZORLA (master'da olmasa bile)
+        # Böylece class_ids.json alias kanonikleri temel alır.
+        unique.append(preferred)
+
+    # İçerik değişti mi? (sadece uzunluk değil, sıra ve isimler dahil)
+    changed = unique != master_names
+    return unique, changed
+
+
 def discover_dataset_yamls(root: Path) -> List[Path]:
     """Kök altında recursive olarak data.yaml/dataset.yaml dosyalarını bulur.
 
@@ -432,14 +457,22 @@ def run(root: Path, unknown_action: str = "keep", backup: bool = False,
         print(f"[HATA] master_data.yaml okunamadı: {e}")
         sys.exit(1)
 
+    # Alias haritasını yükle ve master'ı deduplikasyon ile sadeleştir
+    alias_map = load_aliases(config_dir)
+    deduped, changed = deduplicate_master_names(master_names, alias_map)
+    if changed:
+        try:
+            write_master_yaml(master_yaml, deduped)
+            print(f"[BİLGİ] master_data.yaml deduplikasyon ile güncellendi. Eski: {len(master_names)}, Yeni: {len(deduped)}")
+            master_names = deduped
+        except Exception as e:
+            print(f"[UYARI] master_data.yaml güncellenemedi: {e}")
+
     # Master sınıf id listesini config klasörüne yaz
     try:
         _export_master_ids_to_configs(master_names, output_dir=config_dir)
     except Exception as e:
         print(f"[UYARI] class_ids.json dışa aktarımı başarısız: {e}")
-
-    # Alias haritasını yükle
-    alias_map = load_aliases(config_dir)
 
     datasets = find_datasets(root)
     if not datasets:
