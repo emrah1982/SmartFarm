@@ -504,8 +504,128 @@ def process_hierarchical_datasets(dataset_config):
 
         # 4. Merge step: only for option 1 (collapse_to_main)
         if label_mode == 'preserve_subclasses':
-            print("\nℹ️ Seçenek 2 (alt-sınıflar KORUNUR) seçildiği için merge ADIMI atlandı.")
-            print("İndirme, remap ve sınıf haritalama tamamlandı. Çıkılıyor.")
+            # Kopyalama yapmadan çoklu kaynak YAML üret
+            try:
+                def _resolve_split_image_dirs(local_root: str, split: str):
+                    """Split için olası görüntü klasörlerini tespit et."""
+                    cand = []
+                    data_yaml_path = os.path.join(local_root, 'data.yaml')
+                    if os.path.exists(data_yaml_path):
+                        try:
+                            with open(data_yaml_path, 'r', encoding='utf-8') as f:
+                                dcfg = yaml.safe_load(f) or {}
+                            base_path = dcfg.get('path') or '.'
+                            entry = dcfg.get('train' if split == 'train' else ('val' if 'val' in split else split))
+                            # val/valid eş anlamlı
+                            if not entry and split == 'val':
+                                entry = dcfg.get('valid')
+                            if entry:
+                                def _join(root_dir, p):
+                                    return p if os.path.isabs(p) else os.path.normpath(os.path.join(root_dir, p))
+                                full = _join(local_root, _join('' if base_path == '.' else base_path, entry))
+                                cand.append(full)
+                                # images -> ensure it's images dir
+                                if os.path.basename(full) != 'images' and os.path.isdir(full):
+                                    # kullanıcı doğrudan images klasörünü değil üst klasörü vermiş olabilir
+                                    cand.append(os.path.join(full, 'images'))
+                        except Exception:
+                            pass
+                    # Yaygın dizinler
+                    synonyms = [split]
+                    if split == 'val':
+                        synonyms.append('valid')
+                    if split == 'valid':
+                        synonyms.append('val')
+                    for s in synonyms:
+                        cand.extend([
+                            os.path.join(local_root, 'images', s),
+                            os.path.join(local_root, s, 'images'),
+                        ])
+                    # Var olanları filtrele
+                    uniq = []
+                    seen = set()
+                    for p in cand:
+                        if p and os.path.isdir(p) and p not in seen:
+                            uniq.append(os.path.abspath(p))
+                            seen.add(p)
+                    return uniq
+
+                # Tüm veri setlerinden train/val klasörlerini topla
+                train_dirs = []
+                val_dirs = []
+                for ds in manager.datasets:
+                    root = ds.get('local_path')
+                    if not root or not os.path.isdir(root):
+                        continue
+                    train_dirs.extend(_resolve_split_image_dirs(root, 'train'))
+                    # val bulunamazsa valid dene
+                    vds = _resolve_split_image_dirs(root, 'val')
+                    if not vds:
+                        vds = _resolve_split_image_dirs(root, 'valid')
+                    # Hiç val yoksa train'i yedek olarak kullanma — eğitim için val gerekli, ama yoksa boş bırakma yerine train'den küçük bir altküme oluşturmanızı öneririz.
+                    val_dirs.extend(vds)
+
+                # names yükle
+                def _load_master_names():
+                    for p in ['config/master_data.yaml', 'master_data.yaml']:
+                        if os.path.exists(p):
+                            try:
+                                with open(p, 'r', encoding='utf-8') as f:
+                                    data = yaml.safe_load(f) or {}
+                                names = data.get('names') or data.get('classes')
+                                if isinstance(names, list) and names:
+                                    return [str(x) for x in names]
+                            except Exception:
+                                pass
+                    # Fallback: indirilen veri setlerinden birlik
+                    union = []
+                    seen = set()
+                    for ds in manager.datasets:
+                        for c in ds.get('classes', []) or []:
+                            if c not in seen:
+                                union.append(c)
+                                seen.add(c)
+                    return union
+
+                # İsimleri öncelikle config/class_ids.json'dan al
+                names = None
+                try:
+                    cid_path = os.path.join('config', 'class_ids.json')
+                    if os.path.exists(cid_path):
+                        with open(cid_path, 'r', encoding='utf-8') as f:
+                            cid = json.load(f)
+                        if isinstance(cid.get('names'), list) and cid['names']:
+                            names = [str(x) for x in cid['names']]
+                except Exception:
+                    pass
+                if not names:
+                    names = _load_master_names()
+                if not train_dirs:
+                    print("❌ Hiçbir train dizini bulunamadı. YAML oluşturulamadı.")
+                    return False
+                if not val_dirs:
+                    print("⚠️ Val/valid dizini bulunamadı. Train dizinleri kullanılacak (değerlendirme için önerilmez).")
+                    val_dirs = train_dirs[:]
+
+                dataset_yaml = {
+                    'path': '.',
+                    'train': train_dirs,
+                    'val': val_dirs,
+                    'nc': len(names),
+                    'names': names,
+                }
+                os.makedirs('config', exist_ok=True)
+                merged_yaml_path = os.path.join('config', 'merged_class_dataset.yaml')
+                with open(merged_yaml_path, 'w', encoding='utf-8') as f:
+                    yaml.dump(dataset_yaml, f, sort_keys=False, allow_unicode=True)
+                print("📄 config/merged_class_dataset.yaml oluşturuldu (kopyasız çoklu kaynak).")
+                print(f"  • train kaynak sayısı: {len(train_dirs)}")
+                print(f"  • val kaynak sayısı: {len(val_dirs)}")
+            except Exception as e:
+                print(f"❌ merged_dataset.yaml oluşturulurken hata: {e}")
+                return False
+            # Merge kopyalama adımı atlanır fakat eğitim için YAML hazır.
+            print("\nℹ️ Seçenek 2 için kopyalama yapmadan eğitim YAML hazırlandı (config/merged_class_dataset.yaml).")
             return True
         
         print("\n3️⃣ Veri setleri hiyerarşik yapıyla birleştiriliyor...")
@@ -1136,6 +1256,14 @@ def main():
                 if not process_hierarchical_datasets(dataset_config['setup']):
                     print('❌ Hiyerarşik veri seti işleme başarısız. Çıkılıyor...')
                     return
+                # Seçenek 2 ise eğitimde config/merged_class_dataset.yaml kullanılmalı
+                try:
+                    lm = (dataset_config.get('setup') or {}).get('label_mode')
+                    if lm == 'preserve_subclasses':
+                        options['data'] = os.path.join('config', 'merged_class_dataset.yaml')
+                        print(f"ℹ️ Eğitim YAML: {options['data']}")
+                except Exception:
+                    pass
             
             # Show memory status before training
             show_memory_usage("Eğitim Öncesi")
