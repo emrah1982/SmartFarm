@@ -35,6 +35,8 @@ class YOLOAugmentationPipeline:
             self._albu_major = int(A.__version__.split('.')[0])
         except Exception:
             self._albu_major = 1
+        # Load class names for nicer logs (optional)
+        self.class_names = self._load_class_names()
         
         # Severity level configurations
         self.severity_configs = {
@@ -86,6 +88,36 @@ class YOLOAugmentationPipeline:
         self.geometric_transforms = self._create_geometric_pipeline()
         self.color_transforms = self._create_color_pipeline()
         
+    def _load_class_names(self):
+        """Load class names from config/class_ids.json if available."""
+        try:
+            cid_path = os.path.join('config', 'class_ids.json')
+            if os.path.exists(cid_path):
+                with open(cid_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                names = data.get('names')
+                if isinstance(names, list) and names:
+                    return {i: str(n) for i, n in enumerate(names)}
+        except Exception:
+            pass
+        return None
+
+    def _class_name(self, class_id: int) -> str:
+        if isinstance(self.class_names, dict) and class_id in self.class_names:
+            return self.class_names[class_id]
+        return f"class_{class_id}"
+
+    @staticmethod
+    def _print_progress(prefix: str, current: int, total: int, bar_len: int = 30):
+        if total <= 0:
+            print(f"\r{prefix} 0/0", end='', flush=True)
+            return
+        filled = int(bar_len * current / total)
+        bar = '█' * filled + '-' * (bar_len - filled)
+        print(f"\r{prefix} [{bar}] {current}/{total}", end='', flush=True)
+        if current >= total:
+            print()  # newline at completion
+
     def _create_agricultural_pipeline(self):
         """Create agriculture-specific augmentation pipeline"""
         config = self.config
@@ -270,7 +302,8 @@ class YOLOAugmentationPipeline:
         # Generate augmented samples
         augmented_count = 0
         for class_id, needed_count in augmentation_needs.items():
-            print(f"\nSınıf {class_id} için {needed_count} augmentation yapılıyor...")
+            cname = self._class_name(class_id)
+            print(f"\nSınıf {class_id} ({cname}) için {needed_count} augmentation yapılıyor...")
             
             # Find files containing this class
             class_files = self._find_files_with_class(label_paths, class_id)
@@ -281,7 +314,8 @@ class YOLOAugmentationPipeline:
             
             # Generate augmented samples
             generated = self._generate_augmented_samples(
-                class_files, image_paths, needed_count, class_id, output_dir, augmented_count
+                class_files, image_paths, needed_count, class_id, output_dir, augmented_count,
+                progress_prefix=f"Sınıf {class_id} ({cname})"
             )
             augmented_count += generated
         
@@ -346,7 +380,7 @@ class YOLOAugmentationPipeline:
                 new_lbl_path = f"{output_dir}/labels/{base_name}.txt"
                 shutil.copy2(lbl_path, new_lbl_path)
     
-    def _generate_augmented_samples(self, class_files, image_paths, needed_count, class_id, output_dir, start_counter):
+    def _generate_augmented_samples(self, class_files, image_paths, needed_count, class_id, output_dir, start_counter, progress_prefix: str = None):
         """Generate augmented samples for a specific class"""
         generated_count = 0
         
@@ -461,14 +495,17 @@ class YOLOAugmentationPipeline:
                             f.write(f"{label} {bbox[0]:.6f} {bbox[1]:.6f} {bbox[2]:.6f} {bbox[3]:.6f}\n")
                 
                 generated_count += 1
-                
-                if (generated_count) % 50 == 0:
-                    print(f"  Sınıf {class_id}: {generated_count}/{needed_count} tamamlandı")
+                # Inline progress bar update
+                if progress_prefix:
+                    self._print_progress(progress_prefix, generated_count, needed_count)
                 
             except Exception as e:
                 print(f"Augmentation hatası: {e}")
                 continue
         
+        # Ensure progress ends with a newline and full bar
+        if progress_prefix and generated_count >= 0:
+            self._print_progress(progress_prefix, needed_count, needed_count)
         return generated_count
 
 class SmartAugmentationRecommender:
