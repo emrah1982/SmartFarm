@@ -538,9 +538,6 @@ class YOLOAugmentationPipeline:
                 print(f"Augmentation hatası: {e}")
                 continue
         
-        # Ensure progress ends with a newline and full bar
-        if progress_prefix and generated_count >= 0:
-            self._print_progress(progress_prefix, needed_count, needed_count)
         return generated_count
 
 class SmartAugmentationRecommender:
