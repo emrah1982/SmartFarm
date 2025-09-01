@@ -57,6 +57,13 @@ except ImportError:
     print("⚠️  Augmentation systems not available")
     AUGMENTATION_SYSTEMS_AVAILABLE = False
 
+# Ek: Hedefe-tamamlama için temel augmentation pipeline (opsiyonel)
+try:
+    from augmentation_utils import YOLOAugmentationPipeline
+    _AUG_PIPE_AVAILABLE = True
+except Exception:
+    _AUG_PIPE_AVAILABLE = False
+
 # Check if running in Colab
 def is_colab():
     """Check if running in Google Colab"""
@@ -550,6 +557,46 @@ def process_hierarchical_datasets(dataset_config):
                             seen.add(p)
                     return uniq
 
+                # Label klasörlerini bulmak için yardımcı
+                def _resolve_split_label_dirs(local_root: str, split: str):
+                    cand = []
+                    data_yaml_path = os.path.join(local_root, 'data.yaml')
+                    if os.path.exists(data_yaml_path):
+                        try:
+                            with open(data_yaml_path, 'r', encoding='utf-8') as f:
+                                dcfg = yaml.safe_load(f) or {}
+                            base_path = dcfg.get('path') or '.'
+                            entry = dcfg.get('train' if split == 'train' else ('val' if 'val' in split else split))
+                            if not entry and split == 'val':
+                                entry = dcfg.get('valid')
+                            if entry:
+                                def _join(root_dir, p):
+                                    return p if os.path.isabs(p) else os.path.normpath(os.path.join(root_dir, p))
+                                full = _join(local_root, _join('' if base_path == '.' else base_path, entry))
+                                if os.path.isdir(full):
+                                    # images/... kalıbından labels/... tahmini
+                                    cand.append(full.replace(os.sep + 'images' + os.sep, os.sep + 'labels' + os.sep))
+                                    cand.append(os.path.join(os.path.dirname(full), 'labels'))
+                        except Exception:
+                            pass
+                    synonyms = [split]
+                    if split == 'val':
+                        synonyms.append('valid')
+                    if split == 'valid':
+                        synonyms.append('val')
+                    for s in synonyms:
+                        cand.extend([
+                            os.path.join(local_root, 'labels', s),
+                            os.path.join(local_root, s, 'labels'),
+                        ])
+                    uniq = []
+                    seen = set()
+                    for p in cand:
+                        if p and os.path.isdir(p) and p not in seen:
+                            uniq.append(os.path.abspath(p))
+                            seen.add(p)
+                    return uniq
+
                 # Tüm veri setlerinden train/val klasörlerini topla
                 train_dirs = []
                 val_dirs = []
@@ -626,6 +673,66 @@ def process_hierarchical_datasets(dataset_config):
                 return False
             # Merge kopyalama adımı atlanır fakat eğitim için YAML hazır.
             print("\nℹ️ Seçenek 2 için kopyalama yapmadan eğitim YAML hazırlandı (config/merged_class_dataset.yaml).")
+
+            # Opsiyonel: Hedefe TAMAMLAMA augmentation (yalnızca eksik kadar üret)
+            try:
+                if _AUG_PIPE_AVAILABLE:
+                    do_balance = (input("\nSınıf başına hedefe TAMAMLAMA için augmentation uygulansın mı? (e/h, varsayılan: h): ") or 'h').lower()
+                    if do_balance.startswith('e'):
+                        # Hedef belirleme
+                        target_default = dataset_config.get('target_count')
+                        try:
+                            target_numeric = int(target_default)
+                        except Exception:
+                            target_numeric = 2000
+
+                        # Train label ve image dosyalarını topla
+                        image_dirs = train_dirs[:]
+                        label_dirs = []
+                        for ds in manager.datasets:
+                            root = ds.get('local_path')
+                            if not root or not os.path.isdir(root):
+                                continue
+                            label_dirs.extend(_resolve_split_label_dirs(root, 'train'))
+
+                        def _iter_label_files(dirs):
+                            for d in dirs:
+                                for root_dir, _, files in os.walk(d):
+                                    for fn in files:
+                                        if fn.lower().endswith('.txt'):
+                                            yield os.path.join(root_dir, fn)
+
+                        def _match_image_for_label(label_path, img_dirs):
+                            base = os.path.splitext(os.path.basename(label_path))[0]
+                            for d in img_dirs:
+                                for ext in ['.jpg', '.jpeg', '.png']:
+                                    cand = os.path.join(d, base + ext)
+                                    if os.path.exists(cand):
+                                        return cand
+                            return None
+
+                        all_label_paths = []
+                        all_image_paths = []
+                        for lp in _iter_label_files(label_dirs):
+                            ip = _match_image_for_label(lp, image_dirs)
+                            if ip:
+                                all_label_paths.append(lp)
+                                all_image_paths.append(ip)
+
+                        if not all_label_paths:
+                            print("⚠️  Augmentation için train etiket dosyası bulunamadı. Adım atlandı.")
+                        else:
+                            out_dir = os.path.join('datasets', 'balanced_aug_train')
+                            os.makedirs(out_dir, exist_ok=True)
+                            print(f"\n⚙️  Hedefe-tamamlama başlıyor. Çıkış: {out_dir}")
+                            pipe = YOLOAugmentationPipeline(image_size=dataset_config.get('settings', {}).get('default_image_size', 640))
+                            pipe.augment_dataset_batch(all_image_paths, all_label_paths, out_dir, target_numeric)
+                            print("✅ Hedefe-tamamlama augmentation tamamlandı.")
+                else:
+                    print("⚠️  YOLOAugmentationPipeline mevcut değil. Hedefe-tamamlama atlandı.")
+            except Exception as e:
+                print(f"[UYARI] Hedefe-tamamlama sırasında hata: {e}")
+
             return True
         
         print("\n3️⃣ Veri setleri hiyerarşik yapıyla birleştiriliyor...")
