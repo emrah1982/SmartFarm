@@ -67,18 +67,19 @@ class YOLOAugmentationPipeline:
         self.config = self.severity_configs.get(severity_level, self.severity_configs['medium'])
         
         # Preprocess: enforce fixed size with letterbox (keeps aspect ratio, pads to square)
-        # This prevents size mismatch errors and keeps bbox coordinates consistent
-        # Pad color changes between v1 and v2 (value -> border_value in some envs). Use version-aware kwargs.
-        pad_kwargs = dict(min_height=self.image_size, min_width=self.image_size, border_mode=cv2.BORDER_CONSTANT)
-        if self._albu_major >= 2:
-            pad_kwargs["border_value"] = (114, 114, 114)
-        else:
-            pad_kwargs["value"] = (114, 114, 114)
-
-        self.preprocess = A.Compose([
-            A.LongestMaxSize(max_size=self.image_size),
-            A.PadIfNeeded(**pad_kwargs)
-        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
+        # Robust to different Albumentations versions: try border_value, fallback to value.
+        try:
+            self.preprocess = A.Compose([
+                A.LongestMaxSize(max_size=self.image_size),
+                A.PadIfNeeded(min_height=self.image_size, min_width=self.image_size,
+                              border_mode=cv2.BORDER_CONSTANT, border_value=(114, 114, 114))
+            ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
+        except TypeError:
+            self.preprocess = A.Compose([
+                A.LongestMaxSize(max_size=self.image_size),
+                A.PadIfNeeded(min_height=self.image_size, min_width=self.image_size,
+                              border_mode=cv2.BORDER_CONSTANT, value=(114, 114, 114))
+            ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
         
         # Agricultural specific augmentations
         self.agricultural_transforms = self._create_agricultural_pipeline()
@@ -112,8 +113,8 @@ class YOLOAugmentationPipeline:
                     rain_type="drizzle",
                     p=0.3
                 ),
-                # In v2, use single-value fog coef; in v1, the transform will ignore unknown keys
-                (A.RandomFog(fog_coef=0.2, alpha_coef=0.1, p=0.2) if self._albu_major >= 2 else A.RandomFog(p=0.2)),
+                # Use safest signature to avoid version warnings
+                A.RandomFog(p=0.2),
                 # Shadow: avoid lower/upper args; rely on defaults + ROI
                 A.RandomShadow(
                     shadow_roi=(0, 0.5, 1, 1),
@@ -136,7 +137,7 @@ class YOLOAugmentationPipeline:
                 A.Defocus(radius=(1, 3), alias_blur=(0.1, 0.2), p=0.3),
             ], p=0.3),
 
-        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
+        ])
     
     def _create_geometric_pipeline(self):
         """Create geometric transformation pipeline"""
@@ -228,11 +229,9 @@ class YOLOAugmentationPipeline:
                     class_labels=class_labels
                 )
             elif augmentation_type == 'color':
-                transformed = self.color_transforms(
-                    image=image,
-                    bboxes=bboxes,
-                    class_labels=class_labels
-                )
+                # Color-only pipeline does not declare bbox_params; keep bboxes/labels as-is
+                transformed = self.color_transforms(image=image)
+                return transformed['image'], bboxes, class_labels
             else:  # mixed
                 # Randomly choose augmentation type
                 aug_type = random.choice(['agricultural', 'geometric', 'color'])
