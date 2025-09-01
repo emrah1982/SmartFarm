@@ -753,89 +753,7 @@ def interactive_training_setup():
             for note in special_notes:
                 print(f"     • {note}")
     
-    # Training parameters
-    while True:
-        try:
-            if dataset_config['type'] == 'hierarchical_multi':
-                default_epochs = 1000  # Updated default for hierarchical model
-                epochs = int(input(f"\nEpoch sayısı [100-2000 önerilen] (varsayılan: {default_epochs}): ") or str(default_epochs))
-            else:
-                default_epochs = 1000  # Updated default for single dataset model
-                epochs = int(input(f"\nEpoch sayısı [100-2000 önerilen] (varsayılan: {default_epochs}): ") or str(default_epochs))
-            
-            if epochs > 0:
-                break
-            print("❌ Lütfen pozitif bir sayı girin.")
-        except ValueError:
-            print("❌ Lütfen geçerli bir sayı girin.")
-    
-    # Model size selection (tek soru)
-    print("\nModel boyutunu seçin:")
-    print("1) yolo11s.pt - Küçük (en hızlı, düşük doğruluk)")
-    print("2) yolo11m.pt - Orta (dengeli)")
-    print("3) yolo11l.pt - Büyük (yüksek doğruluk, yavaş) [Hiyerarşik için önerilen]")
-    print("4) yolo11x.pt - Çok Büyük (en yüksek doğruluk, en yavaş)")
-
-    while True:
-        model_choice = input("\nModel seçin [1-4] (varsayılan: 3): ") or "3"
-        
-        model_options = {
-            "1": "yolo11s.pt",
-            "2": "yolo11m.pt",
-            "3": "yolo11l.pt",
-            "4": "yolo11x.pt"
-        }
-        
-        if model_choice in model_options:
-            model = model_options[model_choice]
-            
-            # Check if model exists locally/Drive
-            if is_colab():
-                model_dir = get_smartfarm_models_dir() or os.path.join("/content/colab_learn", "yolo11_models")
-            else:
-                model_dir = "yolo11_models"
-            model_path = os.path.join(model_dir, model)
-            
-            if not os.path.exists(model_path):
-                print(f"\n⚠️  Model {model} yerel olarak bulunamadı.")
-                download_now = input("Şimdi indir? (e/h, varsayılan: e): ").lower() or "e"
-                
-                if download_now.startswith("e"):
-                    os.makedirs(model_dir, exist_ok=True)
-                    download_specific_model_type("detection", model[6], model_dir)
-                else:
-                    print(f"ℹ️  Model eğitim sırasında otomatik olarak indirilecek.")
-            break
-        print("❌ Lütfen 1-4 arası seçin.")
-    
-    # Batch size ve image size varsayılanları (Colab için optimize)
-    # Öneri: batch_size=16, img_size=512 (RAM ve hız dengesi)
-    default_batch = 16
-    default_img_size = 512
-    
-    while True:
-        try:
-            batch_size = int(input(f"\nBatch boyutu (varsayılan: {default_batch}, düşük RAM için küçük): ") or str(default_batch))
-            if batch_size > 0:
-                break
-            print("❌ Lütfen pozitif bir sayı girin.")
-        except ValueError:
-            print("❌ Lütfen geçerli bir sayı girin.")
-    
-    while True:
-        try:
-            img_size = int(input(f"\nGörüntü boyutu (varsayılan: {default_img_size}, 32'nin katı olmalı • Colab için 512 önerilir): ") or str(default_img_size))
-            if img_size > 0 and img_size % 32 == 0:
-                break
-            print("❌ Lütfen 32'nin katı olan pozitif bir sayı girin.")
-        except ValueError:
-            print("❌ Lütfen geçerli bir sayı girin.")
-
-    # Speed mode (optimize epoch time)
-    speed_mode_input = (input("\nHız modu (cache=ram, workers=8, plots=False) açılsın mı? (e/h, varsayılan: e): ") or "e").lower()
-    speed_mode = speed_mode_input.startswith('e')
-    
-    # Google Drive save settings (tek seferlik soru)
+    # Google Drive save settings (daha erken sorulsun)
     drive_save_path = None
     if is_colab():
         print("\nGoogle Drive kaydetme ayarları:")
@@ -890,9 +808,8 @@ def interactive_training_setup():
                 print(f"🗂️  Kayıt hedefi (checkpoints): {checkpoints_dir}")
                 # Eğitim opsiyonlarında doğrudan 'checkpoints' klasörünü hedefle
                 drive_save_path = checkpoints_dir
-                # Etiket modu 2 ise: sınıf ID listesini configs/ altına yaz
+                # Etiket modu 2 ise: sınıf ID listesini configs/ altına yaz (varsa)
                 try:
-                    # label_mode, bu fonksiyonun üst kısmında belirlenmişti
                     if (dataset_config.get('type') == 'hierarchical_multi' and
                         (dataset_config.get('setup') or {}).get('label_mode') == 'preserve_subclasses'):
                         _write_class_ids_json(configs_dir)
@@ -901,6 +818,86 @@ def interactive_training_setup():
             except Exception as e:
                 print(f"❌ Drive klasörleri oluşturulamadı: {e}")
                 drive_save_path = None
+    
+    # Eğitim parametreleri (görüntü boyutu -> batch -> epoch)
+    # Model size selection (tek soru)
+    print("\nModel boyutunu seçin:")
+    print("1) yolo11s.pt - Küçük (en hızlı, düşük doğruluk)")
+    print("2) yolo11m.pt - Orta (dengeli)")
+    print("3) yolo11l.pt - Büyük (yüksek doğruluk, yavaş) [Hiyerarşik için önerilen]")
+    print("4) yolo11x.pt - Çok Büyük (en yüksek doğruluk, en yavaş)")
+
+    while True:
+        model_choice = input("\nModel seçin [1-4] (varsayılan: 3): ") or "3"
+        
+        model_options = {
+            "1": "yolo11s.pt",
+            "2": "yolo11m.pt",
+            "3": "yolo11l.pt",
+            "4": "yolo11x.pt"
+        }
+        
+        if model_choice in model_options:
+            model = model_options[model_choice]
+            
+            # Check if model exists locally/Drive
+            if is_colab():
+                model_dir = get_smartfarm_models_dir() or os.path.join("/content/colab_learn", "yolo11_models")
+            else:
+                model_dir = "yolo11_models"
+            model_path = os.path.join(model_dir, model)
+            
+            if not os.path.exists(model_path):
+                print(f"\n⚠️  Model {model} yerel olarak bulunamadı.")
+                download_now = input("Şimdi indir? (e/h, varsayılan: e): ").lower() or "e"
+                
+                if download_now.startswith("e"):
+                    os.makedirs(model_dir, exist_ok=True)
+                    download_specific_model_type("detection", model[6], model_dir)
+                else:
+                    print(f"ℹ️  Model eğitim sırasında otomatik olarak indirilecek.")
+            break
+        print("❌ Lütfen 1-4 arası seçin.")
+    
+    # Batch size ve image size varsayılanları (Colab için optimize)
+    # Öneri: batch_size=16, img_size=512 (RAM ve hız dengesi)
+    default_batch = 16
+    default_img_size = 512
+
+    # Önce görüntü boyutu
+    while True:
+        try:
+            img_size = int(input(f"\nGörüntü boyutu (varsayılan: {default_img_size}, 32'nin katı olmalı • Colab için 512 önerilir): ") or str(default_img_size))
+            if img_size > 0 and img_size % 32 == 0:
+                break
+            print("❌ Lütfen 32'nin katı olan pozitif bir sayı girin.")
+        except ValueError:
+            print("❌ Lütfen geçerli bir sayı girin.")
+
+    # Sonra batch boyutu
+    while True:
+        try:
+            batch_size = int(input(f"\nBatch boyutu (varsayılan: {default_batch}, düşük RAM için küçük): ") or str(default_batch))
+            if batch_size > 0:
+                break
+            print("❌ Lütfen pozitif bir sayı girin.")
+        except ValueError:
+            print("❌ Lütfen geçerli bir sayı girin.")
+
+    # En son epoch
+    while True:
+        try:
+            default_epochs = 1000
+            epochs = int(input(f"\nEpoch sayısı [100-2000 önerilen] (varsayılan: {default_epochs}): ") or str(default_epochs))
+            if epochs > 0:
+                break
+            print("❌ Lütfen pozitif bir sayı girin.")
+        except ValueError:
+            print("❌ Lütfen geçerli bir sayı girin.")
+
+    # Speed mode (optimize epoch time)
+    speed_mode_input = (input("\nHız modu (cache=ram, workers=8, plots=False) açılsın mı? (e/h, varsayılan: e): ") or "e").lower()
+    speed_mode = speed_mode_input.startswith('e')
     
     # Hyperparameter file
     use_hyp = input("\nHiperparametre dosyası kullan (hyp.yaml)? (e/h, varsayılan: e): ").lower() or "e"
