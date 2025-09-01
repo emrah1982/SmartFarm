@@ -15,6 +15,12 @@ import torchvision
 import threading
 
 from ultralytics import YOLO
+import albumentations as A
+import cv2
+import json
+from augmentation.mineral_deficiency_augmentation import MineralDeficiencyAugmentation
+from augmentation.tomato_disease_augmentation import TomatoDiseaseAugmentation
+from augmentation.tomato_pest_augmentation import TomatoPestAugmentation
 from PIL import Image
 
 def validate_bbox(bbox: List[float], image_size: Tuple[int, int]) -> bool:
@@ -607,6 +613,207 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
             train_args['freeze'] = hyp.get('freeze')
 
         print(f"🔧 Fine-tune ayarları: lr0={train_args['lr0']}, freeze={train_args.get('freeze', None)}")
+
+    # === Optional: On-the-fly Albumentations using augmentation/ modules ===
+    # Train time, per-image transform selection based on class name mapping.
+    albu_on_the_fly = options.get('albu_on_the_fly', True)
+    if albu_on_the_fly:
+        # Load class id->name mapping once
+        id_to_name = {}
+        try:
+            with open('config/class_ids.json', 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                names = data.get('names') or []
+                id_to_name = {i: n for i, n in enumerate(names)}
+        except Exception as _map_err:
+            print(f"⚠️ class_ids.json okunamadı, isim eşlemesi olmadan devam: {_map_err}")
+            id_to_name = {}
+
+        # Instantiate augmentation modules (only to access their transform factories)
+        try:
+            _md_aug = MineralDeficiencyAugmentation('.', '.', '.', '.')
+        except Exception:
+            _md_aug = None
+        try:
+            _td_aug = TomatoDiseaseAugmentation()
+        except Exception:
+            _td_aug = None
+        try:
+            _tp_aug = TomatoPestAugmentation('.', '.', '.', '.')
+        except Exception:
+            _tp_aug = None
+
+        # Mappers from class name strings to module transform keys
+        def _map_disease_key(name: str):
+            s = name.lower()
+            if 'earlyblight' in s or 'early_blight' in s: return 'early_blight'
+            if 'lateblight' in s or 'late_blight' in s: return 'late_blight'
+            if 'leafmold' in s or 'leaf_mold' in s: return 'leaf_mold'
+            if 'septoria' in s: return 'septoria_leaf_spot'
+            if 'spidermite' in s or 'spider_mites' in s or 'twospotted' in s: return 'spider_mites'
+            if 'targetspot' in s or 'target_spot' in s: return 'target_spot'
+            if 'yellowleafcurl' in s or 'yellow_leaf_curl' in s: return 'yellow_leaf_curl'
+            if 'mosaic' in s: return 'mosaic_virus'
+            if 'bacterialspot' in s or 'bacterial_spot' in s: return 'bacterial_spot'
+            if 'healthy' in s: return 'healthy'
+            return None
+
+        def _map_mineral_key(name: str):
+            s = name.lower()
+            if 'irondeficiency' in s: return 'iron'
+            if 'magnesiumdeficiency' in s: return 'magnesium'
+            if 'manganesedeficiency' in s: return 'manganese'
+            if 'nitrogendeficiency' in s: return 'nitrogen'
+            if 'phosphorusdeficiency' in s: return 'phosphorus'
+            if 'potassiumdeficiency' in s: return 'potassium'
+            if 'calciumdeficiency' in s: return 'calcium'
+            if 'zincdeficiency' in s: return 'zinc'
+            return None
+
+        def _map_pest_key(name: str):
+            s = name.lower()
+            if 'aphid' in s: return 'aphid'
+            if 'whitefly' in s: return 'whitefly'
+            if 'thrips' in s or 'thrip' in s: return 'thrips'
+            if 'spider' in s and 'mite' in s: return 'spider_mite'
+            if 'cutworm' in s: return 'cutworm'
+            if 'leafhopper' in s: return 'leafhopper'
+            if 'flea' in s and 'beetle' in s: return 'flea_beetle'
+            if 'leaf' in s and 'miner' in s: return 'leaf_miner'
+            if 'stink' in s and 'bug' in s: return 'stink_bug'
+            if 'caterpillar' in s or 'hornworm' in s: return 'hornworm'
+            return None
+
+        def _select_transform_for_name(name: str):
+            # Priority: mineral > disease > pest (can be adjusted)
+            mk = _map_mineral_key(name)
+            if mk and _md_aug is not None:
+                try:
+                    return _md_aug.MINERAL_TRANSFORMS[mk](_md_aug)
+                except Exception:
+                    pass
+            dk = _map_disease_key(name)
+            if dk and _td_aug is not None:
+                try:
+                    return _td_aug.get_transform_for_disease(dk)
+                except Exception:
+                    pass
+            pk = _map_pest_key(name)
+            if pk and _tp_aug is not None:
+                try:
+                    return _tp_aug.get_pest_transforms(pk)
+                except Exception:
+                    pass
+            return None
+
+        def on_preprocess_batch(trainer):
+            try:
+                if hasattr(trainer, 'training') and not trainer.training:
+                    return
+                batch = getattr(trainer, 'batch', None)
+                if not isinstance(batch, dict):
+                    return
+                imgs = batch.get('img')
+                if imgs is None or not torch.is_tensor(imgs) or imgs.ndim != 4:
+                    return
+                b, c, h, w = imgs.shape
+
+                # Expected keys for labels (may vary by Ultralytics version)
+                bboxes = batch.get('bboxes', None)  # [N,4] normalized xywh
+                cls = batch.get('cls', None)        # [N,1] class ids
+                batch_idx = batch.get('batch_idx', None)  # [N] image indices
+
+                # If labels are not available, skip (we avoid desync of boxes)
+                if bboxes is None or cls is None or batch_idx is None:
+                    return
+
+                # Move to CPU numpy for Albumentations
+                imgs_np = imgs.detach().cpu().numpy()
+                bboxes_np = bboxes.detach().cpu().numpy()
+                cls_np = cls.detach().cpu().astype('int32').squeeze(-1) if cls.ndim > 1 else cls.detach().cpu().numpy().astype('int32')
+                batch_idx_np = batch_idx.detach().cpu().numpy().astype('int32')
+
+                # Group labels per image index
+                per_image = {i: {'bboxes': [], 'cls': []} for i in range(b)}
+                for j in range(len(batch_idx_np)):
+                    ii = int(batch_idx_np[j])
+                    if 0 <= ii < b:
+                        per_image[ii]['bboxes'].append(bboxes_np[j].tolist())
+                        per_image[ii]['cls'].append(int(cls_np[j]))
+
+                # Process each image separately
+                for i in range(b):
+                    # Prepare image
+                    img = imgs_np[i].transpose(1, 2, 0)
+                    img = (img * 255.0).clip(0, 255).astype('uint8')
+                    img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+
+                    labels_i = per_image[i]
+                    class_ids = labels_i['cls'] if labels_i and labels_i['cls'] else []
+                    # Choose transform based on first class (simple heuristic)
+                    transform = None
+                    if class_ids:
+                        first_cid = class_ids[0]
+                        name = id_to_name.get(first_cid, '')
+                        if name:
+                            transform = _select_transform_for_name(name)
+
+                    # If no transform found, skip this image
+                    if transform is None:
+                        continue
+
+                    in_bboxes = labels_i['bboxes'] if labels_i and labels_i['bboxes'] else []
+                    in_labels = class_ids
+
+                    # Albumentations expects YOLO normalized xywh -> format='yolo'
+                    try:
+                        if in_bboxes:
+                            tr = transform(image=img_bgr, bboxes=in_bboxes, class_labels=in_labels)
+                            out_img_bgr = tr['image']
+                            out_bboxes = tr['bboxes']
+                            out_labels = tr['class_labels']
+                        else:
+                            tr = transform(image=img_bgr)
+                            out_img_bgr = tr['image']
+                            out_bboxes = []
+                            out_labels = []
+
+                        # Update image
+                        out_rgb = cv2.cvtColor(out_img_bgr, cv2.COLOR_BGR2RGB)
+                        imgs_np[i] = (out_rgb.astype('float32') / 255.0).transpose(2, 0, 1)
+
+                        # Update labels back to batch structures
+                        # We must replace existing entries for image i
+                        # Collect indices belonging to image i
+                        idxs = [k for k, bi in enumerate(batch_idx_np) if bi == i]
+                        # Remove old entries by setting to empty; simplest is to skip updating if sizes mismatch
+                        if len(out_bboxes) == len(idxs):
+                            for pos, k in enumerate(idxs):
+                                bboxes_np[k] = np.array(out_bboxes[pos], dtype=np.float32)
+                                cls_np[k] = int(out_labels[pos]) if pos < len(out_labels) else cls_np[k]
+                        else:
+                            # If counts changed, we skip box update to avoid tensor size mismatch
+                            pass
+                    except Exception as _img_err:
+                        # Skip this image on any error
+                        continue
+
+                # Move updated arrays back to tensors
+                batch['img'] = torch.from_numpy(imgs_np).to(imgs.device)
+                try:
+                    batch['bboxes'] = torch.from_numpy(bboxes_np).to(imgs.device)
+                    batch['cls'] = torch.from_numpy(cls_np.reshape(-1, 1)).to(imgs.device)
+                except Exception:
+                    pass
+                trainer.batch = batch
+            except Exception as _albu_err:
+                print(f"⚠️ On-the-fly augmentation uygulanamadı: {_albu_err}")
+
+        try:
+            model.add_callback('on_preprocess_batch', on_preprocess_batch)
+            print("✨ On-the-fly augmentation (augmentation/ modülleri) aktif edildi.")
+        except Exception as _cb_err:
+            print(f"⚠️ Callback eklenemedi: {_cb_err}")
 
     print('Training parameters:')
     for k, v in train_args.items():
