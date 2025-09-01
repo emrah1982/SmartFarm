@@ -281,7 +281,9 @@ class YOLOAugmentationPipeline:
         
         # Analyze current class distribution
         class_counts = self._analyze_current_distribution(label_paths)
-        print(f"Mevcut sınıf dağılımı: {class_counts}")
+        # Pretty print with id + name
+        pretty_counts = {f"{cid} ({self._class_name(cid)})": cnt for cid, cnt in class_counts.items()}
+        print(f"Mevcut sınıf dağılımı: {pretty_counts}")
 
         # Show the class with the maximum number of samples (before target prompt)
         max_info = None
@@ -325,7 +327,9 @@ class YOLOAugmentationPipeline:
             if current_count < target_count_per_class:
                 augmentation_needs[class_id] = target_count_per_class - current_count
         
-        print(f"Augmentation ihtiyaçları: {augmentation_needs}")
+        # Pretty print needs with id + name
+        pretty_needs = {f"{cid} ({self._class_name(cid)})": need for cid, need in augmentation_needs.items()}
+        print(f"Augmentation ihtiyaçları: {pretty_needs}")
         
         # Create output directories
         os.makedirs(f"{output_dir}/images", exist_ok=True)
