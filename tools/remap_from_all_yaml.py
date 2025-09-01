@@ -67,7 +67,7 @@ def run_remap(dataset_root: Path, split: str, backup: bool = True, force_backup:
     cmd = [
         sys.executable,
         str(Path("tools") / "remap_single_dataset.py"),
-        "--dataset-root", str(dataset_root),
+        "--dataset-root", str(dataset_root.resolve()),
         "--split", split,
     ]
     if backup:

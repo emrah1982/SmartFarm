@@ -195,7 +195,7 @@ class YOLOAugmentationPipeline:
                 (A.Solarize(p=0.2) if self._albu_major >= 2 else A.Solarize(threshold=128, p=0.2)),
             ], p=0.3),
 
-        ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
+        ])
     
     def apply_augmentation(self, image, bboxes, class_labels, augmentation_type='mixed'):
         """Apply augmentation to image and bounding boxes"""
