@@ -6,6 +6,7 @@ import numpy as np
 import random
 import os
 from pathlib import Path
+import shutil
 import albumentations as A
 from albumentations.core.composition import BboxParams
 import json
@@ -29,6 +30,11 @@ class YOLOAugmentationPipeline:
     def __init__(self, image_size=640, severity_level='medium'):
         self.image_size = image_size
         self.severity_level = severity_level
+        # Albumentations major version detection
+        try:
+            self._albu_major = int(A.__version__.split('.')[0])
+        except Exception:
+            self._albu_major = 1
         
         # Severity level configurations
         self.severity_configs = {
@@ -62,10 +68,16 @@ class YOLOAugmentationPipeline:
         
         # Preprocess: enforce fixed size with letterbox (keeps aspect ratio, pads to square)
         # This prevents size mismatch errors and keeps bbox coordinates consistent
+        # Pad color changes between v1 and v2 (value -> border_value in some envs). Use version-aware kwargs.
+        pad_kwargs = dict(min_height=self.image_size, min_width=self.image_size, border_mode=cv2.BORDER_CONSTANT)
+        if self._albu_major >= 2:
+            pad_kwargs["border_value"] = (114, 114, 114)
+        else:
+            pad_kwargs["value"] = (114, 114, 114)
+
         self.preprocess = A.Compose([
             A.LongestMaxSize(max_size=self.image_size),
-            A.PadIfNeeded(min_height=self.image_size, min_width=self.image_size,
-                          border_mode=cv2.BORDER_CONSTANT, value=(114, 114, 114))
+            A.PadIfNeeded(**pad_kwargs)
         ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
         
         # Agricultural specific augmentations
@@ -88,42 +100,42 @@ class YOLOAugmentationPipeline:
                 A.RandomGamma(gamma_limit=(80, 120), p=0.6),
                 A.CLAHE(clip_limit=2.0, tile_grid_size=(8, 8), p=0.5),
             ], p=0.9),
-            
+
             # Weather simulation
             A.OneOf([
+                # Use safe parameters across versions to avoid deprecation warnings
                 A.RandomRain(
-                    slant_lower=-10, slant_upper=10,
-                    drop_length=10, drop_width=1,
-                    drop_color=(200, 200, 200),
+                    drop_length=10,
+                    drop_width=1,
                     blur_value=1,
                     brightness_coefficient=0.9,
                     rain_type="drizzle",
                     p=0.3
                 ),
-                A.RandomFog(fog_coef_lower=0.1, fog_coef_upper=0.3, alpha_coef=0.1, p=0.2),
+                # In v2, use single-value fog coef; in v1, the transform will ignore unknown keys
+                (A.RandomFog(fog_coef=0.2, alpha_coef=0.1, p=0.2) if self._albu_major >= 2 else A.RandomFog(p=0.2)),
+                # Shadow: avoid lower/upper args; rely on defaults + ROI
                 A.RandomShadow(
                     shadow_roi=(0, 0.5, 1, 1),
-                    num_shadows_lower=1,
-                    num_shadows_upper=3,
-                    shadow_dimension=5,
                     p=0.3
                 ),
             ], p=0.4),
-            
+
             # Texture and quality variations
             A.OneOf([
-                A.GaussNoise(var_limit=(10, config['noise_var']), p=0.6),
+                # Some environments warn on var_limit; fallback to defaults if needed
+                (A.GaussNoise(var_limit=(10, config['noise_var']), p=0.6) if self._albu_major < 2 else A.GaussNoise(p=0.6)),
                 A.ISONoise(color_shift=(0.01, 0.02), intensity=(0.1, 0.3), p=0.4),
                 A.MultiplicativeNoise(multiplier=[0.9, 1.1], per_channel=True, p=0.5),
             ], p=0.5),
-            
+
             # Blur effects (camera focus, movement)
             A.OneOf([
                 A.MotionBlur(blur_limit=config['blur_limit'], p=0.4),
                 A.GaussianBlur(blur_limit=config['blur_limit'], p=0.6),
                 A.Defocus(radius=(1, 3), alias_blur=(0.1, 0.2), p=0.3),
             ], p=0.3),
-            
+
         ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
     
     def _create_geometric_pipeline(self):
@@ -134,20 +146,17 @@ class YOLOAugmentationPipeline:
             # Perspective and distortion (camera angle changes)
             A.OneOf([
                 A.Perspective(scale=(0.02, 0.05), p=0.5),
-                A.ElasticTransform(
-                    alpha=50, sigma=5,
-                    alpha_affine=10,
-                    p=0.3
-                ),
+                # alpha_affine is not supported in some newer versions
+                (A.ElasticTransform(alpha=50, sigma=5, p=0.3) if self._albu_major >= 2 else A.ElasticTransform(alpha=50, sigma=5, alpha_affine=10, p=0.3)),
                 A.GridDistortion(num_steps=5, distort_limit=0.1, p=0.4),
             ], p=0.4),
-            
+
             # Rotation and flipping
             A.OneOf([
                 A.Rotate(limit=config['rotation_limit'], p=0.8),
                 A.SafeRotate(limit=config['rotation_limit'], p=0.6),
             ], p=0.6),
-            
+
             A.HorizontalFlip(p=0.5),
             A.VerticalFlip(p=0.1),  # Rare for agricultural scenes
             
@@ -156,7 +165,7 @@ class YOLOAugmentationPipeline:
                 A.RandomScale(scale_limit=config['scale_limit'], p=0.6),
                 A.LongestMaxSize(max_size=int(self.image_size * 1.1), p=0.4),
             ], p=0.5),
-            
+
         ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
     
     def _create_color_pipeline(self):
@@ -176,14 +185,15 @@ class YOLOAugmentationPipeline:
                 A.RGBShift(r_shift_limit=10, g_shift_limit=10, b_shift_limit=10, p=0.6),
                 A.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.05, p=0.5),
             ], p=0.5),
-            
+
             # Advanced color manipulations
             A.OneOf([
                 A.Posterize(num_bits=6, p=0.3),
                 A.Equalize(mode='cv', by_channels=True, mask=None, p=0.3),
-                A.Solarize(threshold=128, p=0.2),
+                # threshold param may warn in newer versions
+                (A.Solarize(p=0.2) if self._albu_major >= 2 else A.Solarize(threshold=128, p=0.2)),
             ], p=0.3),
-            
+
         ], bbox_params=BboxParams(format='yolo', label_fields=['class_labels'], clip=True))
     
     def apply_augmentation(self, image, bboxes, class_labels, augmentation_type='mixed'):
