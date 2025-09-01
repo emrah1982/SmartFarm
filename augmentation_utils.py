@@ -278,11 +278,35 @@ class YOLOAugmentationPipeline:
     def augment_dataset_batch(self, image_paths, label_paths, output_dir, target_count_per_class):
         """Batch augment dataset to reach target count per class"""
         print(f"\n===== Batch Augmentation Başlıyor =====")
-        print(f"Hedef sınıf başına örnek: {target_count_per_class}")
         
         # Analyze current class distribution
         class_counts = self._analyze_current_distribution(label_paths)
         print(f"Mevcut sınıf dağılımı: {class_counts}")
+
+        # Show the class with the maximum number of samples (before target prompt)
+        max_info = None
+        if class_counts:
+            try:
+                max_class_id, max_count = max(class_counts.items(), key=lambda kv: kv[1])
+                max_name = self._class_name(max_class_id)
+                print(f"En çok örnek: Sınıf {max_class_id} ({max_name}) = {max_count}")
+                max_info = (max_class_id, max_name, max_count)
+            except Exception:
+                pass
+
+        # Prompt user to optionally update the target per class
+        try:
+            user_inp = input(f"Hedef sınıf başına örnek (boş bırak: {target_count_per_class}): ").strip()
+            if user_inp:
+                target_count_per_class = int(user_inp)
+        except (EOFError, KeyboardInterrupt):
+            # Non-interactive env (e.g., Colab background): keep default
+            pass
+        except Exception:
+            # Invalid input: keep default
+            pass
+
+        print(f"Hedef sınıf başına örnek: {target_count_per_class}")
         
         # Calculate augmentation needs
         augmentation_needs = {}
