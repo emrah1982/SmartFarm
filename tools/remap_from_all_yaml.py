@@ -63,13 +63,15 @@ def labels_dir_exists_for_split(dataset_root: Path, split: str) -> Path | None:
     return None
 
 
-def run_remap(dataset_root: Path, split: str, backup: bool = True, force_backup: bool = False) -> int:
+def run_remap(dataset_root: Path, split: str, labels_dir: Path | None, backup: bool = True, force_backup: bool = False) -> int:
     cmd = [
         sys.executable,
         str(Path("tools") / "remap_single_dataset.py"),
         "--dataset-root", str(dataset_root.resolve()),
         "--split", split,
     ]
+    if labels_dir is not None:
+        cmd.extend(["--labels-dir", str(labels_dir.resolve())])
     if backup:
         cmd.append("--backup")
     if force_backup:
@@ -127,7 +129,7 @@ def main():
                 continue
 
             total_targets += 1
-            rc = run_remap(dataset_root, normalized, backup=(not args.no_backup), force_backup=args.force_backup)
+            rc = run_remap(dataset_root, normalized, labels_dir, backup=(not args.no_backup), force_backup=args.force_backup)
             if rc == 0:
                 applied += 1
 

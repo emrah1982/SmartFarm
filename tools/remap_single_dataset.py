@@ -132,20 +132,28 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--dataset-root', required=True)
     ap.add_argument('--split', default='valid', choices=['train', 'val', 'valid', 'test'])
+    ap.add_argument('--labels-dir', default=None, help='Explicit labels directory path; overrides split-based discovery')
     ap.add_argument('--backup', action='store_true')
     ap.add_argument('--force-backup', action='store_true', help='Değişiklik olmasa da her dosya için .bak üret')
     args = ap.parse_args()
 
-    root = Path(args.dataset_root)
-    # Hem split/labels hem de labels/split düzenlerini destekle
-    preferred = root / args.split / 'labels'
-    alternative = root / 'labels' / args.split
-    if preferred.exists():
-        labels_dir = preferred
-    elif alternative.exists():
-        labels_dir = alternative
+    # Ensure absolute path to be robust against varying CWDs (e.g., Colab)
+    root = Path(args.dataset_root).resolve()
+    # Eğer labels-dir açıkça verildiyse onu kullan
+    if args.labels_dir:
+        labels_dir = Path(args.labels_dir).resolve()
+        if not labels_dir.exists():
+            raise FileNotFoundError(f'Labels klasörü bulunamadı: {labels_dir}')
     else:
-        raise FileNotFoundError(f'Labels klasörü bulunamadı (split/labels veya labels/split): {preferred} | {alternative}')
+        # Hem split/labels hem de labels/split düzenlerini destekle
+        preferred = root / args.split / 'labels'
+        alternative = root / 'labels' / args.split
+        if preferred.exists():
+            labels_dir = preferred
+        elif alternative.exists():
+            labels_dir = alternative
+        else:
+            raise FileNotFoundError(f'Labels klasörü bulunamadı (split/labels veya labels/split): {preferred} | {alternative}')
 
     aliases_path = Path('config') / 'class_aliases.yaml'
     class_ids_path = Path('config') / 'class_ids.json'
