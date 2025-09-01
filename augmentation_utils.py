@@ -294,16 +294,27 @@ class YOLOAugmentationPipeline:
             except Exception:
                 pass
 
-        # Prompt user to optionally update the target per class
+        # Prompt user to optionally update the target per class (with validation loop)
         try:
-            user_inp = input(f"Hedef sınıf başına örnek (boş bırak: {target_count_per_class}): ").strip()
-            if user_inp:
-                target_count_per_class = int(user_inp)
+            while True:
+                user_inp = input(f"Hedef sınıf başına örnek (boş bırak: {target_count_per_class}): ")
+                if user_inp is None:
+                    break
+                user_inp = user_inp.strip()
+                if user_inp == "":
+                    # keep default
+                    break
+                try:
+                    val = int(user_inp)
+                    if val <= 0:
+                        print("Geçersiz değer. Pozitif bir tam sayı girin.")
+                        continue
+                    target_count_per_class = val
+                    break
+                except ValueError:
+                    print("Geçersiz değer. Lütfen bir tam sayı girin.")
         except (EOFError, KeyboardInterrupt):
-            # Non-interactive env (e.g., Colab background): keep default
-            pass
-        except Exception:
-            # Invalid input: keep default
+            # Non-interactive env: keep default
             pass
 
         print(f"Hedef sınıf başına örnek: {target_count_per_class}")

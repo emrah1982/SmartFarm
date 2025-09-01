@@ -677,14 +677,33 @@ def process_hierarchical_datasets(dataset_config):
             # Opsiyonel: Hedefe TAMAMLAMA augmentation (yalnızca eksik kadar üret)
             try:
                 if _AUG_PIPE_AVAILABLE:
-                    do_balance = (input("\nSınıf başına hedefe TAMAMLAMA için augmentation uygulansın mı? (e/h, varsayılan: h): ") or 'h').lower()
-                    if do_balance.startswith('e'):
-                        # Hedef belirleme
+                    # e/h girdisi için doğrulama döngüsü
+                    while True:
+                        raw = input("\nSınıf başına hedefe TAMAMLAMA için augmentation uygulansın mı? (e/h, varsayılan: h): ")
+                        resp = (raw or 'h').strip().lower()
+                        if resp in ('e', 'h'):
+                            break
+                        print("Geçersiz giriş. Lütfen 'e' veya 'h' girin.")
+                    if resp == 'e':
+                        # Hedef belirleme: sayısal doğrulama döngüsü
                         target_default = dataset_config.get('target_count')
                         try:
-                            target_numeric = int(target_default)
+                            target_default = int(target_default)
                         except Exception:
-                            target_numeric = 2000
+                            target_default = 2000
+                        while True:
+                            raw_t = input(f"Hedef sınıf başına örnek (boş bırak: {target_default}): ")
+                            if not raw_t or not raw_t.strip():
+                                target_numeric = target_default
+                                break
+                            try:
+                                target_numeric = int(raw_t.strip())
+                                if target_numeric <= 0:
+                                    print("Geçersiz değer. Pozitif bir tam sayı girin.")
+                                    continue
+                                break
+                            except ValueError:
+                                print("Geçersiz değer. Lütfen bir tam sayı girin.")
 
                         # Train label ve image dosyalarını topla
                         image_dirs = train_dirs[:]
@@ -724,7 +743,7 @@ def process_hierarchical_datasets(dataset_config):
                         else:
                             out_dir = os.path.join('datasets', 'balanced_aug_train')
                             os.makedirs(out_dir, exist_ok=True)
-                            print(f"\n⚙️  Hedefe-tamamlama başlıyor. Çıkış: {out_dir}")
+                            print(f"\n⚙️  Hedefe-tamamlama başlıyor. Hedef: {target_numeric}  Çıkış: {out_dir}")
                             pipe = YOLOAugmentationPipeline(image_size=dataset_config.get('settings', {}).get('default_image_size', 640))
                             pipe.augment_dataset_batch(all_image_paths, all_label_paths, out_dir, target_numeric)
                             print("✅ Hedefe-tamamlama augmentation tamamlandı.")
