@@ -241,6 +241,15 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
     except Exception:
         pass
     print(f"📍 Hedef Drive kökü: {intended_drive_base}")
+    # Otomatik: Mevcut timestamp algıla ve global session'a sabitle (SMARTFARM_DRIVE_TS)
+    try:
+        if not os.environ.get('SMARTFARM_DRIVE_TS'):
+            dm_auto = activate_drive_integration(folder_path=intended_drive_base, project_name="yolo11_models")
+            if dm_auto and getattr(dm_auto, 'project_folder', None):
+                os.environ['SMARTFARM_DRIVE_TS'] = dm_auto.project_folder
+                print(f"🌐 Global Drive session (training): {dm_auto.project_folder}")
+    except Exception as _auto_sess_err:
+        print(f"⚠️ Drive session sabitleme (training) atlandı: {_auto_sess_err}")
     # Mümkünse son kullanılan timestamp'i bul ve tam otomatik kaydetme yolunu göster
     try:
         last_ts_dir = None
