@@ -555,6 +555,8 @@ dataset_groups:
     - pest_sams_sgift
     - pest_varshine
     - weeds_detection
+    - tomato_leaf_nutrient_deficiency
+    - tomato_leaf_deficiency_detection
     use_case: Complete agricultural monitoring with hierarchical detection
     estimated_training_time: 4-8 hours
     recommended_model: yolo11l.pt
@@ -594,6 +596,8 @@ dataset_groups:
     - weeds_detection
     - agricultural_dataset_4
     - agricultural_dataset_5
+    - tomato_leaf_nutrient_deficiency
+    - tomato_leaf_deficiency_detection
     use_case: Research and experimental hierarchical model
     estimated_training_time: 6-12 hours
     recommended_model: yolo11x.pt
@@ -617,6 +621,7 @@ dataset_groups:
     - fruit_ripeness
     - tomato_ripeness_drone
     - pest_sams_sgift
+    - tomato_leaf_nutrient_deficiency
     use_case: Fast validation of hierarchical detection system
     estimated_training_time: 1-3 hours
     recommended_model: yolo11m.pt
@@ -637,6 +642,8 @@ dataset_groups:
     - tomato_ripeness_drone
     - pest_sams_sgift
     - pest_varshine
+    - tomato_leaf_nutrient_deficiency
+    - tomato_leaf_deficiency_detection
     use_case: Deployment-ready hierarchical agricultural AI
     estimated_training_time: 3-6 hours
     recommended_model: yolo11l.pt
