@@ -1045,7 +1045,11 @@ def interactive_training_setup():
                 if _DRIVE_AVAILABLE:
                     dm_probe = DriveManager()
                     if dm_probe.authenticate():
-                        dm_probe.load_drive_config()
+                        try:
+                            if hasattr(dm_probe, 'load_drive_config'):
+                                dm_probe.load_drive_config()
+                        except Exception:
+                            pass
                         ts_existing = dm_probe.get_timestamp_dir()
                         if ts_existing and os.path.basename(os.path.dirname(ts_existing)) == 'yolo11_models':
                             timestamp_dir = ts_existing
@@ -1208,7 +1212,11 @@ def interactive_training_setup():
             dm = DriveManager()
             if dm.authenticate():
                 # Konfigürasyon varsa yükle, yoksa yine de arama yap (projeyi bilmeden de base dizinde arıyor)
-                dm.load_drive_config()
+                try:
+                    if hasattr(dm, 'load_drive_config'):
+                        dm.load_drive_config()
+                except Exception:
+                    pass
                 print("\n🔍 Drive'da mevcut checkpoint aranıyor (en yeni timestamp'tan geriye doğru)...")
                 ckpt_path, ckpt_name = dm.find_latest_checkpoint()
                 if ckpt_path:
@@ -1384,6 +1392,32 @@ def main():
     """Main function - Hierarchical Multi-Dataset Training Framework"""
     # Language selection at startup
     select_language()
+    
+    # --- Dil seçiminden hemen sonra: Drive timestamp oturumunu sabitle (global) ---
+    try:
+        # Sadece Colab'de anlamlı; fakat kod güvenle çalışır
+        from drive_manager import activate_drive_integration
+        import yaml as _yaml
+        # drive kökünü config'ten oku
+        drive_folder = "SmartFarm/colab_learn/yolo11_models"
+        try:
+            _cfg_path = 'config_datasets.yaml'
+            if os.path.exists(_cfg_path):
+                with open(_cfg_path, 'r', encoding='utf-8') as _cf:
+                    _cfg = _yaml.safe_load(_cf) or {}
+                _gs = _cfg.get('global_settings', {}) if isinstance(_cfg, dict) else {}
+                _p = _gs.get('drive_folder_path')
+                if isinstance(_p, str) and _p.strip():
+                    drive_folder = _p.strip()
+        except Exception:
+            pass
+        dm = activate_drive_integration(folder_path=drive_folder, project_name="yolo11_models")
+        if dm and getattr(dm, 'project_folder', None):
+            # Env değişkenine yaz ki tüm süreçler aynı timestamp'i kullansın
+            os.environ['SMARTFARM_DRIVE_TS'] = dm.project_folder
+            print(f"🌐 Global Drive session: {dm.project_folder}")
+    except Exception as _sess_e:
+        print(f"⚠️ Drive session sabitleme atlandı: {_sess_e}")
     
     # Drive bağlantı kontrolü (dil seçiminden sonra)
     try:
