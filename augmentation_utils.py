@@ -275,8 +275,13 @@ class YOLOAugmentationPipeline:
             print(f"Augmentation error: {e}")
             return image, bboxes, class_labels
     
-    def augment_dataset_batch(self, image_paths, label_paths, output_dir, target_count_per_class):
-        """Batch augment dataset to reach target count per class"""
+    def augment_dataset_batch(self, image_paths, label_paths, output_dir, target_count_per_class,
+                              copy_val_test: bool = False,
+                              val_image_dirs: list | None = None, val_label_dirs: list | None = None,
+                              test_image_dirs: list | None = None, test_label_dirs: list | None = None):
+        """Batch augment dataset to reach target count per class.
+        Optionally copy val/test splits without augmentation into output_dir/val and output_dir/test.
+        """
         print(f"\n===== Batch Augmentation Başlıyor =====")
         
         # Analyze current class distribution
@@ -358,6 +363,18 @@ class YOLOAugmentationPipeline:
             )
             augmented_count += generated
         
+        # Optionally copy val/test as-is (no augmentation)
+        if copy_val_test:
+            try:
+                if val_image_dirs or val_label_dirs:
+                    self._copy_split_dirs(val_image_dirs or [], val_label_dirs or [], os.path.join(output_dir, 'val'))
+                    print("✅ Val split kopyalandı (augment edilmedi).")
+                if test_image_dirs or test_label_dirs:
+                    self._copy_split_dirs(test_image_dirs or [], test_label_dirs or [], os.path.join(output_dir, 'test'))
+                    print("✅ Test split kopyalandı (augment edilmedi).")
+            except Exception as _cvte:
+                print(f"⚠️ Val/Test kopyalama hatası: {_cvte}")
+
         print(f"\n✅ Batch augmentation tamamlandı!")
         print(f"Toplam {augmented_count} augmented sample oluşturuldu.")
         
@@ -543,6 +560,40 @@ class YOLOAugmentationPipeline:
                 continue
         
         return generated_count
+
+    def _copy_split_dirs(self, image_dirs: list, label_dirs: list, out_split_dir: str):
+        """Copy a split (val/test) images and labels to out_split_dir preserving names.
+        Accepts lists of candidate directories for images and labels; copies all files found.
+        """
+        if not image_dirs and not label_dirs:
+            return
+        img_out = os.path.join(out_split_dir, 'images')
+        lbl_out = os.path.join(out_split_dir, 'labels')
+        os.makedirs(img_out, exist_ok=True)
+        os.makedirs(lbl_out, exist_ok=True)
+
+        # Gather images
+        img_paths = []
+        for d in image_dirs or []:
+            if os.path.isdir(d):
+                for root, _, files in os.walk(d):
+                    for fn in files:
+                        if fn.lower().endswith(('.jpg', '.jpeg', '.png')):
+                            img_paths.append(os.path.join(root, fn))
+
+        # Copy images
+        for ip in img_paths:
+            rel = os.path.basename(ip)
+            shutil.copy2(ip, os.path.join(img_out, rel))
+
+        # Gather labels and copy
+        for d in label_dirs or []:
+            if os.path.isdir(d):
+                for root, _, files in os.walk(d):
+                    for fn in files:
+                        if fn.lower().endswith('.txt'):
+                            src = os.path.join(root, fn)
+                            shutil.copy2(src, os.path.join(lbl_out, os.path.basename(src)))
 
 class SmartAugmentationRecommender:
     """Smart augmentation recommender based on dataset characteristics"""

@@ -745,7 +745,88 @@ def process_hierarchical_datasets(dataset_config):
                             os.makedirs(out_dir, exist_ok=True)
                             print(f"\n⚙️  Hedefe-tamamlama başlıyor. Hedef: {target_numeric}  Çıkış: {out_dir}")
                             pipe = YOLOAugmentationPipeline(image_size=dataset_config.get('settings', {}).get('default_image_size', 640))
-                            pipe.augment_dataset_batch(all_image_paths, all_label_paths, out_dir, target_numeric)
+                            
+                            # Resolve VAL/TEST image/label directories from all datasets
+                            val_img_dirs = []
+                            val_lbl_dirs = []
+                            test_img_dirs = []
+                            test_lbl_dirs = []
+                            for ds in manager.datasets:
+                                root = ds.get('local_path')
+                                if not root or not os.path.isdir(root):
+                                    continue
+                                # val/valid images
+                                vids = _resolve_split_image_dirs(root, 'val')
+                                if not vids:
+                                    vids = _resolve_split_image_dirs(root, 'valid')
+                                val_img_dirs.extend(vids)
+                                # val/valid labels
+                                vlds = _resolve_split_label_dirs(root, 'val')
+                                if not vlds:
+                                    vlds = _resolve_split_label_dirs(root, 'valid')
+                                val_lbl_dirs.extend(vlds)
+                                # test images/labels
+                                test_img_dirs.extend(_resolve_split_image_dirs(root, 'test'))
+                                test_lbl_dirs.extend(_resolve_split_label_dirs(root, 'test'))
+
+                            # Ask user whether to copy val/test as-is into out_dir
+                            copy_val_test_resp = (input("\nVal/Test ayrıklarını olduğu gibi (augment etmeden) çıktı klasörüne kopyalansın mı? (e/h, varsayılan: e): ") or 'e').strip().lower()
+                            copy_val_test = copy_val_test_resp.startswith('e')
+
+                            pipe.augment_dataset_batch(
+                                all_image_paths,
+                                all_label_paths,
+                                out_dir,
+                                target_numeric,
+                                copy_val_test=copy_val_test,
+                                val_image_dirs=val_img_dirs,
+                                val_label_dirs=val_lbl_dirs,
+                                test_image_dirs=test_img_dirs,
+                                test_label_dirs=test_lbl_dirs,
+                            )
+
+                            # Create config/augmented_train.yaml to reference augmented train and original or copied val/test
+                            try:
+                                # Determine YAML val/test paths
+                                if copy_val_test:
+                                    yaml_val = os.path.join(out_dir, 'val', 'images')
+                                    yaml_test = os.path.join(out_dir, 'test', 'images') if test_img_dirs or test_lbl_dirs else None
+                                else:
+                                    # Use original directories (list is supported)
+                                    yaml_val = val_img_dirs if val_img_dirs else None
+                                    yaml_test = test_img_dirs if test_img_dirs else None
+
+                                if not names:
+                                    # Try to reload names from config/class_ids.json as fallback
+                                    try:
+                                        with open(os.path.join('config', 'class_ids.json'), 'r', encoding='utf-8') as f:
+                                            cid = json.load(f)
+                                        if isinstance(cid.get('names'), list) and cid['names']:
+                                            local_names = [str(x) for x in cid['names']]
+                                        else:
+                                            local_names = []
+                                    except Exception:
+                                        local_names = []
+                                else:
+                                    local_names = names
+
+                                yaml_payload = {
+                                    'path': '.',
+                                    'train': os.path.join(out_dir, 'images'),
+                                    'val': yaml_val if yaml_val is not None else [],
+                                    'test': yaml_test if yaml_test is not None else [],
+                                    'names': local_names,
+                                }
+                                os.makedirs('config', exist_ok=True)
+                                aug_yaml_path = os.path.join('config', 'augmented_train.yaml')
+                                with open(aug_yaml_path, 'w', encoding='utf-8') as f:
+                                    yaml.dump(yaml_payload, f, sort_keys=False, allow_unicode=True)
+                                print(f"\n📄 Eğitim YAML yazıldı: {aug_yaml_path}")
+                                print(f"  • train: {yaml_payload['train']}")
+                                print(f"  • val:   {yaml_payload['val'] if yaml_payload['val'] else '—'}")
+                                print(f"  • test:  {yaml_payload['test'] if yaml_payload['test'] else '—'}")
+                            except Exception as _yaml_err:
+                                print(f"⚠️ augmented_train.yaml oluşturulamadı: {_yaml_err}")
                             print("✅ Hedefe-tamamlama augmentation tamamlandı.")
                 else:
                     print("⚠️  YOLOAugmentationPipeline mevcut değil. Hedefe-tamamlama atlandı.")
