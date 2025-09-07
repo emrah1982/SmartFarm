@@ -336,12 +336,12 @@ class YOLOAugmentationPipeline:
         pretty_needs = {f"{cid} ({self._class_name(cid)})": need for cid, need in augmentation_needs.items()}
         print(f"Augmentation ihtiyaçları: {pretty_needs}")
         
-        # Create output directories
-        os.makedirs(f"{output_dir}/images", exist_ok=True)
-        os.makedirs(f"{output_dir}/labels", exist_ok=True)
+        # Create output directories (train split inside output_dir)
+        os.makedirs(f"{output_dir}/train/images", exist_ok=True)
+        os.makedirs(f"{output_dir}/train/labels", exist_ok=True)
         
         # Copy original files first
-        self._copy_original_files(image_paths, label_paths, output_dir)
+        self._copy_original_files(image_paths, label_paths, os.path.join(output_dir, 'train'))
         
         # Generate augmented samples
         augmented_count = 0
@@ -380,7 +380,7 @@ class YOLOAugmentationPipeline:
 
         # Post-process: verify totals in output labels directory
         try:
-            out_labels_dir = os.path.join(output_dir, 'labels')
+            out_labels_dir = os.path.join(output_dir, 'train', 'labels')
             out_counts = self._summarize_output_distribution(out_labels_dir)
             if out_counts:
                 print("\n📊 Çıkış sınıf dağılımı (id (name) -> toplam | hedef durum):")
@@ -553,8 +553,8 @@ class YOLOAugmentationPipeline:
                 aug_img_name = f"aug_{class_id}_{file_counter:06d}.jpg"
                 aug_lbl_name = f"aug_{class_id}_{file_counter:06d}.txt"
                 
-                aug_img_path = f"{output_dir}/images/{aug_img_name}"
-                aug_lbl_path = f"{output_dir}/labels/{aug_lbl_name}"
+                aug_img_path = f"{output_dir}/train/images/{aug_img_name}"
+                aug_lbl_path = f"{output_dir}/train/labels/{aug_lbl_name}"
                 
                 cv2.imwrite(aug_img_path, aug_image_bgr)
                 

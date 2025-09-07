@@ -741,7 +741,7 @@ def process_hierarchical_datasets(dataset_config):
                         if not all_label_paths:
                             print("⚠️  Augmentation için train etiket dosyası bulunamadı. Adım atlandı.")
                         else:
-                            out_dir = os.path.join('datasets', 'balanced_aug_train')
+                            out_dir = os.path.join('datasets', 'balanced_aug')
                             os.makedirs(out_dir, exist_ok=True)
                             print(f"\n⚙️  Hedefe-tamamlama başlıyor. Hedef: {target_numeric}  Çıkış: {out_dir}")
                             pipe = YOLOAugmentationPipeline(image_size=dataset_config.get('settings', {}).get('default_image_size', 640))
@@ -769,9 +769,22 @@ def process_hierarchical_datasets(dataset_config):
                                 test_img_dirs.extend(_resolve_split_image_dirs(root, 'test'))
                                 test_lbl_dirs.extend(_resolve_split_label_dirs(root, 'test'))
 
-                            # Ask user whether to copy val/test as-is into out_dir
-                            copy_val_test_resp = (input("\nVal/Test ayrıklarını olduğu gibi (augment etmeden) çıktı klasörüne kopyalansın mı? (e/h, varsayılan: e): ") or 'e').strip().lower()
-                            copy_val_test = copy_val_test_resp.startswith('e')
+                            # Decide automatically (no prompt): copy val/test based on config defaults
+                            default_copy_val_test = None
+                            try:
+                                default_copy_val_test = dataset_config.get('settings', {}).get('copy_val_test_default')
+                                if default_copy_val_test is not None:
+                                    default_copy_val_test = bool(default_copy_val_test)
+                            except Exception:
+                                default_copy_val_test = None
+                            if default_copy_val_test is None:
+                                try:
+                                    with open(os.path.join('config', 'master_data.yaml'), 'r', encoding='utf-8') as f:
+                                        _md = yaml.safe_load(f) or {}
+                                    default_copy_val_test = bool(_md.get('copy_val_test_default', True))
+                                except Exception:
+                                    default_copy_val_test = True
+                            copy_val_test = bool(default_copy_val_test)
 
                             pipe.augment_dataset_batch(
                                 all_image_paths,
@@ -812,7 +825,7 @@ def process_hierarchical_datasets(dataset_config):
 
                                 yaml_payload = {
                                     'path': '.',
-                                    'train': os.path.join(out_dir, 'images'),
+                                    'train': os.path.join(out_dir, 'train', 'images'),
                                     'val': yaml_val if yaml_val is not None else [],
                                     'test': yaml_test if yaml_test is not None else [],
                                     'names': local_names,

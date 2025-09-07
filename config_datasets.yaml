@@ -690,11 +690,7 @@ global_settings:
   preserve_original_data: true
   augmentation_split_ratio: 0.8
   auto_batch_size: true
-  memory_efficient: true
-  cache_datasets: true
-  hierarchical_mode: true
-  turkish_labels: true
-  color_coded_detection: true
+  copy_val_test_default: true
 augmentation_profiles:
   disease_detection:
     severity: medium
@@ -746,11 +742,9 @@ augmentation_profiles:
     - brightness
     - contrast
     - rotation
-    - flip
-    weather_simulation: true
+    weather_simulation: false
     focus_areas:
     - texture_variations
-    - lighting_conditions
 metadata:
   total_datasets: 7
   total_experimental_datasets: 3

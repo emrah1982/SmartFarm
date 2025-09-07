@@ -525,6 +525,19 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
             workers_value = max(2, min(4, cpu_cnt - 1)) if cpu_cnt > 1 else 2
         print(f"🧰 DataLoader workers seçimi: {workers_value} (cpu={cpu_cnt})")
 
+    # If an augmented train YAML exists and user hasn't explicitly set a different data path,
+    # auto-select it to use augmented train + configured val/test
+    try:
+        aug_yaml_path = os.path.join('config', 'augmented_train.yaml')
+        user_set_data = options.get('data')
+        if os.path.exists(aug_yaml_path):
+            # If user_set_data is missing or points to a generic/placeholder, prefer augmented YAML
+            if not user_set_data or str(user_set_data).strip().lower() in ('', 'data.yaml', 'config/merged_class_dataset.yaml'):
+                options['data'] = aug_yaml_path
+                print(f"📄 Auto-selected training data: {options['data']}")
+    except Exception as _auto_data_err:
+        print(f"⚠️ Otomatik data seçiminde hata: {_auto_data_err}")
+
     # Training arguments with augmentation safety
     train_args = {
         'model': model_path,
