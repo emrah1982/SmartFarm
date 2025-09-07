@@ -706,6 +706,27 @@ class TomatoDiseaseAugmentation:
             'timestamp': timestamp_iso,
             'diseases_processed': self.supported_diseases,
             'statistics': self.stats,
+            'augmentations_per_image': num_augmentations,
+            'global_timestamp': global_ts
+        }
+        
+        # Global timestamp varsa configs klasörüne de kaydet
+        if global_ts:
+            try:
+                configs_dir = os.path.join('configs', global_ts)
+                os.makedirs(configs_dir, exist_ok=True)
+                
+                config_summary_path = os.path.join(configs_dir, 'tomato_disease_augmentation_summary.json')
+                with open(config_summary_path, 'w', encoding='utf-8') as f:
+                    json.dump(summary_data, f, indent=2, ensure_ascii=False)
+                print(f"📁 Domates hastalık augmentation özeti configs'e kaydedildi: {config_summary_path}")
+            except Exception as e:
+                print(f"⚠️ Configs klasörüne kaydetme hatası: {e}")
+        
+        summary_data = {
+            'timestamp': timestamp_iso,
+            'diseases_processed': self.supported_diseases,
+            'statistics': self.stats,
             'augmentations_per_image': num_augmentations
         }
         

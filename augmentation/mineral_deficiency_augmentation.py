@@ -288,16 +288,34 @@ class MineralDeficiencyAugmentation:
         # Global timestamp kullan
         global_ts = os.environ.get('SMARTFARM_GLOBAL_TIMESTAMP')
         if global_ts:
-            timestamp_str = f"{global_ts}_missing"
+            timestamp_str = global_ts
         else:
-            timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            timestamp_str = datetime.now().strftime('%Y%m%d_%H%M%S')
         
-        self.missing_data_log.append({
+        # Eksik veri raporu oluştur
+        missing_data_report = {
             'timestamp': timestamp_str,
-            'image_file': image_file,
-            'mineral_type': mineral_type,
-            'reason': reason
-        })
+            'total_deficiencies': len(self.deficiency_types),
+            'missing_deficiencies': missing_deficiencies,
+            'available_deficiencies': available_deficiencies,
+            'missing_count': len(missing_deficiencies),
+            'available_count': len(available_deficiencies),
+            'global_timestamp': global_ts
+        }
+        
+        # Global timestamp varsa configs klasörüne de kaydet
+        if global_ts:
+            try:
+                configs_dir = os.path.join('configs', global_ts)
+                os.makedirs(configs_dir, exist_ok=True)
+                
+                config_report_path = os.path.join(configs_dir, 'mineral_deficiency_augmentation_report.json')
+                with open(config_report_path, 'w', encoding='utf-8') as f:
+                    json.dump(missing_data_report, f, indent=2, ensure_ascii=False)
+                print(f"📁 Mineral eksikliği augmentation raporu configs'e kaydedildi: {config_report_path}")
+            except Exception as e:
+                print(f"⚠️ Configs klasörüne kaydetme hatası: {e}")
+        
         if mineral_type not in self.processing_stats['missing_minerals']:
             self.processing_stats['missing_minerals'][mineral_type] = 0
         self.processing_stats['missing_minerals'][mineral_type] += 1

@@ -78,10 +78,184 @@ def get_global_timestamp():
         _GLOBAL_TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
     return _GLOBAL_TIMESTAMP
 
+def save_user_preferences_config(options, dataset_config=None, augmentation_settings=None):
+    """Kullanıcı tercihlerini ve ayarlarını configs klasöründe kaydet"""
+    try:
+        # Global timestamp ile config klasörü oluştur
+        global_ts = get_global_timestamp()
+        configs_dir = os.path.join('configs', global_ts)
+        os.makedirs(configs_dir, exist_ok=True)
+        
+        # Ana konfigürasyon dosyası
+        config_data = {
+            'session_info': {
+                'timestamp': global_ts,
+                'created_at': datetime.now().isoformat(),
+                'environment': 'colab' if is_colab() else 'local',
+                'language': get_text('language_choice', default='tr')
+            },
+            'training_settings': {
+                'model': options.get('model'),
+                'epochs': options.get('epochs'),
+                'batch_size': options.get('batch'),
+                'image_size': options.get('imgsz'),
+                'device': options.get('device'),
+                'workers': options.get('workers'),
+                'optimizer': options.get('optimizer'),
+                'speed_mode': options.get('speed_mode'),
+                'use_hyperparameters': options.get('use_hyp'),
+                'category': options.get('category'),
+                'project_path': options.get('project'),
+                'experiment_name': options.get('name')
+            },
+            'dataset_configuration': {},
+            'drive_settings': {
+                'save_to_drive': bool(options.get('drive_save_path')),
+                'drive_path': options.get('drive_save_path'),
+                'save_interval': options.get('save_interval')
+            },
+            'augmentation_settings': augmentation_settings or {}
+        }
+        
+        # Dataset konfigürasyonu detayları
+        if dataset_config:
+            config_data['dataset_configuration'] = {
+                'type': dataset_config.get('type'),
+                'data_yaml': dataset_config.get('data_yaml')
+            }
+            
+            if dataset_config['type'] == 'hierarchical_multi':
+                setup = dataset_config.get('setup', {})
+                config_data['dataset_configuration'].update({
+                    'selected_group': setup.get('selected_group'),
+                    'target_count_per_class': setup.get('target_count'),
+                    'per_class_targets': setup.get('per_class_targets'),
+                    'output_directory': setup.get('output_dir'),
+                    'label_mode': setup.get('label_mode'),
+                    'recommendations': setup.get('recommendations')
+                })
+            elif dataset_config['type'] == 'single':
+                config_data['dataset_configuration'].update({
+                    'roboflow_url': dataset_config.get('url'),
+                    'has_api_key': bool(dataset_config.get('api_key')),
+                    'split_config': dataset_config.get('split_config')
+                })
+        
+        # Ana config dosyasını kaydet
+        main_config_path = os.path.join(configs_dir, 'training_session_config.json')
+        with open(main_config_path, 'w', encoding='utf-8') as f:
+            json.dump(config_data, f, indent=2, ensure_ascii=False)
+        
+        print(f"✅ Kullanıcı tercihleri kaydedildi: {main_config_path}")
+        
+        # Özet dosyası oluştur (okunabilir format)
+        summary_path = os.path.join(configs_dir, 'session_summary.txt')
+        with open(summary_path, 'w', encoding='utf-8') as f:
+            f.write(f"SmartFarm Eğitim Oturumu Özeti\n")
+            f.write(f"{'='*50}\n\n")
+            f.write(f"Oturum Bilgileri:\n")
+            f.write(f"  • Timestamp: {global_ts}\n")
+            f.write(f"  • Oluşturulma: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"  • Ortam: {'Google Colab' if is_colab() else 'Yerel'}\n")
+            f.write(f"  • Dil: {config_data['session_info']['language']}\n\n")
+            
+            f.write(f"Eğitim Ayarları:\n")
+            f.write(f"  • Model: {options.get('model')}\n")
+            f.write(f"  • Epoch: {options.get('epochs')}\n")
+            f.write(f"  • Batch Boyutu: {options.get('batch')}\n")
+            f.write(f"  • Görüntü Boyutu: {options.get('imgsz')}\n")
+            f.write(f"  • Cihaz: {options.get('device')}\n")
+            f.write(f"  • Hız Modu: {'Açık' if options.get('speed_mode') else 'Kapalı'}\n")
+            f.write(f"  • Kategori: {options.get('category')}\n\n")
+            
+            if dataset_config:
+                f.write(f"Veri Seti Konfigürasyonu:\n")
+                f.write(f"  • Tip: {dataset_config.get('type')}\n")
+                if dataset_config['type'] == 'hierarchical_multi':
+                    setup = dataset_config.get('setup', {})
+                    f.write(f"  • Seçilen Grup: {setup.get('selected_group')}\n")
+                    f.write(f"  • Sınıf Başına Hedef: {setup.get('target_count')}\n")
+                    f.write(f"  • Etiket Modu: {setup.get('label_mode')}\n")
+                f.write(f"\n")
+            
+            if options.get('drive_save_path'):
+                f.write(f"Google Drive Ayarları:\n")
+                f.write(f"  • Kaydetme: Açık\n")
+                f.write(f"  • Yol: {options.get('drive_save_path')}\n")
+                f.write(f"  • Kaydetme Aralığı: {options.get('save_interval', 'Varsayılan')} epoch\n\n")
+            
+            if augmentation_settings:
+                f.write(f"Augmentation Ayarları:\n")
+                for key, value in augmentation_settings.items():
+                    f.write(f"  • {key}: {value}\n")
+        
+        print(f"📄 Oturum özeti oluşturuldu: {summary_path}")
+        
+        return configs_dir
+        
+    except Exception as e:
+        print(f"⚠️ Kullanıcı tercihleri kaydedilemedi: {e}")
+        return None
+
 def set_global_timestamp(timestamp):
     """Set global timestamp (used when user chooses existing timestamp)"""
     global _GLOBAL_TIMESTAMP
     _GLOBAL_TIMESTAMP = timestamp
+
+def save_augmentation_config(configs_dir, augmentation_settings):
+    """Augmentation ayarlarını ayrı dosyada kaydet"""
+    try:
+        if not configs_dir or not augmentation_settings:
+            return
+        
+        aug_config_path = os.path.join(configs_dir, 'augmentation_config.json')
+        with open(aug_config_path, 'w', encoding='utf-8') as f:
+            json.dump(augmentation_settings, f, indent=2, ensure_ascii=False)
+        
+        print(f"🎨 Augmentation ayarları kaydedildi: {aug_config_path}")
+        
+    except Exception as e:
+        print(f"⚠️ Augmentation ayarları kaydedilemedi: {e}")
+
+def collect_augmentation_settings(dataset_config):
+    """Kullanıcının augmentation tercihlerini topla"""
+    augmentation_settings = {
+        'enabled': False,
+        'target_completion': False,
+        'settings': {}
+    }
+    
+    try:
+        # Hierarchical multi-dataset için augmentation ayarları
+        if dataset_config and dataset_config.get('type') == 'hierarchical_multi':
+            setup = dataset_config.get('setup', {})
+            
+            # Hedef tamamlama augmentation bilgileri
+            if setup.get('target_count'):
+                augmentation_settings.update({
+                    'enabled': True,
+                    'target_completion': True,
+                    'settings': {
+                        'target_count_per_class': setup.get('target_count'),
+                        'per_class_targets': setup.get('per_class_targets'),
+                        'copy_val_test': True,  # Varsayılan
+                        'image_size': setup.get('settings', {}).get('default_image_size', 640)
+                    }
+                })
+        
+        # Environment'dan augmentation bilgilerini al
+        env_aug_settings = os.environ.get('SMARTFARM_AUG_SETTINGS')
+        if env_aug_settings:
+            try:
+                env_settings = json.loads(env_aug_settings)
+                augmentation_settings['settings'].update(env_settings)
+            except:
+                pass
+        
+    except Exception as e:
+        print(f"⚠️ Augmentation ayarları toplanırken hata: {e}")
+    
+    return augmentation_settings
 
 def find_existing_timestamps(base_dir):
     """Find existing timestamp directories in base directory"""
@@ -1772,6 +1946,24 @@ def main():
             from hyperparameters import create_hyperparameters_file, load_hyperparameters
             hyp_path = create_hyperparameters_file()
             hyperparameters = load_hyperparameters(hyp_path)
+            
+            # Kullanıcı tercihlerini kaydet (eğitim başlamadan önce)
+            print(f"\n💾 Kullanıcı tercihleri ve ayarları kaydediliyor...")
+            augmentation_settings = collect_augmentation_settings(dataset_config)
+            configs_dir = save_user_preferences_config(options, dataset_config, augmentation_settings)
+            
+            if configs_dir:
+                # Augmentation ayarlarını ayrı dosyada da kaydet
+                save_augmentation_config(configs_dir, augmentation_settings)
+                
+                # Hyperparameter dosyasını da configs klasörüne kopyala
+                try:
+                    if hyp_path and os.path.exists(hyp_path):
+                        hyp_backup_path = os.path.join(configs_dir, 'hyperparameters_backup.yaml')
+                        shutil.copy2(hyp_path, hyp_backup_path)
+                        print(f"📋 Hyperparameter dosyası yedeklendi: {hyp_backup_path}")
+                except Exception as e:
+                    print(f"⚠️ Hyperparameter yedekleme hatası: {e}")
             
             # Start new training
             print(f"\n🚀 Yeni model eğitimi başlatılıyor...")

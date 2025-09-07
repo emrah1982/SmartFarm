@@ -1087,6 +1087,28 @@ class TomatoPestAugmentation:
         total_end_time = datetime.now()
         total_duration = total_end_time - total_start_time
         
+        # Global timestamp varsa configs klasörüne özet kaydet
+        global_ts = os.environ.get('SMARTFARM_GLOBAL_TIMESTAMP')
+        if global_ts:
+            try:
+                configs_dir = os.path.join('configs', global_ts)
+                os.makedirs(configs_dir, exist_ok=True)
+                
+                pest_summary = {
+                    'timestamp': global_ts,
+                    'total_duration_seconds': total_duration.total_seconds(),
+                    'processed_pests': list(results.keys()),
+                    'results_summary': results,
+                    'global_timestamp': global_ts
+                }
+                
+                config_summary_path = os.path.join(configs_dir, 'tomato_pest_augmentation_summary.json')
+                with open(config_summary_path, 'w', encoding='utf-8') as f:
+                    json.dump(pest_summary, f, indent=2, ensure_ascii=False)
+                print(f"📁 Domates zararılı augmentation özeti configs'e kaydedildi: {config_summary_path}")
+            except Exception as e:
+                print(f"⚠️ Configs klasörüne kaydetme hatası: {e}")
+        
         # Genel özet
         self.logger.info(f"\n{'='*60}")
         self.logger.info("📋 TOPLU AUGMENTATION ÖZET")
