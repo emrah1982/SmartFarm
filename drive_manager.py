@@ -16,6 +16,18 @@ import logging
 # Oturum (runtime) boyunca seçilen timestamp'i sabitlemek için global cache
 _GLOBAL_SESSION_TS: Optional[str] = None
 
+# Global timestamp fonksiyonları
+def get_global_timestamp_from_env():
+    """Environment variable'dan global timestamp'i al"""
+    return os.environ.get('SMARTFARM_GLOBAL_TIMESTAMP')
+
+def use_global_timestamp_if_available():
+    """Mevcut global timestamp varsa onu kullan, yoksa yeni oluştur"""
+    global_ts = get_global_timestamp_from_env()
+    if global_ts:
+        return global_ts
+    return datetime.now().strftime("%Y%m%d_%H%M%S")
+
 # Ortam tespiti - Geliştirilmiş
 def detect_colab_environment():
     """Colab ortamını güvenli şekilde tespit et"""
@@ -393,12 +405,17 @@ class _TeeStdout:
                 print(f"🕒 En yeni mevcut timestamp kullanılıyor: {os.path.basename(newest)}")
                 return self._finalize_colab_setup(folder_path)
             
-            # 5) Yeni timestamp oluştur (sadece hiçbiri yoksa)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            # 5) Global timestamp kullan veya yeni oluştur
+            timestamp = use_global_timestamp_if_available()
             project_folder_name = f"{timestamp}"
             self.project_folder = os.path.join(base_path, project_folder_name)
             _GLOBAL_SESSION_TS = self.project_folder
-            print(f"✅ Yeni timestamp oluşturuldu: {project_folder_name}")
+            
+            global_ts = get_global_timestamp_from_env()
+            if global_ts and global_ts == timestamp:
+                print(f"🌐 Global timestamp kullanılıyor: {project_folder_name}")
+            else:
+                print(f"✅ Yeni timestamp oluşturuldu: {project_folder_name}")
             
             # Session lock ve env var ayarla
             try:
@@ -496,10 +513,14 @@ class _TeeStdout:
                     return False
                 parent_id = folder_id
             
-            # Zaman damgalı proje klasörü oluştur (sadece timestamp)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            # Global timestamp kullanarak proje klasörü oluştur
+            timestamp = use_global_timestamp_if_available()
             project_folder_name = f"{timestamp}"
             self.drive_folder_id = self._find_or_create_folder(project_folder_name, parent_id)
+            
+            global_ts = get_global_timestamp_from_env()
+            if global_ts and global_ts == timestamp:
+                print(f"🌐 Drive'da global timestamp klasörü kullanılıyor: {project_folder_name}")
             
             if self.drive_folder_id:
                 print(f"✅ Drive klasörü oluşturuldu: {folder_path}/{project_folder_name}")
@@ -1588,11 +1609,15 @@ def activate_drive_integration(folder_path: str, project_name: Optional[str] = N
 
                 # 3) Hiçbiri yoksa yeni timestamp oluştur
                 if not dm.project_folder:
-                    print("ℹ️ Config geçersiz veya aday bulunamadı; yeni timestamp oluşturulacak.")
-                    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    print("ℹ️ Config geçersiz veya aday bulunamadı; global timestamp kullanılacak.")
+                    ts = use_global_timestamp_if_available()
                     proj_dir = os.path.join(base_path, ts)
                     os.makedirs(proj_dir, exist_ok=True)
                     dm.project_folder = proj_dir
+                    
+                    global_ts = get_global_timestamp_from_env()
+                    if global_ts and global_ts == ts:
+                        print(f"🌐 Global timestamp ile klasör oluşturuldu: {ts}")
                     print(f"✅ Yeni timestamp klasörü oluşturuldu: {proj_dir}")
                 else:
                     print(f"✅ Mevcut timestamp klasörü kullanılıyor: {dm.project_folder}")
@@ -1631,7 +1656,8 @@ def activate_drive_integration(folder_path: str, project_name: Optional[str] = N
                     if not dm._tee_enabled:
                         logs_dir = os.path.join(dm.project_folder, 'logs')
                         os.makedirs(logs_dir, exist_ok=True)
-                        log_file = os.path.join(logs_dir, f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+                        session_ts = use_global_timestamp_if_available()
+                        log_file = os.path.join(logs_dir, f"session_{session_ts}.log")
                         # Python logging de dosyaya yazsın
                         logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s: %(message)s')
                         fh = logging.FileHandler(log_file, encoding='utf-8')

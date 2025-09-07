@@ -892,8 +892,15 @@ class TomatoPestAugmentation:
                 if write_header:
                     writer.writerow(self.csv_headers)
                 
+                # Global timestamp kullan
+                global_ts = os.environ.get('SMARTFARM_GLOBAL_TIMESTAMP')
+                if global_ts:
+                    timestamp_str = f"{global_ts}_aug"
+                else:
+                    timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                
                 writer.writerow([
-                    datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    timestamp_str,
                     pest_type,
                     str(image_path),
                     status,
@@ -1052,6 +1059,11 @@ class TomatoPestAugmentation:
         self.logger.info("🚀 Tüm domates zararlıları için toplu augmentation başlatılıyor...")
         
         results = {}
+        # Global timestamp kullan
+        global_ts = os.environ.get('SMARTFARM_GLOBAL_TIMESTAMP')
+        if global_ts:
+            print(f"🌐 Global timestamp ile çalışıyor: {global_ts}")
+        
         total_start_time = datetime.now()
         
         for pest_type in self.supported_pests:

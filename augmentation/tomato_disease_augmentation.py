@@ -439,9 +439,16 @@ class TomatoDiseaseAugmentation:
                 if not file_exists:
                     writer.writerow(self.csv_headers)
                 
+                # Global timestamp kullan
+                global_ts = os.environ.get('SMARTFARM_GLOBAL_TIMESTAMP')
+                if global_ts:
+                    timestamp_str = f"{global_ts}_aug"
+                else:
+                    timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                
                 # Veri satırını yaz
                 writer.writerow([
-                    datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    timestamp_str,
                     disease_type,
                     image_path,
                     status,
@@ -688,8 +695,15 @@ class TomatoDiseaseAugmentation:
         
         # Genel log dosyası
         general_log_path = os.path.join(base_output_dir, 'all_diseases_summary.json')
+        # Global timestamp kullan
+        global_ts = os.environ.get('SMARTFARM_GLOBAL_TIMESTAMP')
+        if global_ts:
+            timestamp_iso = f"{global_ts}_summary"
+        else:
+            timestamp_iso = datetime.now().isoformat()
+        
         summary_data = {
-            'timestamp': datetime.now().isoformat(),
+            'timestamp': timestamp_iso,
             'diseases_processed': self.supported_diseases,
             'statistics': self.stats,
             'augmentations_per_image': num_augmentations

@@ -38,7 +38,12 @@ def _append_download_log(project_folder: str, paths):
                     entries = json.load(f)
         except Exception:
             entries = []
-        now = __import__('datetime').datetime.now().isoformat()
+        # Global timestamp kullan
+        global_ts = os.environ.get('SMARTFARM_GLOBAL_TIMESTAMP')
+        if global_ts:
+            now = f"{global_ts}_download"
+        else:
+            now = __import__('datetime').datetime.now().isoformat()
         for p in paths or []:
             entries.append({'file': os.path.basename(p), 'dest': p, 'ts': now})
         with open(logf, 'w', encoding='utf-8') as f:
@@ -117,7 +122,12 @@ def download_yolo11_models(save_dir=None, selected_models=None):
             base = os.path.basename(norm)
             parent = os.path.basename(os.path.dirname(norm))
             if base == "yolo11_models":
-                ts = __import__('datetime').datetime.now().strftime("%Y%m%d_%H%M%S")
+                # Global timestamp kullan
+                global_ts = os.environ.get('SMARTFARM_GLOBAL_TIMESTAMP')
+                if global_ts:
+                    ts = global_ts
+                else:
+                    ts = __import__('datetime').datetime.now().strftime("%Y%m%d_%H%M%S")
                 drive_project_folder = os.path.join(norm, ts)
                 for sub in ["models", "logs", "configs", "checkpoints"]:
                     os.makedirs(os.path.join(drive_project_folder, sub), exist_ok=True)

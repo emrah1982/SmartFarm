@@ -22,12 +22,18 @@ class MineralDeficiencyAugmentation:
         
         # CSV raporlama için
         self.missing_data_log = []
+        # Global timestamp kullan
+        global_ts = os.environ.get('SMARTFARM_GLOBAL_TIMESTAMP')
+        if global_ts:
+            print(f"🌐 Mineral deficiency augmentation global timestamp ile çalışıyor: {global_ts}")
+        
         self.processing_stats = {
             'total_images': 0,
             'successful_augmentations': 0,
             'failed_augmentations': 0,
             'missing_minerals': {},
-            'start_time': datetime.now()
+            'start_time': datetime.now(),
+            'global_timestamp': global_ts
         }
         
         # Çıkış dizinlerini oluştur
@@ -279,8 +285,15 @@ class MineralDeficiencyAugmentation:
     
     def log_missing_data(self, image_file, mineral_type, reason):
         """Eksik veri durumlarını logla"""
+        # Global timestamp kullan
+        global_ts = os.environ.get('SMARTFARM_GLOBAL_TIMESTAMP')
+        if global_ts:
+            timestamp_str = f"{global_ts}_missing"
+        else:
+            timestamp_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
         self.missing_data_log.append({
-            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'timestamp': timestamp_str,
             'image_file': image_file,
             'mineral_type': mineral_type,
             'reason': reason
@@ -295,7 +308,14 @@ class MineralDeficiencyAugmentation:
             print("📊 Eksik veri bulunamadı - rapor oluşturulmadı")
             return
             
-        csv_file = self.output_images_dir.parent / f"missing_data_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        # Global timestamp kullan
+        global_ts = os.environ.get('SMARTFARM_GLOBAL_TIMESTAMP')
+        if global_ts:
+            timestamp_suffix = global_ts
+        else:
+            timestamp_suffix = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        csv_file = self.output_images_dir.parent / f"missing_data_report_{timestamp_suffix}.csv"
         try:
             df = pd.DataFrame(self.missing_data_log)
             df.to_csv(csv_file, index=False, encoding='utf-8')

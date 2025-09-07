@@ -18,6 +18,7 @@ except ImportError:
 import shutil
 from datetime import datetime
 import json
+import re
 
 # Import framework components
 from setup_utils import check_gpu, install_required_packages
@@ -63,6 +64,135 @@ try:
     _AUG_PIPE_AVAILABLE = True
 except Exception:
     _AUG_PIPE_AVAILABLE = False
+
+# Global timestamp pattern for consistent naming
+TIMESTAMP_PATTERN = re.compile(r'^\d{8}_\d{6}$')  # YYYYMMDD_HHMMSS format
+
+# Global timestamp variable
+_GLOBAL_TIMESTAMP = None
+
+def get_global_timestamp():
+    """Get or create global timestamp for consistent naming across the project"""
+    global _GLOBAL_TIMESTAMP
+    if _GLOBAL_TIMESTAMP is None:
+        _GLOBAL_TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
+    return _GLOBAL_TIMESTAMP
+
+def set_global_timestamp(timestamp):
+    """Set global timestamp (used when user chooses existing timestamp)"""
+    global _GLOBAL_TIMESTAMP
+    _GLOBAL_TIMESTAMP = timestamp
+
+def find_existing_timestamps(base_dir):
+    """Find existing timestamp directories in base directory"""
+    if not os.path.exists(base_dir):
+        return []
+    
+    timestamps = []
+    for item in os.listdir(base_dir):
+        item_path = os.path.join(base_dir, item)
+        if os.path.isdir(item_path) and TIMESTAMP_PATTERN.match(item):
+            timestamps.append({
+                'name': item,
+                'path': item_path,
+                'mtime': os.path.getmtime(item_path)
+            })
+    
+    # Sort by creation time (oldest first)
+    timestamps.sort(key=lambda x: x['mtime'])
+    return timestamps
+
+def ask_user_for_timestamp_choice(language_choice='tr'):
+    """Ask user whether to use existing timestamp or create new one"""
+    # Check common directories for existing timestamps
+    check_dirs = []
+    
+    # Add Google Drive paths if in Colab
+    if is_colab():
+        drive_paths = get_tarim_drive_paths()
+        if drive_paths:
+            check_dirs.extend([
+                drive_paths['yolo11_models'],
+                os.path.join(drive_paths['base'], 'yolo11_models')
+            ])
+        
+        smartfarm_dir = get_smartfarm_models_dir()
+        if smartfarm_dir:
+            check_dirs.append(smartfarm_dir)
+    
+    # Add local directories
+    check_dirs.extend([
+        'yolo11_models',
+        'runs/train',
+        'datasets',
+        'checkpoints'
+    ])
+    
+    # Find all existing timestamps
+    all_timestamps = []
+    for check_dir in check_dirs:
+        timestamps = find_existing_timestamps(check_dir)
+        for ts in timestamps:
+            ts['source_dir'] = check_dir
+            all_timestamps.append(ts)
+    
+    # Remove duplicates (same timestamp name)
+    unique_timestamps = {}
+    for ts in all_timestamps:
+        if ts['name'] not in unique_timestamps or ts['mtime'] < unique_timestamps[ts['name']]['mtime']:
+            unique_timestamps[ts['name']] = ts
+    
+    timestamps_list = list(unique_timestamps.values())
+    timestamps_list.sort(key=lambda x: x['mtime'])  # Oldest first
+    
+    if not timestamps_list:
+        # No existing timestamps found
+        new_timestamp = get_global_timestamp()
+        if language_choice.startswith('tr'):
+            print(f"🕒 Yeni timestamp oluşturuldu: {new_timestamp}")
+        else:
+            print(f"🕒 New timestamp created: {new_timestamp}")
+        return new_timestamp
+    
+    # Show existing timestamps to user
+    if language_choice.startswith('tr'):
+        print(f"\n🕒 Mevcut timestamp(ler) algılandı:")
+        for i, ts in enumerate(timestamps_list, 1):
+            print(f"  {i}. {ts['name']} (kaynak: {ts['source_dir']})")
+        
+        print(f"\nSeçenekler:")
+        print(f"  e) Mevcut timestamp kullan (en eski: {timestamps_list[0]['name']})")
+        print(f"  y) Yeni timestamp oluştur")
+        
+        choice = input(f"\nTercihiniz (e/y, varsayılan: e): ").strip().lower() or 'e'
+    else:
+        print(f"\n🕒 Existing timestamp(s) detected:")
+        for i, ts in enumerate(timestamps_list, 1):
+            print(f"  {i}. {ts['name']} (source: {ts['source_dir']})")
+        
+        print(f"\nOptions:")
+        print(f"  e) Use existing timestamp (oldest: {timestamps_list[0]['name']})")
+        print(f"  n) Create new timestamp")
+        
+        choice = input(f"\nYour choice (e/n, default: e): ").strip().lower() or 'e'
+    
+    if choice.startswith('e'):
+        # Use oldest existing timestamp
+        selected_timestamp = timestamps_list[0]['name']
+        set_global_timestamp(selected_timestamp)
+        if language_choice.startswith('tr'):
+            print(f"✅ Mevcut timestamp kullanılacak: {selected_timestamp}")
+        else:
+            print(f"✅ Using existing timestamp: {selected_timestamp}")
+        return selected_timestamp
+    else:
+        # Create new timestamp
+        new_timestamp = get_global_timestamp()
+        if language_choice.startswith('tr'):
+            print(f"✅ Yeni timestamp oluşturuldu: {new_timestamp}")
+        else:
+            print(f"✅ New timestamp created: {new_timestamp}")
+        return new_timestamp
 
 # Check if running in Colab
 def is_colab():
@@ -286,7 +416,18 @@ def download_models_menu():
         default_dir = get_smartfarm_models_dir() or "/content/colab_learn/yolo11_models"
     else:
         default_dir = "yolo11_models"
-    save_dir = input(get_text('save_directory', default=default_dir)) or default_dir
+    
+    # Global timestamp ile model dizini oluştur
+    base_save_dir = input(get_text('save_directory', default=default_dir)) or default_dir
+    
+    # Global timestamp'i kullanarak alt klasör oluştur
+    global_ts = get_global_timestamp()
+    save_dir = os.path.join(base_save_dir, global_ts)
+    
+    print(f"🌐 Modeller global timestamp klasörüne indirilecek: {save_dir}")
+    
+    # Klasörü oluştur
+    os.makedirs(save_dir, exist_ok=True)
     
     print(f"\n{get_text('download_options')}")
     print(get_text('single_model'))
@@ -333,15 +474,18 @@ def download_models_menu():
         model_path = download_specific_model_type(model_type, size, save_dir)
         if model_path:
             print(f"\n✅ Model başarıyla indirildi: {model_path}")
+            print(f"📁 Global timestamp klasörü: {os.path.basename(save_dir)}")
     
     elif choice == "2":
         detection_models = ["yolo11s.pt", "yolo11m.pt", "yolo11l.pt", "yolo11x.pt"]
         downloaded = download_yolo11_models(save_dir, detection_models)
         print(f"\n✅ {len(downloaded)} tespit modeli indirildi: {save_dir}")
+        print(f"📁 Global timestamp klasörü: {os.path.basename(save_dir)}")
     
     elif choice == "3":
         downloaded = download_yolo11_models(save_dir)
         print(f"\n✅ {len(downloaded)} model indirildi: {save_dir}")
+        print(f"📁 Global timestamp klasörü: {os.path.basename(save_dir)}")
     
     else:
         print("\n❌ Geçersiz seçim. Hiçbir model indirilmedi.")
@@ -1038,38 +1182,46 @@ def interactive_training_setup():
             default_drive_path = get_smartfarm_models_dir() or "/content/drive/MyDrive/SmartFarm/colab_learn/yolo11_models"
             base_input = input(f"Kaydetme dizini (varsayılan: {default_drive_path}): ") or default_drive_path
 
-            # Varsa mevcut timestamp klasörünü KULLAN, yoksa oluştur
+            # Global timestamp'i kullan
             timestamp_dir = None
             try:
-                # 1) DriveManager'da aktif timestamp var mı?
-                if _DRIVE_AVAILABLE:
-                    dm_probe = DriveManager()
-                    if dm_probe.authenticate():
-                        try:
-                            if hasattr(dm_probe, 'load_drive_config'):
-                                dm_probe.load_drive_config()
-                        except Exception:
-                            pass
-                        ts_existing = dm_probe.get_timestamp_dir()
-                        if ts_existing and os.path.basename(os.path.dirname(ts_existing)) == 'yolo11_models':
-                            timestamp_dir = ts_existing
-                # 2) Base klasörde mevcut timestamp dizinlerini tara ve ILK OLUŞANINI al (ilk timestamp kuralı)
-                if not timestamp_dir and os.path.isdir(base_input):
-                    candidates = [
-                        os.path.join(base_input, d)
-                        for d in os.listdir(base_input)
-                        if os.path.isdir(os.path.join(base_input, d)) and TIMESTAMP_PATTERN.match(d)
-                    ]
-                    if candidates:
-                        # mtime'a göre artan sırala: ilk eleman en eski (ilk oluşturulan)
-                        candidates.sort(key=lambda p: os.path.getmtime(p))
-                        timestamp_dir = candidates[0]
-                        print(f"🕒 İlk timestamp kuralı: mevcutlardan EN ESKİSİ kullanılacak → {os.path.basename(timestamp_dir)}")
+                # 1) Global timestamp varsa onu kullan
+                global_ts = get_global_timestamp()
+                if global_ts:
+                    timestamp_dir = os.path.join(base_input, global_ts)
+                    print(f"🌐 Global timestamp kullanılıyor: {global_ts}")
+                else:
+                    # 2) Fallback: DriveManager'da aktif timestamp var mı?
+                    if _DRIVE_AVAILABLE:
+                        dm_probe = DriveManager()
+                        if dm_probe.authenticate():
+                            try:
+                                if hasattr(dm_probe, 'load_drive_config'):
+                                    dm_probe.load_drive_config()
+                            except Exception:
+                                pass
+                            ts_existing = dm_probe.get_timestamp_dir()
+                            if ts_existing and os.path.basename(os.path.dirname(ts_existing)) == 'yolo11_models':
+                                timestamp_dir = ts_existing
+                    # 3) Base klasörde mevcut timestamp dizinlerini tara ve ILK OLUŞANINI al (ilk timestamp kuralı)
+                    if not timestamp_dir and os.path.isdir(base_input):
+                        candidates = [
+                            os.path.join(base_input, d)
+                            for d in os.listdir(base_input)
+                            if os.path.isdir(os.path.join(base_input, d)) and TIMESTAMP_PATTERN.match(d)
+                        ]
+                        if candidates:
+                            # mtime'a göre artan sırala: ilk eleman en eski (ilk oluşturulan)
+                            candidates.sort(key=lambda p: os.path.getmtime(p))
+                            timestamp_dir = candidates[0]
+                            print(f"🕒 İlk timestamp kuralı: mevcutlardan EN ESKİSİ kullanılacak → {os.path.basename(timestamp_dir)}")
+                    # 4) Hiçbiri yoksa global timestamp ile yeni oluştur
+                    if not timestamp_dir:
+                        timestamp = get_global_timestamp()
+                        timestamp_dir = os.path.join(base_input, timestamp)
             except Exception:
-                pass
-            # 3) Hiçbiri yoksa yeni timestamp oluştur
-            if not timestamp_dir:
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                # Son çare: yeni timestamp oluştur
+                timestamp = get_global_timestamp()
                 timestamp_dir = os.path.join(base_input, timestamp)
             checkpoints_dir = os.path.join(timestamp_dir, 'checkpoints')
             models_dir = os.path.join(timestamp_dir, 'models')
@@ -1391,9 +1543,33 @@ def handle_roboflow_api_management(url):
 def main():
     """Main function - Hierarchical Multi-Dataset Training Framework"""
     # Language selection at startup
-    select_language()
+    language_choice = select_language()
     
-    # --- Dil seçiminden hemen sonra: Drive timestamp oturumunu sabitle (global) ---
+    # --- Dil seçiminden hemen sonra: Global timestamp sabitleme sistemi ---
+    try:
+        # Get language choice for prompts
+        lang = 'tr' if get_text('language_choice', default='tr').startswith('tr') else 'en'
+        
+        # Ask user for timestamp choice and set global timestamp
+        global_timestamp = ask_user_for_timestamp_choice(lang)
+        
+        # Set environment variable for other processes
+        os.environ['SMARTFARM_GLOBAL_TIMESTAMP'] = global_timestamp
+        
+        if lang == 'tr':
+            print(f"🌐 Global timestamp oturumu: {global_timestamp}")
+            print(f"📁 Bu timestamp tüm işlemlerde (Google Drive, model indirme, eğitim) tutarlı kullanılacak")
+        else:
+            print(f"🌐 Global timestamp session: {global_timestamp}")
+            print(f"📁 This timestamp will be used consistently across all operations (Google Drive, model download, training)")
+            
+    except Exception as _ts_e:
+        if lang == 'tr':
+            print(f"⚠️ Global timestamp sabitleme atlandı: {_ts_e}")
+        else:
+            print(f"⚠️ Global timestamp setup skipped: {_ts_e}")
+    
+    # --- Eski Drive timestamp sistemi (uyumluluk için korundu) ---
     try:
         # Sadece Colab'de anlamlı; fakat kod güvenle çalışır
         from drive_manager import activate_drive_integration
@@ -1413,19 +1589,29 @@ def main():
             pass
         dm = activate_drive_integration(folder_path=drive_folder, project_name="yolo11_models")
         if dm and getattr(dm, 'project_folder', None):
-            # Kullanıcıya sor: mevcut timestamp kullanılsın mı?
-            try:
-                yn = (input(f"Mevcut Drive timestamp algılandı:\n  {dm.project_folder}\nKullanılsın mı? (e/h, varsayılan: e): ") or 'e').strip().lower()
-            except Exception:
-                yn = 'e'
-            if yn.startswith('e'):
-                # Env değişkenine yaz ki tüm süreçler aynı timestamp'i kullansın
-                os.environ['SMARTFARM_DRIVE_TS'] = dm.project_folder
-                print(f"🌐 Global Drive session: {dm.project_folder}")
+            # Global timestamp varsa onu kullan
+            if _GLOBAL_TIMESTAMP:
+                # DriveManager'ı global timestamp ile senkronize et
+                expected_path = os.path.join(os.path.dirname(dm.project_folder), _GLOBAL_TIMESTAMP)
+                if dm.project_folder != expected_path:
+                    try:
+                        # DriveManager'ın timestamp'ini güncelle
+                        dm.project_folder = expected_path
+                        os.environ['SMARTFARM_DRIVE_TS'] = expected_path
+                        if lang == 'tr':
+                            print(f"🔄 DriveManager global timestamp ile senkronize edildi: {_GLOBAL_TIMESTAMP}")
+                        else:
+                            print(f"🔄 DriveManager synchronized with global timestamp: {_GLOBAL_TIMESTAMP}")
+                    except Exception:
+                        pass
             else:
-                print("ℹ️ Global Drive session sabitleme atlandı (kullanıcı tercihi).")
+                # Fallback: eski sistem
+                os.environ['SMARTFARM_DRIVE_TS'] = dm.project_folder
     except Exception as _sess_e:
-        print(f"⚠️ Drive session sabitleme atlandı: {_sess_e}")
+        if lang == 'tr':
+            print(f"⚠️ Drive session sabitleme atlandı: {_sess_e}")
+        else:
+            print(f"⚠️ Drive session setup skipped: {_sess_e}")
     
     # Drive bağlantı kontrolü (dil seçiminden sonra)
     try:
