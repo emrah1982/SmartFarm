@@ -377,6 +377,20 @@ class YOLOAugmentationPipeline:
 
         print(f"\n✅ Batch augmentation tamamlandı!")
         print(f"Toplam {augmented_count} augmented sample oluşturuldu.")
+
+        # Post-process: verify totals in output labels directory
+        try:
+            out_labels_dir = os.path.join(output_dir, 'labels')
+            out_counts = self._summarize_output_distribution(out_labels_dir)
+            if out_counts:
+                print("\n📊 Çıkış sınıf dağılımı (id (name) -> toplam | hedef durum):")
+                for cid in sorted(out_counts.keys()):
+                    total = out_counts[cid]
+                    name = self._class_name(cid)
+                    status = "✅ hedefe ulaştı" if total >= target_count_per_class else f"❌ hedefe eksik: {target_count_per_class - total}"
+                    print(f"  • {cid} ({name}): {total} | {status}")
+        except Exception as _sum_err:
+            print(f"⚠️ Çıkış dağılımı özetlenemedi: {_sum_err}")
         
         return augmented_count
     
@@ -594,6 +608,32 @@ class YOLOAugmentationPipeline:
                         if fn.lower().endswith('.txt'):
                             src = os.path.join(root, fn)
                             shutil.copy2(src, os.path.join(lbl_out, os.path.basename(src)))
+
+    def _summarize_output_distribution(self, labels_dir: str) -> dict:
+        """Read YOLO label files in labels_dir and count instances per class id.
+        Returns a dict {class_id: count}.
+        """
+        counts = {}
+        if not os.path.isdir(labels_dir):
+            return counts
+        for root, _, files in os.walk(labels_dir):
+            for fn in files:
+                if not fn.lower().endswith('.txt'):
+                    continue
+                fpath = os.path.join(root, fn)
+                try:
+                    with open(fpath, 'r') as f:
+                        for line in f:
+                            parts = line.strip().split()
+                            if parts and len(parts) >= 5:
+                                try:
+                                    cid = int(float(parts[0]))
+                                except Exception:
+                                    continue
+                                counts[cid] = counts.get(cid, 0) + 1
+                except Exception:
+                    continue
+        return counts
 
 class SmartAugmentationRecommender:
     """Smart augmentation recommender based on dataset characteristics"""
