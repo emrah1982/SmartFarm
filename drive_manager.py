@@ -333,10 +333,18 @@ class _TeeStdout:
                 if not self.project_name:
                     self.project_name = "YOLO11"
             
-            # Session lock kontrolü - mevcut global timestamp varsa onu kullan
+            # Session tercihi: önce env var, sonra global cache, dosya kilidi ve config
             base_path = os.path.join(self.base_drive_path, folder_path)
             global _GLOBAL_SESSION_TS
-            
+
+            # 0) Ortam değişkeni (en güçlü belirleyici)
+            env_ts = os.environ.get('SMARTFARM_DRIVE_TS')
+            if env_ts and os.path.isdir(env_ts) and os.path.normpath(env_ts).startswith(os.path.normpath(base_path)):
+                self.project_folder = env_ts
+                _GLOBAL_SESSION_TS = env_ts
+                print(f"🌐 Ortam değişkeninden session kullanılıyor: {os.path.basename(env_ts)}")
+                return self._finalize_colab_setup(folder_path)
+
             # 1) Global session cache kontrolü
             if _GLOBAL_SESSION_TS and os.path.isdir(_GLOBAL_SESSION_TS):
                 if os.path.normpath(_GLOBAL_SESSION_TS).startswith(os.path.normpath(base_path)):
@@ -369,7 +377,7 @@ class _TeeStdout:
                         print(f"🗂️ Config'ten mevcut timestamp kullanılıyor: {os.path.basename(existing_ts)}")
                         return self._finalize_colab_setup(folder_path)
             
-            # 4) Mevcut timestamp adaylarını tara (en eski)
+            # 4) Mevcut timestamp adaylarını tara (en yeni tercih edilir)
             candidates = []
             if os.path.isdir(base_path):
                 candidates = [
@@ -378,11 +386,11 @@ class _TeeStdout:
                     if len(d) == 15 and '_' in d and d.replace('_', '').isdigit() and os.path.isdir(os.path.join(base_path, d))
                 ]
             if candidates:
-                candidates.sort(key=lambda p: os.path.getmtime(p))
-                oldest = candidates[0]
-                self.project_folder = oldest
-                _GLOBAL_SESSION_TS = oldest
-                print(f"🕒 En eski mevcut timestamp kullanılıyor: {os.path.basename(oldest)}")
+                candidates.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+                newest = candidates[0]
+                self.project_folder = newest
+                _GLOBAL_SESSION_TS = newest
+                print(f"🕒 En yeni mevcut timestamp kullanılıyor: {os.path.basename(newest)}")
                 return self._finalize_colab_setup(folder_path)
             
             # 5) Yeni timestamp oluştur (sadece hiçbiri yoksa)
@@ -392,21 +400,34 @@ class _TeeStdout:
             _GLOBAL_SESSION_TS = self.project_folder
             print(f"✅ Yeni timestamp oluşturuldu: {project_folder_name}")
             
-            # Session lock dosyasını yaz
+            # Session lock ve env var ayarla
             try:
-                os.makedirs(base_path, exist_ok=True)
-                with open(session_file, 'w', encoding='utf-8') as sf:
-                    json.dump({'ts_dir': self.project_folder, 'started_at': datetime.now().isoformat()}, sf, ensure_ascii=False, indent=2)
-                print(f"🔒 Session lock yazıldı: {session_file}")
+                self._announce_and_lock_session(base_path)
             except Exception:
                 pass
-            
+
             return self._finalize_colab_setup(folder_path)
             
         except Exception as e:
             print(f"❌ Klasör kurulumu hatası: {e}")
             return False
     
+    def _announce_and_lock_session(self, base_path: str) -> None:
+        """Announce chosen session and persist a session lock for reuse."""
+        try:
+            # Announce
+            print(f"✅ Drive session seçildi: {self.project_folder}")
+            # Persist env var for cross-process reuse within the same runtime
+            os.environ['SMARTFARM_DRIVE_TS'] = self.project_folder
+            # Write/refresh session lock file under base path
+            session_file = os.path.join(base_path, '.active_session.json')
+            os.makedirs(base_path, exist_ok=True)
+            with open(session_file, 'w', encoding='utf-8') as sf:
+                json.dump({'ts_dir': self.project_folder, 'updated_at': datetime.now().isoformat()}, sf, ensure_ascii=False, indent=2)
+            print(f"🔒 Session lock güncellendi: {session_file}")
+        except Exception:
+            pass
+
     def _finalize_colab_setup(self, folder_path: str) -> bool:
         """Colab kurulumunu tamamla - ortak son adımlar"""
         try:
@@ -427,10 +448,13 @@ class _TeeStdout:
             self.active_timestamp_dir = self.project_folder
             
             print(f"✅ Drive klasörü oluşturuldu: {self.project_folder}")
-            
+
             # Konfigürasyonu kaydet
             project_folder_name = os.path.basename(self.project_folder.rstrip('/'))
             self._save_drive_config(folder_path, project_folder_name)
+            # Duyur ve session kilidini yaz
+            base_path = os.path.join(self.base_drive_path, folder_path)
+            self._announce_and_lock_session(base_path)
             return True
             
         except Exception as e:
