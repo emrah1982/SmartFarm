@@ -838,6 +838,44 @@ def process_hierarchical_datasets(dataset_config):
                                 print(f"  • train: {yaml_payload['train']}")
                                 print(f"  • val:   {yaml_payload['val'] if yaml_payload['val'] else '—'}")
                                 print(f"  • test:  {yaml_payload['test'] if yaml_payload['test'] else '—'}")
+
+                                # Optional: Ask user to enable time-based Drive copy for training (default: disabled)
+                                try:
+                                    cfg_path = 'config_datasets.yaml'
+                                    def_minutes = 30
+                                    if os.path.exists(cfg_path):
+                                        with open(cfg_path, 'r', encoding='utf-8') as _cf:
+                                            _cfg = yaml.safe_load(_cf) or {}
+                                        gs = _cfg.get('global_settings', {}) if isinstance(_cfg, dict) else {}
+                                        def_minutes = int(gs.get('time_based_copy_interval_minutes', 30))
+                                    yn = (input("\nSüreye bağlı Drive kopyalama açılsın mı? (e/h, varsayılan: h): ") or 'h').strip().lower()
+                                    use_time_based = yn.startswith('e')
+                                    minutes = def_minutes
+                                    if use_time_based:
+                                        min_in = input(f"Kopyalama aralığı (dakika, varsayılan: {def_minutes}): ").strip()
+                                        minutes = int(min_in) if min_in else def_minutes
+                                    # Persist selection into config_datasets.yaml
+                                    try:
+                                        _cfg = {}
+                                        if os.path.exists(cfg_path):
+                                            with open(cfg_path, 'r', encoding='utf-8') as _cf:
+                                                _cfg = yaml.safe_load(_cf) or {}
+                                        if not isinstance(_cfg, dict):
+                                            _cfg = {}
+                                        _gs = _cfg.get('global_settings')
+                                        if not isinstance(_gs, dict):
+                                            _gs = {}
+                                        _gs['use_time_based_copy_default'] = bool(use_time_based)
+                                        _gs['time_based_copy_interval_minutes'] = int(minutes)
+                                        _cfg['global_settings'] = _gs
+                                        with open(cfg_path, 'w', encoding='utf-8') as _cf:
+                                            yaml.dump(_cfg, _cf, sort_keys=False, allow_unicode=True)
+                                        state_txt = 'AÇIK' if use_time_based else 'KAPALI'
+                                        print(f"✅ Süreye bağlı kopyalama ayarı güncellendi: {state_txt}, {minutes} dk")
+                                    except Exception as _werr:
+                                        print(f"⚠️ Süreye bağlı kopyalama ayarı kaydedilemedi: {_werr}")
+                                except Exception as _tbc_err:
+                                    print(f"⚠️ Süreye bağlı kopyalama ayarı sorulamadı: {_tbc_err}")
                             except Exception as _yaml_err:
                                 print(f"⚠️ augmented_train.yaml oluşturulamadı: {_yaml_err}")
                             print("✅ Hedefe-tamamlama augmentation tamamlandı.")

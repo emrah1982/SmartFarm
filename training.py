@@ -324,6 +324,35 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
             except Exception:
                 pass
 
+        # --- Süreye bağlı ek kopyalama ayarı (opsiyonel, 2. mekanizma) ---
+        use_time_based_copy = False
+        time_copy_minutes = 30
+        try:
+            cfg_path = os.path.join('config_datasets.yaml')
+            if os.path.exists(cfg_path):
+                with open(cfg_path, 'r', encoding='utf-8') as _cf:
+                    _cfg = yaml.safe_load(_cf) or {}
+                gs = _cfg.get('global_settings', {}) if isinstance(_cfg, dict) else {}
+                def_use = bool(gs.get('use_time_based_copy_default', False))
+                def_min = int(gs.get('time_based_copy_interval_minutes', 30))
+            else:
+                def_use = False
+                def_min = 30
+        except Exception:
+            def_use = False
+            def_min = 30
+        # Kullanıcı onayı (varsayılan config’ten)
+        try:
+            yn_default = 'e' if def_use else 'h'
+            resp = (input(f"Süreye bağlı ek kopyalama açılsın mı? (e/h, varsayılan: {yn_default}): ") or yn_default).strip().lower()
+            use_time_based_copy = resp.startswith('e')
+            # Aralığı dakika olarak sor (Enter ile config varsayılanı)
+            min_in = input(f"Kopyalama aralığı (dakika, varsayılan: {def_min}): ").strip()
+            time_copy_minutes = int(min_in) if min_in else int(def_min)
+        except Exception:
+            use_time_based_copy = def_use
+            time_copy_minutes = int(def_min)
+
     # --- Eğitim Modu Seçimi ---
     mode = input("\nEğitim modunu seçin:\n1. Yeni Eğitim Başlat\n2. Kaldığı Yerden Devam Et (Resume)\n3. Fine-tune (Önceki Ağırlıklarla Başla)\nSeçim (1/2/3): ").strip()
 
@@ -1167,10 +1196,14 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
             save_thread = threading.Thread(target=periodic_save_thread, daemon=True)
             save_thread.start()
             print("✅ Periyodik kaydetme thread'i başlatıldı (lazy Drive init)")
-            # Süreye bağlı kopyalama thread'i de başlat
-            time_thread = threading.Thread(target=time_based_copy_thread, kwargs={'interval_seconds': 60}, daemon=True)
-            time_thread.start()
-            print("✅ Süreye bağlı kopyalama thread'i başlatıldı (60s)")
+            # Süreye bağlı kopyalama thread'i kullanıcı isterse başlatılır
+            if 'use_time_based_copy' in locals() and use_time_based_copy:
+                interval_seconds = max(60, int(time_copy_minutes) * 60)
+                time_thread = threading.Thread(target=time_based_copy_thread, kwargs={'interval_seconds': interval_seconds}, daemon=True)
+                time_thread.start()
+                print(f"✅ Süreye bağlı kopyalama thread'i başlatıldı ({interval_seconds}s)")
+            else:
+                print("ℹ️ Süreye bağlı ek kopyalama devre dışı (yalnızca epoch aralığına göre kopyalanacak)")
         except Exception as e:
             # Beklenmedik bir hata olursa kullanıcıya bilgi ver ve eğitim devam etsin
             print(f"⚠️ Periyodik Drive kaydetme başlatılamadı: {e}")
