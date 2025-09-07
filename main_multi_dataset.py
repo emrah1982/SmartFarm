@@ -872,6 +872,23 @@ def process_hierarchical_datasets(dataset_config):
                                             yaml.dump(_cfg, _cf, sort_keys=False, allow_unicode=True)
                                         state_txt = 'AÇIK' if use_time_based else 'KAPALI'
                                         print(f"✅ Süreye bağlı kopyalama ayarı güncellendi: {state_txt}, {minutes} dk")
+                                        # Ayrıca kullanıcı seçimini configs/ klasörüne de kaydet
+                                        try:
+                                            os.makedirs('configs', exist_ok=True)
+                                            from datetime import datetime as _dt
+                                            ts = _dt.now().strftime('%Y%m%d_%H%M%S')
+                                            snapshot = {
+                                                'timestamp': ts,
+                                                'use_time_based_copy_default': bool(use_time_based),
+                                                'time_based_copy_interval_minutes': int(minutes),
+                                                'augmented_train_yaml': aug_yaml_path,
+                                            }
+                                            snap_path = os.path.join('configs', f'time_copy_selection_{ts}.yaml')
+                                            with open(snap_path, 'w', encoding='utf-8') as _sf:
+                                                yaml.dump(snapshot, _sf, sort_keys=False, allow_unicode=True)
+                                            print(f"📝 Seçim kopyası kaydedildi: {snap_path}")
+                                        except Exception as _snap_e:
+                                            print(f"⚠️ Seçim kopyası kaydedilemedi: {_snap_e}")
                                     except Exception as _werr:
                                         print(f"⚠️ Süreye bağlı kopyalama ayarı kaydedilemedi: {_werr}")
                                 except Exception as _tbc_err:
