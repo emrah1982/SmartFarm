@@ -13,6 +13,7 @@ import time
 from typing import List, Tuple, Optional
 import torchvision
 import threading
+from config_utils import get_default_batch_size, get_training_config_from_yaml
 
 from ultralytics import YOLO
 import albumentations as A
@@ -69,15 +70,6 @@ def process_bbox(bbox: List[float], image_size: Tuple[int, int]) -> List[float]:
 
     return [x1, y1, x2, y2]
 
-import os
-import sys
-import yaml
-import torch
-import shutil
-from pathlib import Path
-from ultralytics import YOLO
-
-from memory_utils import show_memory_usage, clean_memory
 from drive_manager import DriveManager, activate_drive_integration
 
 
@@ -102,25 +94,22 @@ def auto_profile_training(options: dict, speed_mode: bool) -> None:
         # Determine defaults
         default_batch = None
         default_imgsz = None
+        # Config dosyasından batch size oku
+        default_batch = get_default_batch_size()
+        
         if total_vram_gb is None:
             # CPU or unknown GPU: conservative defaults
-            default_batch = 8
             default_imgsz = 512
         else:
             if total_vram_gb >= 16:
-                default_batch = 32 if speed_mode else 24
                 default_imgsz = 1024 if speed_mode else 896
             elif total_vram_gb >= 12:
-                default_batch = 24 if speed_mode else 16
                 default_imgsz = 896 if speed_mode else 832
             elif total_vram_gb >= 8:
-                default_batch = 16 if speed_mode else 12
                 default_imgsz = 832 if speed_mode else 640
             elif total_vram_gb >= 6:
-                default_batch = 8 if speed_mode else 6
                 default_imgsz = 640 if speed_mode else 576
             else:
-                default_batch = 4
                 default_imgsz = 512
 
         # Apply only if user did not specify
@@ -594,7 +583,7 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
         'data': options['data'],
         'epochs': epochs if epochs is not None else options['epochs'],
         'imgsz': options.get('imgsz', 640),
-        'batch': options.get('batch', 16),
+        'batch': options.get('batch', get_default_batch_size()),
         'workers': workers_value,
         'cache': cache_mode,
         'device': options.get('device', '0' if torch.cuda.is_available() else 'cpu'),
@@ -1409,8 +1398,10 @@ def save_to_drive(options, results=None):
         print("Don't forget to save your model files manually!")
         return False
 
-def validate_model(model_path, data_yaml, batch_size=16, img_size=640):
+def validate_model(model_path, data_yaml, batch_size=None, img_size=640):
     """Validate a trained model on test/validation data"""
+    if batch_size is None:
+        batch_size = get_default_batch_size()
     try:
         print(f"\n===== Model Validation =====")
         print(f"Loading model: {model_path}")

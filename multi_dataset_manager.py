@@ -3,11 +3,11 @@
 
 import os
 import yaml
-import shutil
-from datetime import datetime
 import json
-import random
-import logging
+from pathlib import Path
+from typing import Dict, List, Any, Optional
+from datetime import datetime
+from config_utils import get_default_batch_size, get_dataset_group_batch_size
 from collections import defaultdict
 
 # Import helper modules
@@ -308,7 +308,7 @@ class YAMLBasedMultiDatasetManager:
             if group_info:
                 return {
                     'model': group_info.get('recommended_model', 'yolo11l.pt'),
-                    'batch_size': group_info.get('batch_size', 8),
+                    'batch_size': get_dataset_group_batch_size(group_name),
                     'image_size': group_info.get('image_size', 640),
                     'estimated_time': group_info.get('estimated_training_time', 'Unknown'),
                     'target_classes': group_info.get('target_classes', []),

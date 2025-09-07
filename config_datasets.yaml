@@ -597,7 +597,7 @@ dataset_groups:
     use_case: Research and experimental hierarchical model
     estimated_training_time: 6-12 hours
     recommended_model: yolo11x.pt
-    batch_size: 4
+    batch_size: 8
     image_size: 640
     target_classes:
     - healthy
@@ -620,7 +620,7 @@ dataset_groups:
     use_case: Fast validation of hierarchical detection system
     estimated_training_time: 1-3 hours
     recommended_model: yolo11m.pt
-    batch_size: 16
+    batch_size: 8
     image_size: 640
     target_classes:
     - healthy
@@ -677,6 +677,7 @@ global_settings:
   default_target_count_per_class: 2000
   default_output_dir: datasets/hierarchical_merged
   default_image_size: 640
+  default_batch_size: 8
   download_timeout: 300
   retry_attempts: 3
   parallel_downloads: false

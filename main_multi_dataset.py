@@ -1329,7 +1329,7 @@ def interactive_training_setup():
     if dataset_config['type'] == 'hierarchical_multi':
         recommendations = dataset_config['setup']['recommendations']
         recommended_model = recommendations.get('model', 'yolo11l.pt')
-        recommended_batch = recommendations.get('batch_size', 8)
+        recommended_batch = get_dataset_group_batch_size('hierarchical_multi')
         recommended_size = recommendations.get('image_size', 640)
         estimated_time = recommendations.get('estimated_time', 'Unknown')
         

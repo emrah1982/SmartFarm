@@ -22,11 +22,13 @@ Kullanım:
 """
 
 import os
-import sys
-import time
-import json
-import logging
+import psutil
+import torch
+import numpy as np
+from datetime import datetime
+import yaml
 from pathlib import Path
+from config_utils import get_default_batch_size, get_training_config_from_yaml
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timedelta
 import numpy as np
@@ -174,34 +176,37 @@ class SmartTrainingOptimizer:
             model_category = "medium"
         
         # Base konfigürasyon
+        # Config dosyasından batch size al
+        config_batch_size = get_default_batch_size()
+        
         base_configs = {
             "nano": {
                 "base_epochs": {"simple": 100, "medium": 200, "complex": 300},
-                "batch_size": {"colab": 16, "local": 32},
+                "batch_size": {"colab": config_batch_size, "local": config_batch_size},
                 "image_size": 640,
                 "patience": 30
             },
             "small": {
                 "base_epochs": {"simple": 150, "medium": 250, "complex": 400},
-                "batch_size": {"colab": 12, "local": 24},
+                "batch_size": {"colab": config_batch_size, "local": config_batch_size},
                 "image_size": 640,
                 "patience": 40
             },
             "medium": {
                 "base_epochs": {"simple": 200, "medium": 300, "complex": 500},
-                "batch_size": {"colab": 8, "local": 16},
+                "batch_size": {"colab": config_batch_size, "local": config_batch_size},
                 "image_size": 640,
                 "patience": 50
             },
             "large": {
                 "base_epochs": {"simple": 250, "medium": 400, "complex": 600},
-                "batch_size": {"colab": 4, "local": 8},
+                "batch_size": {"colab": config_batch_size, "local": config_batch_size},
                 "image_size": 640,
                 "patience": 60
             },
             "xlarge": {
                 "base_epochs": {"simple": 300, "medium": 500, "complex": 800},
-                "batch_size": {"colab": 2, "local": 4},
+                "batch_size": {"colab": config_batch_size, "local": config_batch_size},
                 "image_size": 640,
                 "patience": 70
             }
@@ -242,9 +247,8 @@ class SmartTrainingOptimizer:
             max_colab_epochs = 800  # Güvenli üst limit
             recommended_epochs = min(recommended_epochs, max_colab_epochs)
             
-            # GPU memory'ye göre batch size ayarla
-            if self.gpu_info['available'] and self.gpu_info['memory_gb'] < 8:
-                config["batch_size"][environment] = max(2, config["batch_size"][environment] // 2)
+            # Batch size config dosyasından okunuyor
+            config["batch_size"][environment] = get_default_batch_size()
         
         # Early stopping konfigürasyonu
         early_stopping_config = {
