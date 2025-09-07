@@ -1413,9 +1413,17 @@ def main():
             pass
         dm = activate_drive_integration(folder_path=drive_folder, project_name="yolo11_models")
         if dm and getattr(dm, 'project_folder', None):
-            # Env değişkenine yaz ki tüm süreçler aynı timestamp'i kullansın
-            os.environ['SMARTFARM_DRIVE_TS'] = dm.project_folder
-            print(f"🌐 Global Drive session: {dm.project_folder}")
+            # Kullanıcıya sor: mevcut timestamp kullanılsın mı?
+            try:
+                yn = (input(f"Mevcut Drive timestamp algılandı:\n  {dm.project_folder}\nKullanılsın mı? (e/h, varsayılan: e): ") or 'e').strip().lower()
+            except Exception:
+                yn = 'e'
+            if yn.startswith('e'):
+                # Env değişkenine yaz ki tüm süreçler aynı timestamp'i kullansın
+                os.environ['SMARTFARM_DRIVE_TS'] = dm.project_folder
+                print(f"🌐 Global Drive session: {dm.project_folder}")
+            else:
+                print("ℹ️ Global Drive session sabitleme atlandı (kullanıcı tercihi).")
     except Exception as _sess_e:
         print(f"⚠️ Drive session sabitleme atlandı: {_sess_e}")
     
