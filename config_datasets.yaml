@@ -691,6 +691,7 @@ global_settings:
   augmentation_split_ratio: 0.8
   auto_batch_size: true
   copy_val_test_default: true
+  drive_folder_path: SmartFarm/colab_learn/yolo11_models
 augmentation_profiles:
   disease_detection:
     severity: medium

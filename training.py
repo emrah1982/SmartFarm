@@ -227,7 +227,19 @@ def train_model(options, hyp=None, epochs=None, drive_save_interval=3):
         pass
     # Kullanıcıya daha şeffaf bilgi: hedef Drive kökü
     # Standartlaştırılmış base path. activate_drive_integration Colab ortamını otomatik algılar.
+    # Determine Drive base folder from config_datasets.yaml (global_settings.drive_folder_path)
     intended_drive_base = "SmartFarm/colab_learn/yolo11_models"
+    try:
+        cfg_path = os.path.join('config_datasets.yaml')
+        if os.path.exists(cfg_path):
+            with open(cfg_path, 'r', encoding='utf-8') as _cf:
+                _cfg = yaml.safe_load(_cf) or {}
+            gs = _cfg.get('global_settings', {}) if isinstance(_cfg, dict) else {}
+            conf_drive = gs.get('drive_folder_path')
+            if isinstance(conf_drive, str) and conf_drive.strip():
+                intended_drive_base = conf_drive.strip()
+    except Exception:
+        pass
     print(f"📍 Hedef Drive kökü: {intended_drive_base}")
     # Mümkünse son kullanılan timestamp'i bul ve tam otomatik kaydetme yolunu göster
     try:

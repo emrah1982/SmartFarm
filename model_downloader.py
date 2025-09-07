@@ -56,8 +56,22 @@ def _prepare_drive_timestamp_folder():
         return None, None, None
     try:
         from drive_manager import activate_drive_integration
+        # Drive kökünü config_datasets.yaml'dan oku (global_settings.drive_folder_path)
+        drive_folder = "SmartFarm/colab_learn/yolo11_models"
+        try:
+            import yaml as _yaml
+            _cfg_path = 'config_datasets.yaml'
+            if os.path.exists(_cfg_path):
+                with open(_cfg_path, 'r', encoding='utf-8') as _f:
+                    _cfg = _yaml.safe_load(_f) or {}
+                _gs = _cfg.get('global_settings', {}) if isinstance(_cfg, dict) else {}
+                _p = _gs.get('drive_folder_path')
+                if isinstance(_p, str) and _p.strip():
+                    drive_folder = _p.strip()
+        except Exception:
+            pass
         # Training.py ile aynı folder_path kullan - bu kritik!
-        dm = activate_drive_integration(folder_path="SmartFarm/colab_learn/yolo11_models", project_name="yolo11_models")
+        dm = activate_drive_integration(folder_path=drive_folder, project_name="yolo11_models")
         if not dm:
             return None, None, None
         
@@ -222,6 +236,9 @@ if __name__ == "__main__":
     if is_colab() and _DM_AVAILABLE:
         try:
             dm = DriveManager()
+            # Config'ten drive_folder_path oku ve _setup_colab_folder akışıyla aynı timestamp'i kullan
+            # Not: _setup_colab_folder içinde config okunmuyor; DriveManager.activate_* çağrıları daha sağlam.
+            # Burada authenticate + setup yeterli olur, çünkü session kilidi ve env değişkeni kullanılacak.
             if dm.authenticate() and dm._setup_colab_folder():
                 drive_project_folder = dm.project_folder  # .../SmartFarm/colab_learn/yolo11_models/<timestamp>
                 # Alt klasörleri oluştur
