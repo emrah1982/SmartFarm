@@ -14,7 +14,7 @@ from typing import List, Tuple, Optional
 import torchvision
 import threading
 from config_utils import get_default_batch_size, get_training_config_from_yaml
-from memory_utils import show_memory_usage
+from memory_utils import show_memory_usage, clean_memory
 
 from ultralytics import YOLO
 import albumentations as A
