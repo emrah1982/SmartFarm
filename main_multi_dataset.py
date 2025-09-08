@@ -33,6 +33,7 @@ except Exception:
     _DRIVE_AVAILABLE = False
 from model_downloader import download_yolo11_models, download_specific_model_type
 from language_manager import get_text, select_language
+from config_utils import get_dataset_group_batch_size
 
 # Import updated multi-dataset manager
 try:
